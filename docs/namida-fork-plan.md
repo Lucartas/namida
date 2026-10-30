@@ -1,18 +1,6 @@
 # Namida offline-player fork: preparation audit
 
-Audit snapshot: fork `main` at `2f0b5441134b4e3fb1daa14c056130d776fc3d58`,
-rebased for this audit on 2026-10-30. This includes the merged mise
-configuration; its upstream base is `dc2c96c598d1e9cd6616cf228c17011e23555d9a`.
-
-This is a planning and build-dependency audit only. No app implementation has
-been changed. Flutter starts outside the Codex sandbox, but the current
-dependency graph still points at upstream closed-source libraries this fork is
-meant to replace; no APK has been produced yet.
-
 ## Goal and boundaries
-
-The target is a source-only fork from which each user can build an Android app
-for personal use; no APK redistribution is planned.
 
 - **Milestone 1 — buildable mocks:** replace closed-source upstream package
   dependencies with small local mocks/adapters sufficient to compile, then
@@ -78,17 +66,7 @@ feature unless later included explicitly.
   secrets. Android Gradle configuration also overrides the default APK filename
   with `namida-v<version>[-<abi>].apk`, so verification should look in
   `build/app/outputs/flutter-apk/` rather than require `app-debug.apk`.
-- The Flutter crash inside this Codex sandbox is an environment restriction, not
-  a project error. Dart `3.13.7`'s macOS VM reads CPU details through `sysctl`;
-  the sandbox denies those queries, after which the VM aborts at
-  `runtime/vm/cpuinfo_macos.cc:42` (`unreachable code`). [The Dart VM
-  source](https://github.com/dart-lang/sdk/blob/main/runtime/vm/cpuinfo_macos.cc)
-  shows these `sysctlbyname` reads and the abort path. A standalone Dart probe
-  and `mise exec -- flutter --version` both succeed when run outside the sandbox
-  on this Intel Mac. Inside the sandbox, `flutter pub get` and `flutter build
-  apk --debug` abort before Pub or Gradle starts.
-- With Flutter running outside the sandbox, `flutter pub get` reaches dependency
-  resolution but stops when it tries to fetch
+- `flutter pub get` reaches dependency resolution but stops when it tries to fetch
   `namidaco/namico_subscription_manager`, one of the upstream packages slated
   for replacement/removal. This confirms the current manifest cannot build
   as-is; it does not indicate that the fork should obtain access to that source.
@@ -174,11 +152,3 @@ On an Android device or emulator, with networking disabled:
    remain part of the “basic player” definition.
 5. Confirm no YouTube account, membership, or party service is needed for these
    paths.
-
-## Source-hosting and license note
-
-GitHub reports `Lucartas/namida` as a **public** fork. The upstream `LICENSE`
-permits personal compilation/modification but also says not to redistribute the
-Software, modified or unmodified. A source-only public fork is a separate
-hosting/licensing question from distributing an APK; this audit does not resolve
-it. No changes from this branch have been pushed.
