@@ -1,0 +1,14 @@
+[settings]
+lockfile = true
+
+[tools."http:flutter"]
+version = "3.47.8"
+# Flutter bundles the matching Dart SDK, so both commands use the same toolchain.
+bin_path = "flutter/bin"
+checksum_expr = '"sha256:" + filter(fromJSON(body).releases, { #.channel == "stable" && #.version == version && "https://storage.googleapis.com/flutter_infra_release/releases/" + #.archive == url })[0].sha256'
+
+[tools."http:flutter".platforms]
+macos-x64 = { url = "https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_{{ version }}-stable.zip", checksum_url = "https://storage.googleapis.com/flutter_infra_release/releases/releases_macos.json", format = "zip" }
+macos-arm64 = { url = "https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_arm64_{{ version }}-stable.zip", checksum_url = "https://storage.googleapis.com/flutter_infra_release/releases/releases_macos.json", format = "zip" }
+linux-x64 = { url = "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_{{ version }}-stable.tar.xz", checksum_url = "https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json", format = "tar.xz" }
+windows-x64 = { url = "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_{{ version }}-stable.zip", checksum_url = "https://storage.googleapis.com/flutter_infra_release/releases/releases_windows.json", format = "zip" }
