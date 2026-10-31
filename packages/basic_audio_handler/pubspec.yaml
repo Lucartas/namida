@@ -1,0 +1,12 @@
+name: basic_audio_handler
+description: Compile-time offline adapter for the unavailable upstream audio handler.
+version: 0.0.1
+publish_to: none
+environment:
+  sdk: ">=3.13.7 <4.0.0"
+dependencies:
+  audio_service:
+    git:
+      url: https://github.com/MSOB7YY/audio_service
+      path: audio_service/
+      ref: minor

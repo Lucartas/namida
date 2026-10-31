@@ -379,7 +379,7 @@ class PlaylistController extends PlaylistManager<TrackWithDate, Track, SortEntry
   Set<String> getLinkedM3UPaths() => _m3uProperties.getSavedPaths();
 
   Future<void> prepareAllPlaylists() async {
-    await Future.wait([
+    await Future.wait<dynamic>(<Future<dynamic>>[
       super.prepareAllPlaylistsFile(),
       _m3uProperties.load(),
       _m3uHeadersBaselines.load(),

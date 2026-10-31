@@ -1,0 +1,6 @@
+name: youtipie
+description: Compile-time offline mock for the unavailable upstream YouTube client.
+version: 0.0.1
+publish_to: none
+environment:
+  sdk: ">=3.13.7 <4.0.0"

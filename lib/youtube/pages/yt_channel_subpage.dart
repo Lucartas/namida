@@ -88,7 +88,7 @@ class _YTChannelSubpageState extends State<YTChannelSubpage> with TickerProvider
         subscribed: false,
       );
 
-  final _channelInfoSubButton = Rxn<YoutiPieChannelPageResult>(); // rx is accessed only in subscribe button. keep using setState().
+  final _channelInfoSubButton = Rxn<YoutiPieChannelInfo>(); // rx is accessed only in subscribe button. keep using setState().
   YoutiPieChannelPageResult? _channelInfo; // bcz accessing [_channelInfoSubButton] doesnt update widget tree
   YoutiPieFetchAllRes? _currentFetchAllRes;
 

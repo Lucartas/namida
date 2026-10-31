@@ -1,0 +1,1 @@
+export 'package:namico_subscription_manager/namico_subscription_manager.dart';

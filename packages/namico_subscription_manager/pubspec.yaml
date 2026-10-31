@@ -1,0 +1,6 @@
+name: namico_subscription_manager
+description: Compile-time offline mock for the unavailable upstream package.
+version: 0.0.1
+publish_to: none
+environment:
+  sdk: ">=3.13.7 <4.0.0"

@@ -1,0 +1,1668 @@
+{
+  "@@locale": "bs",
+  "@acceptConnectionFromName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@addMoreFromToQueue": {
+    "placeholders": {
+      "media": {
+        "type": "String"
+      }
+    }
+  },
+  "@androidMixer": {
+    "description": "Android's own audio mixer, which mixes all apps and applies system volume and effects"
+  },
+  "@bitPerfect": {
+    "description": "Audio reaches the output device exactly as stored in the file, without any processing"
+  },
+  "@bitPerfectActiveOn": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      },
+      "format": {
+        "type": "String"
+      }
+    }
+  },
+  "@bitPerfectSubtitle": {
+    "description": "Subtitle of the bit-perfect option"
+  },
+  "@bitPerfectUpTo": {
+    "placeholders": {
+      "format": {
+        "type": "String"
+      }
+    }
+  },
+  "@clearTrackItemMultiple": {
+    "placeholders": {
+      "number": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countAlbumArtists": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countAlbums": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countArtists": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countComposers": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countDays": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countFiles": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countFolders": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countGenres": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countLanguages": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countMonths": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countMoods": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countPlaylists": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countStyles": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countSubscribers": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countSubscribersShort": {
+    "placeholders": {
+      "count": {
+        "format": "compact",
+        "type": "int"
+      }
+    }
+  },
+  "@countTags": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countTracks": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countVideos": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countViews": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@countViewsShort": {
+    "placeholders": {
+      "count": {
+        "format": "compact",
+        "type": "int"
+      }
+    }
+  },
+  "@crossfade": {
+    "description": "Short name of the crossfade effect between tracks"
+  },
+  "@crossfadeTriggerSeconds": {
+    "placeholders": {
+      "seconds": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@dataIsProvidedByName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@deleteFileCacheSubtitle": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      },
+      "totalSizeText": {
+        "type": "String"
+      }
+    }
+  },
+  "@deleteNTracksFromStorage": {
+    "placeholders": {
+      "numberText": {
+        "type": "String"
+      }
+    }
+  },
+  "@dimMiniplayerAfterSeconds": {
+    "placeholders": {
+      "seconds": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@enableM3uSyncNote2": {
+    "placeholders": {
+      "playlistsBackupPath": {
+        "type": "String"
+      }
+    }
+  },
+  "@extractAllColorPalettesSubtitle": {
+    "placeholders": {
+      "number": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@historyListensReplaceWarning": {
+    "placeholders": {
+      "listensCount": {
+        "format": "decimalPattern",
+        "type": "int"
+      },
+      "newTrackInfo": {
+        "type": "String"
+      },
+      "oldTrackInfo": {
+        "type": "String"
+      }
+    }
+  },
+  "@importLastFmHistoryGuide": {
+    "placeholders": {
+      "lastfmCsvLink": {
+        "type": "String"
+      }
+    }
+  },
+  "@importListenBrainzHistoryGuide": {
+    "placeholders": {
+      "link": {
+        "type": "String"
+      }
+    }
+  },
+  "@importSpotifyHistoryGuide": {
+    "placeholders": {
+      "link": {
+        "type": "String"
+      }
+    }
+  },
+  "@importYoutubeHistoryGuide": {
+    "placeholders": {
+      "takeoutLink": {
+        "type": "String"
+      }
+    }
+  },
+  "@importedNChannelsSuccessfully": {
+    "placeholders": {
+      "number": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@importedNPlaylistsSuccessfully": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      },
+      "numberText": {
+        "type": "String"
+      }
+    }
+  },
+  "@lostMemoriesSubtitle": {
+    "placeholders": {
+      "number": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@membershipYouNeedMembershipOfToAddMultipleAccounts": {
+    "placeholders": {
+      "name1": {
+        "type": "String"
+      },
+      "name2": {
+        "type": "String"
+      }
+    }
+  },
+  "@minimumOneItemSubtitle": {
+    "placeholders": {
+      "number": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@newTracksRecommendedSubtitle": {
+    "placeholders": {
+      "currentTrack": {
+        "type": "String"
+      }
+    }
+  },
+  "@newTracksSimilarrReleaseDateSubtitle": {
+    "placeholders": {
+      "currentTrack": {
+        "type": "String"
+      }
+    }
+  },
+  "@operationRequiresAccount": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@operationRequiresMembership": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "operation": {
+        "type": "String"
+      }
+    }
+  },
+  "@partyAddedBy": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@partyInviteTextListeningTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@partyMembershipRequired": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@partySavedToPlaylist": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@partyTransferHostConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@repeatForNTimes": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "@resumeIfWasPausedForLessThanNMin": {
+    "placeholders": {
+      "number": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@seeProjectCodeOnSite": {
+    "placeholders": {
+      "site": {
+        "type": "String"
+      }
+    }
+  },
+  "@signOutFromName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@similarDiscoverDateSubtitle": {
+    "placeholders": {
+      "currentTrack": {
+        "type": "String"
+      }
+    }
+  },
+  "@similarTimeRangeSubtitle": {
+    "placeholders": {
+      "currentTrack": {
+        "type": "String"
+      }
+    }
+  },
+  "@suggestionSubtitle": {
+    "placeholders": {
+      "site": {
+        "type": "String"
+      }
+    }
+  },
+  "@trackPathOldNew": {
+    "placeholders": {
+      "newName": {
+        "type": "String"
+      },
+      "oldName": {
+        "type": "String"
+      }
+    }
+  },
+  "@yearInSongs": {
+    "placeholders": {
+      "count": {
+        "format": "decimalPattern",
+        "type": "int"
+      }
+    }
+  },
+  "@yourCurrentMembershipIs": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@yourYear": {
+    "placeholders": {
+      "year": {
+        "type": "String"
+      }
+    }
+  },
+  "about": "O aplikaciji",
+  "accept": "Prihvati",
+  "acceptConnectionFromName": "Prihvati povezivanje od {name}?",
+  "active": "Aktivno",
+  "add": "Dodaj",
+  "addAccount": "Dodaj račun",
+  "addAll": "Dodaj sve",
+  "addAllAndRemoveOldOnes": "Dodaj sve i ukloni stare",
+  "addAsANewPlaylist": "Dodaj kao novi spisak pjesama",
+  "addAudioToLocalLibrary": "Spremi audiozapis u zbirku na uređaju",
+  "addBand": "Opseg eq-a",
+  "addBookmark": "Dodaj oznaku",
+  "addFolder": "Dodaj fasciklu",
+  "addGroup": "Dodaj grupu",
+  "addLanguage": "Dodaj jezik",
+  "addLanguageSubtitle": "Pomozite prevesti Namidu na sopstveni jezik",
+  "addLrcFile": "Dodaj LRC datoteku",
+  "addMoreFromThisAlbum": "Dodaj više iz ovog albuma u red čekanja",
+  "addMoreFromThisArtist": "Dodaj više od ovog izvođača u red čekanja",
+  "addMoreFromThisFolder": "Dodaj više stavki iz ove fascikle u red čekanja",
+  "addMoreFromToQueue": "Dodaj više iz {media} u red čekanja",
+  "addOnlyMissing": "Dodaj samo nedostajuće",
+  "addRule": "Dodaj pravilo",
+  "addToFavourites": "Dodaj u omiljene",
+  "addToPlaylist": "Dodaj na popis pjesama",
+  "addTracksAtTheBeginning": "Dodaj pjesme na sam početak",
+  "added": "dodano",
+  "address": "Adresa",
+  "advanced": "Napredno",
+  "advancedSettings": "Napredno",
+  "advancedSettingsSubtitle": "Napredne postavke, ne dirajte ako niste sigurni šta radite",
+  "alarm": "Alarm",
+  "album": "Album",
+  "albumArtist": "Izvođač albuma",
+  "albumArtists": "Izvođači albuma",
+  "albumIdentifiers": "Identifikatori albuma",
+  "albumThumbnailSizeInList": "Veličina sličice albuma",
+  "albumTileCustomization": "Prilagođavanje pločice albuma",
+  "albums": "Albumi",
+  "albumsCount": "Broj albuma",
+  "all": "Sve",
+  "allListens": "Sva preslušavanja",
+  "allTime": "Sveukupno vrijeme",
+  "alreadyExists": "Već postoji",
+  "always": "Uvijek",
+  "alwaysAsk": "Uvijek pitaj",
+  "alwaysDim": "Uvijek zatamni",
+  "alwaysExpandedSearchbar": "Uvijek proširi traku za pretraživanje",
+  "alwaysRestore": "Uvijek vrati na zadano",
+  "and": "i",
+  "androidMixer": "Androidov vlastiti audio mikser koji miksa sve aplikacije i primjenjuje jačinu zvuka i efekte sistema",
+  "animated": "Animirano",
+  "animatingThumbnailIntensity": "Intezitet animacije sličice",
+  "animatingThumbnailInversed": "Izvrni animacije",
+  "animatingThumbnailInversedSubtitle": "Visoki tonovi će smanjiti sličicu",
+  "anotherProcessIsRunning": "Drugi proces je već aktivan.",
+  "any": "bilo koji",
+  "anyListen": "Bilo koje preslušavanje",
+  "appIcon": "Sličica aplikacije",
+  "appVersion": "Izdanje aplikacije",
+  "appearsOn": "Pojavljuje se na",
+  "artist": "Izvođač",
+  "artists": "Izvođači",
+  "artistsMap": "Mapa izvođača",
+  "artwork": "Omot",
+  "artworkGestures": "Pokreti na omotu",
+  "artworks": "Omoti",
+  "audio": "Zvuk",
+  "audioCache": "Predmemorija zvuka",
+  "audioConfigs": "Zvučne postavke",
+  "audioOnly": "Samo zvuk",
+  "aurora": "Aurora",
+  "auto": "Automatski",
+  "autoBackupInterval": "Učestalost samostalne sigurnosne pohrane",
+  "autoColoring": "Automatsko bojenje",
+  "autoColoringSubtitle": "Samostalno oboji sučelje prema trenutnom omotu",
+  "autoExtractTagsFromFilename": "Samostalno izdvoji iz naziva datoteke",
+  "autoExtractTitleAndArtistFromVideoTitle": "Samostalno izdvoji naslov i izvođača iz naslova videa",
+  "autoGenerated": "Samostalno izrađeno",
+  "autoPan": "8D Zvuk",
+  "autoSkip": "Samostalno preskakanje",
+  "autoSkipOnce": "Samostalno preskoči jednom",
+  "autoStartRadio": "Samostalno pokreni radio",
+  "autoStartRadioSubtitle": "Samostalno dodaje mješavinu pjesama pri pokretanju jedne pjesme",
+  "autoSyncInterval": "Učestalost samousklađivanja",
+  "autoTrackNumbers": "Automatsko praćenje brojeva",
+  "autoTrackNumbersSubtitle": "Numerirajte zapise prema njihovom trenutnom redoslijedu, po disku",
+  "automaticBackup": "Samostalna sigurnosna kopija",
+  "automaticBackupSubtitle": "Samostalno primjenjuje najnoviju sigurnosnu kopiju iz fascikle za pohranu",
+  "availableDevices": "Dostupni uređaji",
+  "average": "Prosječno",
+  "backgroundEffect": "Pozadinski efekat",
+  "backupAndRestore": "Sigurnosna kopija i obnova",
+  "backupAndRestoreSubtitle": "Napravite rezervnu kopiju baze podataka i postavki",
+  "backupHistoryBeforeImporting": "Napravi sigurnosnu kopiju historije prije uvoza",
+  "balanced": "Uravnoteženo",
+  "bars": "Rime",
+  "bassEnhancer": "Pojačivač basa",
+  "beatMatching": "Podudaranje ritmova",
+  "beatRings": "Prsteni tonaliteta",
+  "beta": "Ispitno izdanje",
+  "betweenDates": "Između datuma",
+  "bitDepth": "Dubina bita",
+  "bitPerfect": "Bit-savršeno",
+  "bitPerfectActiveOn": "{format} na {device}",
+  "bitPerfectNoDevice": "Nije dostupno na ovom izlazu, pokušajte sa izravnim pristupom putem USB-a",
+  "bitPerfectSubtitle": "Pušta zvuk bez izmjena",
+  "bitPerfectUnsupportedFormat": "Ova pjesma se ne može puštati bez izmjena na ovom izlazu",
+  "bitPerfectUpTo": "Bez izmjena do {format}",
+  "bitrate": "Bitrate",
+  "bits": "Bitovi",
+  "blacklist": "Crna lista",
+  "block": "Blokiraj",
+  "blockedDevices": "Blokirani uređaji",
+  "blur": "Zamućenje",
+  "bookmarks": "Oznake",
+  "borderRadiusMultiplier": "Množitelj radijusa ivice",
+  "bugReport": "Izvještaj o greškama",
+  "busiestDay": "Najprometniji dan",
+  "cache": "Predmemorija",
+  "calculation": "Izračun",
+  "cancel": "Otkaži",
+  "canceled": "Otkazano",
+  "changed": "Promijenjeno",
+  "changelog": "Dnevnik promjena",
+  "changelogSubtitle": "Pogledajte šta je novo dodano/ispravljeno u Namidi",
+  "channel": "Kanal",
+  "channels": "Kanali",
+  "chapters": "Poglavlja",
+  "charts": "Grafikoni",
+  "check": "Provjeri",
+  "checkForMore": "Provjeri ima li noviteta",
+  "checkList": "Popis za provjeru",
+  "choose": "Odaberi",
+  "chooseWhatToClear": "Odaberi šta očistiti",
+  "chorus": "Refren",
+  "christmas": "Božić",
+  "claim": "Zahtjev",
+  "cleanup": "Čišćenje",
+  "clear": "Očisti",
+  "clearAudioCache": "Očisti predmemoriju zvuka",
+  "clearImageCache": "Očisti predmemoriju slika",
+  "clearImageCacheWarning": "Upozorenje: ovo će rezultirati bibliotekom bez slika. Koristite samo za ponovnu izgradnju predmemorije slika.",
+  "clearServerCache": "Obriši predmemoriju sa servera",
+  "clearTrackItem": "Očisti podatke pjesme",
+  "clearTrackItemMultiple": "{number, plural, one{Očisti pjesmu} other{Očisti {number} pjesama}}",
+  "clearVideoCache": "Očisti predmemoriju videa",
+  "clearVideoCacheNote": "Možete odabrati šta želite izbrisati.",
+  "client": "Klijent",
+  "clock": "Sat",
+  "clockOnly": "Samo prikaži sat",
+  "color": "Boja",
+  "colorPalette": "Paleta boja",
+  "colorPaletteNote1": "Dugo pritisnite boju da je uklonite",
+  "colorPaletteNote2": "Dodirnite miks da ga koristite kao zadanu boju",
+  "colorPalettes": "Palete boja",
+  "colorWhenExpanded": "Boja kada se proširi",
+  "comment": "Komentar",
+  "comments": "Komentari",
+  "completedAlbums": "Završeni albumi",
+  "composer": "Kompozitor",
+  "compress": "Kompresuj",
+  "compressImages": "Kompresuj slike",
+  "compressionPercentage": "Postotak kompresije",
+  "compressor": "Kompresor",
+  "condition": "Stanje",
+  "configure": "Konfiguriši",
+  "confirm": "Potvrdi",
+  "confirmRefresh": "Potvrdi osvježavanje?",
+  "connect": "Poveži",
+  "connectByIp": "Poveži se putem IP adrese",
+  "connectedDevices": "Povezani uređaji",
+  "connectionAccepted": "Povezivanje prihvaćeno",
+  "connectionBlocked": "Povezivanje blokirano",
+  "connectionRejected": "Povezivanje odbijeno",
+  "contains": "Sadrži",
+  "convertToM3UPlaylist": "Pretvori u M3U spisak",
+  "convertToNormalPlaylist": "Pretvori u uobičajeni spisak",
+  "copiedArtwork": "Kopiran omot",
+  "copiedToClipboard": "Kopirano u međuspremnik",
+  "copy": "Kopiraj",
+  "corruptedFile": "Nije moguće obraditi datoteku, možda je oštećena",
+  "couldntOpen": "Nije moguće otvoriti :(",
+  "couldntOpenYtLink": "Nema YouTube poveznice za ovu pjesmu",
+  "couldntPlayFile": "Nije moguće reproducirati datoteku",
+  "couldntRenamePlaylist": "Nije moguće preimenovati spisak pjesama",
+  "couldntSaveImage": "Nije moguće sačuvati sliku",
+  "countAlbumArtists": "{count, plural, one{{count} albumski izvođač} other{{count} albumskih izvođača}}",
+  "countAlbums": "{count, plural, one{{count} album} other{{count} albuma}}",
+  "countArtists": "{count, plural, one{{count} izvođač} other{{count} izvođača}}",
+  "countComposers": "{count, plural, one{{count} kompozitor} other{{count} kompozitora}}",
+  "countDays": "{count, plural, one{{count} dan} other{{count} dana}}",
+  "countFiles": "{count, plural, one{{count} datoteka} other{{count} datoteka}}",
+  "countFolders": "{count, plural, one{{count} fascikla} other{{count} fascikli}}",
+  "countGenres": "{count, plural, one{{count} žanr} other{{count} žanrova}}",
+  "countLanguages": "{count, plural, one{{count} jezik} few{{count} jezika} other{{count} jezika}}",
+  "countMonths": "{count, plural, one{{count} mjesec} other{{count} mjeseci}}",
+  "countMoods": "{count, plural, one{{count} raspoloženje} few{{count} raspoloženja} other{{count} raspoloženja}}",
+  "countPlaylists": "{count, plural, one{{count} spisak pjesama} other{{count} spiskova pjesama}}",
+  "countStyles": "{count, plural, one{{count} stil} other{{count} stilova}}",
+  "countSubscribers": "{count, plural, one{{count} pretplatnik} other{{count} pretplatnika}}",
+  "countSubscribersShort": "Za ovaj ključ, prijevod je isti: {count, plural, one{{count} pretplatnik} other{{count} pretplatnika}}",
+  "countTags": "{count, plural, one{{count} oznaka} few{{count} oznake} other{{count} oznaka}}",
+  "countTracks": "{count, plural, one{{count} pjesma} other{{count} pjesama}}",
+  "countVideos": "{count, plural, one{{count} videozapis} other{{count} videozapisa}}",
+  "countViews": "{count, plural, one{{count} pregled} other{{count} pregleda}}",
+  "countViewsShort": "{count, plural, one{{count} pregled} other{{count} pregleda}}",
+  "country": "Država",
+  "coupon": "Vaučer",
+  "create": "Stvori",
+  "createBackup": "Kreiraj rezervnu kopiju",
+  "createNewPlaylist": "Napravi novi spisak pjesama",
+  "createNewSmartPlaylist": "Napravi novi pametni spisak pjesama",
+  "createdBackupSuccessfully": "Rezervna kopija kreirana",
+  "createdBackupSuccessfullySub": "Datoteka rezervne kopije je uspješno kreirana",
+  "crossfade": "Pretapanje",
+  "crossfadeDuration": "Trajanje pretapanja",
+  "crossfadeTriggerSeconds": "{seconds, plural, one{Automatski pokreni pretapanje u posljednjoj {seconds} sekundi} other{Automatski pokreni pretapanje u posljednjih {seconds} sekundi}}",
+  "crossfadeTriggerSecondsDisabled": "Ne pokreći pretapanje automatski",
+  "custom": "Prilagođeno",
+  "customizations": "Prilagođavanja",
+  "customizationsSubtitle": "Prilagodite izgled plejera, učinite ga svojim",
+  "dataIsProvidedByName": "Podatke osigurava: {name}",
+  "dataSaver": "Ušteda podataka",
+  "dataSaverMode": "Režim uštede podataka",
+  "dataToSendAndReceive": "Podaci za slanje i primanje",
+  "database": "Baza podataka",
+  "date": "Datum",
+  "dateAdded": "Datum dodavanja",
+  "dateCreated": "Datum kreiranja",
+  "dateModified": "Datum izmjene",
+  "dateTimeFormat": "Format datuma i vremena",
+  "day": "Dan",
+  "days": "Dana",
+  "defaultBackupLocation": "Zadana lokacija rezervne kopije",
+  "defaultColor": "Zadana boja",
+  "defaultColorSubtitle": "Postavite boju koju će koristiti plejer",
+  "defaultDownloadLocation": "Zadana lokacija preuzimanja",
+  "defaultLabel": "Zadano",
+  "defaultLibraryTab": "Zadana kartica biblioteke",
+  "delete": "Izbriši",
+  "deleteFileCacheSubtitle": "{count, plural, other{Izbrisati {count} datoteku/a ukupne veličine {totalSizeText}?}}",
+  "deleteNTracksFromStorage": "Trajno izbrisati {numberText} iz pohrane",
+  "deletePlaylist": "Izbriši spisak pjesama",
+  "deleteTempFiles": "Izbriši privremene datoteke",
+  "deleted": "Obrisano",
+  "description": "Opis",
+  "developer": "Razvojni programer",
+  "development": "Razvoj",
+  "deviceName": "Naziv uređaja",
+  "dictionary": "Rječnik",
+  "didYouMean": "Jeste li mislili",
+  "dimIntensity": "Intenzitet zatamnjenja",
+  "dimMiniplayerAfterSeconds": "{seconds, plural, one{Zatamni mini-plejer nakon {seconds} sekunde neaktivnosti} other{Zatamni mini-plejer nakon {seconds} sekundi neaktivnosti}}",
+  "directoryDoesntExist": "Direktorij ne postoji",
+  "disable": "Onemogući",
+  "disableAll": "Onemogući sve",
+  "disableReordering": "Onemogući promjenu redoslijeda",
+  "disableSearchCleanup": "Onemogući čišćenje pretrage",
+  "discNumber": "Broj diska",
+  "discNumberTotal": "Ukupno diskova",
+  "disconnect": "Odspoji",
+  "discover": "Otkrij novitete",
+  "discoveries": "Otkrića",
+  "dislike": "Ne sviđa mi se",
+  "dismissibleMiniplayer": "Uklonjiv mini-plejer",
+  "displayActualPositionInsteadOfDifferenceWhileSeeking": "Prikaži stvarnu poziciju umjesto razlike tokom traženja",
+  "displayAlbumCardTopRightDate": "Datum u gornjem desnom uglu kartice albuma",
+  "displayAlbumCardTopRightDateSubtitle": "Prikaži datum albuma u gornjem desnom uglu",
+  "displayArtistBeforeTitle": "Prikaži izvođača prije naslova",
+  "displayArtworkOnLockscreen": "Prikaži omot na zaključanom ekranu",
+  "displayAudioInfoInMiniplayer": "Prikaži informacije o zvuku",
+  "displayFavButtonInNotificationSubtitle": "Sličica se može pomjeriti.",
+  "displayFavouriteIconInTrackTile": "Prikaži dugme za omiljene",
+  "displayRemainingDurationInsteadOfTotal": "Prikaži preostalo trajanje umjesto ukupnog",
+  "displayThirdItemInRowInTrackTile": "Prikaži treću stavku u svakom redu",
+  "displayThirdRowInTrackTile": "Prikaži treći red",
+  "displayTrackNumberInAlbumPage": "Prikaži broj pjesama na stranici albuma",
+  "displayTrackNumberInAlbumPageSubtitle": "Prikaži mali okvir s brojem pjesme na stranici albuma",
+  "doNothing": "Ne radi ništa",
+  "doesNotContain": "Ne sadrži",
+  "donate": "Podrži nas",
+  "donateSubtitle": "ako mislite da je zasluženo",
+  "done": "Gotovo",
+  "dontAskAgain": "Ne pitaj ponovo",
+  "dontDim": "Ne zatamnjuj",
+  "dontRestorePosition": "Ne vraćaj",
+  "dontResume": "Ne nastavljaj",
+  "doubleTapToToggleLyrics": "Dvaput dodirnite za prikaz teksta pjesme",
+  "download": "Preuzmi",
+  "downloadingWillBeSkipped": "Preuzimanje će biti preskočeno",
+  "downloadingWillOverrideIt": "Preuzimanje će ga zamijeniti",
+  "downloads": "Preuzimanja",
+  "downloadsMetadataTags": "Oznake metapodataka preuzimanja",
+  "downloadsMetadataTagsSubtitle": "Zadano izvlači izvođača, naslov i album iz informacija videa",
+  "dragToSeek": "Povuci za traženje",
+  "duckAudio": "Utišaj zvuk",
+  "duplicatedItemsAdding": "Pokušavate dodati stavke koje već postoje u ovom spisku",
+  "duplicatedTracks": "Duplicirane pjesme",
+  "duration": "Trajanje",
+  "edgeColorsSwitching": "Prebacivanje boja ivica",
+  "edit": "Uredi",
+  "editArtwork": "Uredi omot",
+  "editTags": "Uredi oznake",
+  "email": "E-pošta",
+  "emptyNonMeaningfulTagFields": "Imate polja s praznim/besmislenim vrijednostima, provjerite želite li ih zaista urediti",
+  "emptyValue": "Prazna vrijednost",
+  "enableArtworkCache": "Omogući keširanje omota",
+  "enableArtworkCacheSubtitle": "Brže učitavanje i poboljšana brzina, ali koristi više pohrane",
+  "enableBlurEffect": "Omogući efekt zamućenja",
+  "enableBottomNavBar": "Omogući donju navigacijsku traku",
+  "enableBottomNavBarSubtitle": "Stavke su unutar ladice u oba smjera",
+  "enableClipboardMonitoring": "Omogući praćenje međuspremnika",
+  "enableClipboardMonitoringSubtitle": "Omogućava lijepljenje poveznica i teksta unutar trake za pretraživanje u hodu",
+  "enableCrossfadeEffect": "Omogući efekt pretapanja",
+  "enableFadeEffectOnPlayPause": "Omogući efekt blijeđenja pri reprodukciji/zaustavljanju",
+  "enableFoldersHierarchy": "Omogući hijerarhiju direktorija",
+  "enableGlowEffect": "Omogući efekt sjaja",
+  "enableM3uSync": "Omogući M3U sinhronizaciju",
+  "enableM3uSyncNote1": "M3U usklađivanje omogućava spremanje promjena spiska pjesama u originalnu M3U datoteku",
+  "enableM3uSyncNote2": "Ako nešto pođe po zlu, rezervna kopija ovog spiska će se naći u {playlistsBackupPath}",
+  "enableM3uSyncSubtitle": "Ako bude odbijen, sve promjene u ovom spisku bit će izgubljene pri ponovnom pokretanju",
+  "enableMiniplayerParticles": "Omogući pokretne čestice",
+  "enableParallaxEffect": "Omogući paralaks efekt",
+  "enablePartyMode": "Omogući Party način",
+  "enablePartyModeSubtitle": "Primijeni fensi efekt disanja ivica",
+  "enablePictureInPicture": "Omogući slika-u-slici",
+  "enableReordering": "Omogući promjenu redoslijeda",
+  "enableReturnYoutubeDislike": "Omogući Return Youtube Dislike",
+  "enableSearchCleanup": "Omogući čišćenje pretrage",
+  "enableSearchCleanupSubtitle": "Svi simboli i razmaci će biti ignorisani",
+  "enableSponsorblock": "Omogući SponsorBlock",
+  "enableVideoPlayback": "Omogući video reprodukciju",
+  "endsWith": "Završava sa",
+  "enterSymbol": "Unesite simbol",
+  "equalizer": "Ekvilajzer",
+  "error": "Greška",
+  "errorFetchingVideoList": "Greška pri dohvatanju video liste",
+  "errorPlayingTrack": "Greška pri reprodukciji pjesme",
+  "excludedFodlers": "Isključeni direktoriji",
+  "exists": "Postoji",
+  "exit": "Izlaz",
+  "exitAppSubtitle": "Dodirnite ponovo za izlaz",
+  "expandedMiniplayer": "Prošireni mini-plejer",
+  "exportAsM3u": "Izvezi kao M3U",
+  "extension": "Ekstenzija",
+  "externalFiles": "Vanjske datoteke",
+  "extract": "Izdvoj",
+  "extractAllColorPalettes": "Izdvoj sve palete boja",
+  "extractAllColorPalettesSubtitle": "{number, plural, other{Izdvojiti preostale {number}?}}",
+  "extractFeatArtist": "Izdvoj gostujuće umjetnike iz naslova",
+  "extractFeatArtistSubtitle": "Izvlači (feat. X) i (ft. X) umjetnike kao novi unos izvođača.",
+  "extractingInfo": "Izvlačenje informacija",
+  "extras": "Dodaci",
+  "extrasSubtitle": "Dodatne postavke za poboljšanje vašeg iskustva",
+  "extreme": "Ekstremno",
+  "failed": "Neuspjelo",
+  "failedEdits": "Neuspjele izmjene",
+  "favourite": "Omiljeno",
+  "favouritedDate": "Datum dodavanja u omiljene",
+  "favourites": "Omiljeni",
+  "features": "Mogućnosti",
+  "fetching": "Dohvatanje",
+  "fetchingOfAllVideos": "Dohvatanje svih videa",
+  "file": "Datoteka",
+  "fileAlreadyExists": "Datoteka već postoji",
+  "fileBasedServerWarning": "Datoteke će biti privremeno preuzete radi indeksiranja. Provjerite da li je vaša veza stabilna. \nPreporučuje se Wi-Fi kako bi se izbjegla velika potrošnja podataka.",
+  "fileName": "Naziv datoteke",
+  "fileNameWoExt": "Naziv datoteke bez ekstenzije",
+  "filenameShouldntStartWith": "Naziv datoteke ne bi trebao počinjati sa",
+  "files": "Datoteke",
+  "filler": "Popuna",
+  "filterAlbums": "Filtriraj albume",
+  "filterArtists": "Filtriraj izvođače",
+  "filterGenres": "Filtriraj žanrove",
+  "filterPlaylists": "Filtriraj spisak pjesama",
+  "filterTracks": "Filtriraj pjesme",
+  "filterTracksBy": "Filtriraj pjesme u zapisima pretrage po",
+  "filterType": "Vrsta filtera",
+  "filtered": "Filtrirano",
+  "filteredBySizeAndDuration": "Pjesma filtrirane po veličini i trajanju",
+  "finished": "Završeno",
+  "finishedUpdatingLibrary": "Završeno ažuriranje biblioteke",
+  "firstListen": "Prvo slušanje",
+  "fixYtdlpBigThumbnailSize": "Popravi preveliku veličinu sličice za yt-dlp",
+  "floatingActionButton": "Plutajuće akcijsko dugme",
+  "focus": "Fokus",
+  "folder": "Direktorij",
+  "folderName": "Naziv direktorija",
+  "folderPath": "Putanja fascikle",
+  "folders": "Direktoriji",
+  "fontScale": "Veličina fonta",
+  "forceMiniplayerFollowTrackColors": "Prisili mini-plejer da prati boje pjesme",
+  "forceSquaredAlbumThumbnail": "Prisili kvadratnu sličicu albuma",
+  "forceSquaredThumbnailNote": "Veličina sličice i visina pločice NISU jednake, kvadratni izgled neće biti očekivan. Želite li ih izjednačiti?",
+  "forceSquaredTrackThumbnail": "Forsiraj kvadratnu sličicu za pjesmu",
+  "forceStopColorPaletteGeneration": "Prisilno zaustaviti izvlačenje paleta boja? Možete nastaviti kasnije",
+  "forceUseGlobalConfig": "Prisili korištenje opće postavke",
+  "format": "Format",
+  "fullscreen": "Cijeli ekran",
+  "gaplessPlayback": "Reprodukcija bez pauze",
+  "generate": "Generiši",
+  "generateFromDates": "Vremenski raspon",
+  "generateFromDatesSubtitle": "Generiši pjesme koje ste slušali u vremenskom rasponu",
+  "generateRandomPlaylist": "Generiši nasumičan spisak pjesama",
+  "genre": "Žanr",
+  "genres": "Žanrovi",
+  "global": "Opće",
+  "goToAlbum": "Idi na album",
+  "goToArtist": "Idi na izvođača",
+  "goToChannel": "Idi na kanal",
+  "goToFolder": "Idi na direktorij",
+  "goToTrack": "Idi na pjesmu",
+  "goodLooking": "Izgleda dobro",
+  "grantStoragePermission": "Odobri pristup pohrani",
+  "group": "Grupa",
+  "groupArtworksByAlbum": "Grupiši omote po albumu",
+  "guide": "Vodič",
+  "habits": "Navike",
+  "hapticFeedback": "Haptička povratna informacija",
+  "hashtag": "Oznaka",
+  "heightOfAlbumTile": "Visina pločice albuma",
+  "heightOfTrackTile": "Visina pločice pjesme",
+  "hideSkipButtonAfter": "Sakrij dugme za preskakanje nakon",
+  "highMatches": "Visoka podudaranja",
+  "highPerformance": "Visoke performanse",
+  "highlight": "Istaknuto",
+  "history": "Historija",
+  "historyImportMissingEntriesNote": "Ovi unosi nisu pronađeni u biblioteci. Ako vjerujete da postoje, razmislite o ručnom dodavanju",
+  "historyListensReplaceWarning": "{listensCount, plural, one{{listensCount} slušanje za {oldTrackInfo} bit će zamijenjeno sa {newTrackInfo}, potvrdi?} other{{listensCount} slušanja za {oldTrackInfo} bit će zamijenjeno sa {newTrackInfo}, potvrdi?}}",
+  "home": "Početna",
+  "homeScreenWidget": "Widget na početnom ekranu",
+  "hook": "Refren",
+  "host": "Domaćin",
+  "hourFormat12": "12-satni format",
+  "hours": "Sati",
+  "iReadAndAgree": "Pročitao sam i slažem se",
+  "ifNotPlaying": "Ako ne svira",
+  "ignoreBatteryOptimizationsSubtitle": "Preuzimanja mogu biti usporena kada je aplikacija ograničena baterijom",
+  "ignoreCommonPrefixesWhileSorting": "Ignoriši uobičajene prefikse pri sortiranju",
+  "ignores": "Ignoriše",
+  "imageSource": "Izvor slike",
+  "immersiveMode": "Impresivni režim",
+  "immersiveModeSubtitle": "Sakrij statusnu i navigacijsku traku dok je mini-plejer proširen",
+  "import": "Uvezi",
+  "importAll": "Uvezi sve",
+  "importLastFmHistoryGuide": "1. Idite na {lastfmCsvLink} \n\n2. Unesite svoje korisničko ime, preuzmite i spasite csv datoteku. \n\n3. Izaberite datoteku na sljedećem ekranu.",
+  "importListenBrainzHistoryGuide": "1.Idi na {link}.\n\n2. Zatraži podatke i preuzmi.\n\n3. Odaberi zip ili json datoteke sa sljedećeg ekrana.",
+  "importPlaylist": "Uvezi spisak za reprodukciju",
+  "importSpotifyHistoryGuide": "1. Idi na {link}. \n\n2. Označi \"Extended streaming history\". \n\n3. Zatraži podatke i preuzmi. \n\n4. Odaberi zip ili json datoteke sa sljedećeg ekrana.",
+  "importTimeRange": "Uvezi vremenski raspon",
+  "importYoutubeHistoryGuide": "1. Idite na {takeoutLink}\n\n2. Pritisnite \"Multiple Formats\" i pored \"History\" odaberite \"JSON\".\n\n3. Pritisnite \"All Youtube data included\", poništite sve i odaberite samo historiju.\n\n4. Kreirajte izvoz, preuzmite i raspakujte.\n\n5. Odaberite \"watch-history.json\" na sljedećem ekranu.",
+  "importedNChannelsSuccessfully": "{number, plural, one{Uspješno uvezen/o {number} kanal/a} other{Uspješno uvezeno {number} kanala}}",
+  "importedNPlaylistsSuccessfully": "{number, plural, one{Uspješno uvezen {numberText} spisak pjesama} other{Uspješno uvezeno {numberText} spiskova pjesama}}",
+  "includeVideos": "Uključi videe",
+  "indexRefreshRequired": "Osvježite nakon promjene ovoga",
+  "indexer": "Indekser",
+  "indexerNote": "Napomena: Nepotpuni broj omota odnosi se na duplicirane i nepronađene omote",
+  "indexerSubtitle": "Upravljajte svojom muzičkom bibliotekom",
+  "infinityQueueOnNextPrev": "Beskonačni red čekanja na Sljedeće/Prethodno",
+  "infinityQueueOnNextPrevSubtitle": "Pritiskom na sljedeće dok svira zadnja stavka skočit će na prvu, i obrnuto",
+  "info": "Info",
+  "inserted": "umetnuto",
+  "instantlyApplies": "Trenutno se primjenjuje",
+  "interactionReminder": "Podsjetnik za radnju",
+  "intro": "Uvod",
+  "invertSelection": "Obrni odabir",
+  "isAfter": "je poslije",
+  "isBefore": "je prije",
+  "isFalse": "je netačno",
+  "isGreaterThan": "je veće od",
+  "isInBetween": "je u sredini",
+  "isNotSame": "nije isto",
+  "isNotWithinLast": "nije u zadnjih",
+  "isOutside": "je van",
+  "isSame": "je isto",
+  "isSmallerThan": "je manje od",
+  "isTrue": "je istinito",
+  "isUnknown": "je nepoznato",
+  "isWithinLast": "je među posljednjim",
+  "issues": "Problemi",
+  "item": "Stavka",
+  "jump": "Skoči",
+  "jumpToDay": "Skoči na dan",
+  "jumpToFirstTrackAfterQueueFinish": "Skoči na prvu pjesmu nakon završetka reda",
+  "keepCachedVersions": "Zadrži keširane verzije",
+  "keepFileDates": "Zadrži datume datoteka",
+  "keepScreenAwakeMiniplayerExpanded": "Mini-plejer je proširen",
+  "keepScreenAwakeMiniplayerExpandedAndVideo": "Mini-plejer je proširen i video se reproducira",
+  "keepScreenAwakeNone": "Ne drži ekran budnim",
+  "keepScreenAwakeWhen": "Drži ekran budnim kada",
+  "killPlayerAfterDismissingApp": "Ugasi plejer nakon zatvaranja aplikacije",
+  "language": "Jezik",
+  "lastHour": "Posljednji sat",
+  "lastListen": "Posljednje slušano",
+  "lastPlayed": "Posljednje pušteno",
+  "lastPlayedPosition": "Pozicija posljednje reprodukcije",
+  "latestQueue": "Najnoviji red čekanja",
+  "learnMore": "Saznaj više",
+  "leftAction": "Lijeva radnja",
+  "legacyAuthentication": "Zastarjela provjera identiteta",
+  "libraryReach": "Domet biblioteke",
+  "libraryTabs": "Kartice biblioteke",
+  "libraryTabsReorder": "Možete promijeniti redoslijed aktiviranih kartica.",
+  "license": "Licenca",
+  "licenseSubtitle": "Licence i ugovori koje koristi Namida",
+  "like": "Volim",
+  "liked": "Omiljene",
+  "link": "Poveznica",
+  "listOfFolders": "Lista direktorija",
+  "listeningClock": "Sat slušanja",
+  "loadAll": "Učitaj sve",
+  "loadingFile": "Učitavanje datoteke",
+  "local": "Lokalno",
+  "localVideoMatching": "Lokalno podudaranje videa",
+  "login": "Prijava",
+  "longPressAction": "Radnja dugog pritiska",
+  "longPressTheLyricsToEnterFullscreen": "Dugo pritisnite tekst pjesme za cijeli ekran",
+  "longestSession": "Najduža sesija",
+  "longestStreak": "Najduži niz",
+  "lossless": "Bezgubitna kakvoća",
+  "lostMemories": "Izgubljena sjećanja",
+  "lostMemoriesSubtitle": "{number, plural, one{nekad u ovo vrijeme, prije {number} godina/e} other{prije {number} godine/a}}",
+  "lostPartners": "Izgubljene veze",
+  "loudnessEnhancer": "Pojačivač glasnoće",
+  "lyricist": "Tekstopisac",
+  "lyrics": "Tekst pjesme",
+  "lyricsSource": "Izvor teksta",
+  "m3uPlaylist": "M3U spisak pjesama",
+  "makeYourFirstListen": "Napravite svoje prvo slušanje!",
+  "manage": "Upravljaj",
+  "manageYourAccounts": "Upravljajte svojim računima",
+  "manualBackup": "Ručno",
+  "manualBackupSubtitle": "odaberite specifičnu datoteku",
+  "markAsRead": "Označi kao pročitano",
+  "matchAllTracks": "Podudari sve pjesme",
+  "matchAllTracksNote": "Ovo može utjecati na brzinu podudaranja jer će provjeriti sve pjesme u vašoj biblioteci",
+  "matchingType": "Tip podudaranja",
+  "maxAudioCacheSize": "Maksimalna veličina predmemorije zvuka",
+  "maxImageCacheSize": "Maksimalna veličina predmemorije slika",
+  "maxServerCacheSize": "Maksimalna veličina predmemorije servera",
+  "maxVideoCacheSize": "Maksimalna veličina predmemorije videa",
+  "maximum": "Maksimalno",
+  "mediaStoreIsEnabledThisWillHaveNoEffect": "Media Store je omogućen, ovo neće imati efekta",
+  "medium": "Srednje",
+  "membershipCode": "Kod",
+  "membershipCodeSentToEmail": "Kôd poslan na vašu e-poštu",
+  "membershipDidntChange": "Članstvo se nije promijenilo",
+  "membershipEnjoyNew": "Uživajte u novom članstvu",
+  "membershipFreeCoupon": "Besplatan kupon",
+  "membershipManage": "Upravljajte svojim članstvom",
+  "membershipNoSubscriptionsFoundForUser": "Nisu pronađene pretplate za ovog korisnika",
+  "membershipSignInToPatreonAccount": "Prijavite se na svoj Patreon račun",
+  "membershipUnknown": "Nepoznato članstvo",
+  "membershipYouNeedMembershipOfToAddMultipleAccounts": "Trebate članstvo {name1} ili {name2} za dodavanje više računa",
+  "merge": "Spoji",
+  "metadataCache": "Predmemorija metapodataka",
+  "metadataEditFailed": "Uređivanje metapodataka nije uspjelo",
+  "metadataReadFailed": "Čitanje metapodataka nije uspjeslo",
+  "minFileDuration": "Minimalno trajanje pjesme",
+  "minFileSize": "Minimalna veličina datoteke",
+  "minTrackDurationToRestoreLastPosition": "Minimalno trajanje pjesme za vraćanje zadnje pozicije",
+  "minValueCantBeMoreThanMax": "Minimalna vrijednost ne može biti veća od maksimalne",
+  "minValueToCountTrackListen": "Broji slušanje nakon: ",
+  "miniLyricsWindow": "Prozorčić za tekst",
+  "minimizedMiniplayer": "Minimiziran mini-plejer",
+  "minimum": "Minimalno",
+  "minimumOneFolderSubtitle": "Trebao bi postojati barem 1 direktorij, dodajte više direktorija ako želite ukloniti ovaj",
+  "minimumOneItem": "Nije moguće ukloniti stavku",
+  "minimumOneItemSubtitle": "{number, plural, one{Mora ostati barem {number} stavka} few{Moraju ostati barem {number} stavke} other{Mora ostati barem {number} stavki}}",
+  "minimumSegmentDuration": "Minimalno trajanje segmenta",
+  "miniplayerCustomization": "Prilagođavanje mini-plejera",
+  "minutes": "Minute",
+  "missing": "Nedostaje",
+  "missingEntries": "Nedostajući unosi",
+  "missingTracks": "Nedostajuće pjesme",
+  "mix": "Miks",
+  "mixPlaylistGeneratedByYoutube": "Mješavina spiska pjesama generisana od strane YouTube-a",
+  "mixes": "Miksevi",
+  "mobile": "Mobilni",
+  "month": "Mjesec",
+  "months": "Mjeseci",
+  "mood": "Raspoloženje",
+  "moods": "Raspoloženja",
+  "more": "Više",
+  "mostPlayed": "Najslušanije",
+  "move": "Premjesti",
+  "movies": "Filmovi",
+  "multipleTracksTagsEditNote": "Upravo ćete urediti ove pjesme,\nNepromijenjena polja ostaju netaknuta.",
+  "musicOfftopic": "Muzika van teme",
+  "name": "Ime",
+  "nameContainsBadCharacter": "Ime sadrži loš karakter",
+  "never": "Nikad",
+  "newDirectory": "Novi direktorij",
+  "newLabel": "Novo",
+  "newTracksAdd": "Dodaj pjesme",
+  "newTracksMoods": "Raspoloženje",
+  "newTracksMoodsSubtitle": "Generiši pjesme na osnovu dostupnih raspoloženja",
+  "newTracksRandom": "Nasumično",
+  "newTracksRandomSubtitle": "Odaberi nasumične pjesme iz biblioteke",
+  "newTracksRatings": "Ocjene",
+  "newTracksRatingsSubtitle": "Generiši pjesme koje imaju specifičnu ocjenu",
+  "newTracksRecommended": "Preporučeno",
+  "newTracksRecommendedSubtitle": "Generiši pjesme koje obično slušate uz {currentTrack}",
+  "newTracksSimilarrReleaseDate": "Sličan datum izdanja",
+  "newTracksSimilarrReleaseDateSubtitle": "Generiši pjesme koje su objavljene otprilike u isto vrijeme kao {currentTrack}",
+  "newTracksUnknownYear": "Pjesma ima nepoznatu godinu",
+  "newVideosAtTop": "Dodaj nove video zapise na vrh",
+  "newest": "Najnovije",
+  "next": "Sljedeće",
+  "no": "ne",
+  "noChangesFound": "Nisu pronađene promjene.",
+  "noEnoughTracks": "Nemate dovoljno pjesama...",
+  "noExcludedFolders": "Nemate isključenih direktorija",
+  "noFolderChosen": "Niste odabrali nijedan direktorij",
+  "noMoodsAvailable": "Nema dostupnih raspoloženja",
+  "noNetworkAvailableToFetchData": "Nema dostupne mreže za dohvatanje podataka",
+  "noResults": "Nema rezultata",
+  "noTracksFound": "Pjesme nisu pronađene",
+  "noTracksFoundBetweenDates": "U ovom vremenskom rasponu nema pjesama.",
+  "noTracksFoundInDirectory": "Nisu pronađene pjesme u ovoj fascikli",
+  "noTracksInHistory": "Nemate dovoljno pjesama u historiji",
+  "nonActive": "Neaktivno",
+  "nonFavourites": "Nisu omiljeni",
+  "none": "Nijedno",
+  "normalizeAudio": "Normalizuj zvuk",
+  "normalizeAudioSubtitle": "Normalizuje glasnoću čitanjem oznake replay gain ili informacija s YouTube-a",
+  "notAvailableForYourDevice": "Nije dostupno za vaš uređaj",
+  "notSupportedForNetworkFiles": "Nije podržano za mrežne datoteke",
+  "notSupportedForVideoFiles": "Nije podržano za video datoteke",
+  "note": "Napomena",
+  "notification": "Obavijest",
+  "notifications": "Obavijesti",
+  "number": "Broj",
+  "numberOfTracks": "Broj pjesama",
+  "obsession": "Opsesija",
+  "ofLabel": "od",
+  "offlineSearch": "Pretraga van mreže",
+  "offset": "Pomak",
+  "oldDirectory": "Stari direktorij",
+  "oldDirectoryStillHasTracks": "Stara fascikla još uvijek ima neke pjesme, potvrdi?",
+  "oldestFavorite": "Prva najdraža",
+  "oldestWatch": "Najstarije gledano",
+  "onDeviceConnect": "Pri spajanju uređaja",
+  "onInterruption": "Pri prekidu",
+  "onNotificationTap": "Pri dodiru obavijesti",
+  "onOpeningYoutubeLink": "Pri otvaranju YouTube poveznice",
+  "onSwiping": "Pri prevlačenju",
+  "onVolumeZero": "Kada je zvuk na nuli",
+  "ongoing": "U toku",
+  "open": "Otvori",
+  "openApp": "Otvori aplikaciju",
+  "openInFileExplorer": "Otvori u File Exploreru",
+  "openInYoutubeView": "Otvori u YouTube prikazu",
+  "openMiniplayer": "Otvori mini-plejer",
+  "openQueue": "Otvori red čekanja",
+  "openYoutubeLink": "Otvori YouTube poveznicu",
+  "operationRequiresAccount": "Operacija {name} zahtijeva račun, prijavite se za nastavak",
+  "operationRequiresMembership": "Operacija {operation} zahtijeva najmanje članstvo {name}",
+  "or": "ili",
+  "others": "Ostali",
+  "output": "Izlaz",
+  "outro": "Odjava",
+  "overrideOldFilesInTheSameFolder": "Zamijeni stare datoteke u istom direktoriju",
+  "palette": "Paleta",
+  "paletteMix": "Miks",
+  "paletteNewMix": "Novi miks",
+  "paletteSelectedMix": "Odabrani miks",
+  "parallelDownloads": "Paralelna preuzimanja",
+  "parsed": "parsirano",
+  "partyAddedBy": "Dodao/la {name}",
+  "partyApproximateMatch": "Upareno sa YouTube videom, možda nije pravi",
+  "partyBan": "Zabrana",
+  "partyBanned": "Izbačeni ste iz grupe",
+  "partyBannedMembers": "Izbačeni članovi",
+  "partyBrowse": "Javne sobe",
+  "partyBrowseSubtitle": "Sobe kojima se bilo ko može odmah pridružiti",
+  "partyBrowseUnsupported": "Ovaj pružatelj usluga ne prikazuje javne sobe",
+  "partyChat": "Razgovor",
+  "partyChatDisabled": "Razgovor je onemogućen za posjetitelje",
+  "partyChatHint": "Poruka",
+  "partyCloseForEveryone": "Zatvori sobu za sve",
+  "partyCloseRoom": "Zatvori",
+  "partyCloseRoomFailed": "Nije moguće zatvoriti sobu",
+  "partyClosed": "Soba je zatvorena",
+  "partyCode": "Ključ za sobu",
+  "partyCreate": "Stvori sobu",
+  "partyCreateSubtitle": "Budi domaćin sobe kojoj se drugi mogu pridružiti i slušati zajedno s tobom",
+  "partyCustomServer": "Prilagođeni server",
+  "partyDisplayName": "Tvoje ime",
+  "partyDisplayNameSubtitle": "Kako te drugi vide u sobi",
+  "partyFull": "Soba je puna",
+  "partyGuestPermissions": "Dozvole za goste",
+  "partyHideOwner": "Sakrij sobe od ovog domaćina",
+  "partyHistory": "Slušano u ovoj sobi",
+  "partyHostOffline": "Domaćin sobe je van mreže",
+  "partyHostOnThisDevice": "Domaćin na ovom uređaju",
+  "partyHostOnThisDeviceSubtitle": "Server nije potreban, samo za osobe na istoj mreži",
+  "partyHostSettings": "Postavke za domaćina",
+  "partyInvalidAction": "Ova radnja se nije mogla primijeniti na sobu",
+  "partyInvalidInvite": "Nevažeća poveznica ili kôd za poziv",
+  "partyInvalidServerUrl": "Nevažeći URL server",
+  "partyInviteLink": "Poveznica za pridruživanje",
+  "partyInviteLinkOrCode": "Poveznica za pridruživanje ili kôd",
+  "partyInviteTextListeningTo": "Slušam {name}, pridruži se",
+  "partyJoin": "Pridruži se sobi",
+  "partyJoinRejected": "Domaćin je odbio tvoj zahtjev za ulazak",
+  "partyJoinRequests": "Zahtjevi za pridruživanje",
+  "partyKick": "Izbaci",
+  "partyKicked": "Izbačen/a si iz sobe",
+  "partyLeave": "Napusti",
+  "partyLeaveSubtitle": "Soba ostaje aktivna dok drugi član postaje domaćin",
+  "partyListenOnThisDevice": "Slušaj na ovom uređaju",
+  "partyListenOnThisDeviceSubtitle": "Isključi kako bi se ovaj uređaj koristio kao upravljač",
+  "partyListeningParty": "Slušaonica",
+  "partyListeningPartySubtitle": "Slušaj s drugima, usklađeno",
+  "partyLockRoom": "Zaključaj sobu",
+  "partyLockRoomSubtitle": "Niko nov se ne može pridružiti",
+  "partyLocked": "Soba je zaključana",
+  "partyMakeAdmin": "Postavi za administratora",
+  "partyMembers": "Članovi",
+  "partyMembershipRequired": "Za pravljenje sobe na našem serveru treba {name} članstvo ili više, pridruživanje je uvijek besplatno",
+  "partyNoPermission": "Nemaš dozvolu da radiš ovo u sobi",
+  "partyNoPublicRooms": "Nema javnih soba za sada",
+  "partyNotFound": "Soba nije pronađena",
+  "partyOpenRoomsOtherDevices": "Sobe stvorene na drugom uređaju nisu prikazane ovdje",
+  "partyPermAdd": "Dodaj u red čekanja",
+  "partyPermChat": "Razgovor",
+  "partyPermControl": "Upravljanje reprodukcijom",
+  "partyPermEdit": "Uredi red čekanja",
+  "partyPrivacy": "Privatnost",
+  "partyPublicRoom": "Javna soba",
+  "partyPublicRoomSubtitle": "Svako može pronaći i pridružiti se dok je u pretrazi",
+  "partyQueueEmpty": "Red čekanja u sobi je prazan",
+  "partyQueueFull": "Red čekanja u sobi je pun",
+  "partyReactions": "Reakcije",
+  "partyRejoin": "Pridruži se ponovo",
+  "partyRemoteControl": "Daljinsko upravljanje",
+  "partyRemoveAdmin": "Ukloni administratora",
+  "partyRemovePassword": "Ukloni lozinku",
+  "partyRequireApproval": "Zahtjevaj dozvolu za pridruživanje",
+  "partyRoleAdmin": "Administrator",
+  "partyRoleGuest": "Gost",
+  "partyRoomName": "Naziv sobe",
+  "partyRoomPassword": "Ključ od sobe",
+  "partyRoomsLimit": "Dostigli ste maksimalan broj otvorenih soba",
+  "partySaveAsPlaylist": "Sačuvaj kao zbirku pjesama",
+  "partySavedToPlaylist": "Sačuvano {count} elemenata u \"{name}\"",
+  "partyScanToJoin": "Skeniraj da bi se pridružio/la",
+  "partyServerPassword": "Lozinka servera",
+  "partyServerPasswordSubtitle": "Samo za samostalno pokrenute servere",
+  "partyServerUrl": "URL servera",
+  "partySetPassword": "Postavi lozinku",
+  "partySharePlaying": "Podjeli šta se sluša",
+  "partySharePlayingSubtitle": "Javne sobe takođe prikazuju trenutačnu pjesmu",
+  "partyShowQrCode": "Prikaži QR kôd",
+  "partyStartWithCurrentQueue": "Započni s trenutnim redom čekanja",
+  "partyStatusConnected": "Povezano",
+  "partyStatusConnecting": "Povezujem",
+  "partyStatusPendingApproval": "Čekam na odobrenje domaćina",
+  "partyStatusReconnecting": "Ponovo povezujem",
+  "partySyncCatchingUp": "Sustižem",
+  "partySyncPausedLocally": "Pauziram ovdje, u sobi se već nešto vrti",
+  "partySyncUnavailable": "Nije dostupno na ovom uređaju",
+  "partyTabParty": "Soba",
+  "partyTransferHost": "Prenesi ulogu domaćina",
+  "partyTransferHostConfirm": "Postavi {name} domaćinom ove sobe?",
+  "partyTryAgain": "Pokušaj ponovo",
+  "partyUnavailableHere": "Nedostupno na ovom uređaju",
+  "partyUnban": "Odblokiraj člana",
+  "partyUnreachable": "Nije moguće pristupiti serveru sobe",
+  "partyWrongPassword": "To nije ključ od sobe",
+  "partyYou": "Ti",
+  "partyYouAreHostNow": "Ti si sada domaćin",
+  "partyYourOpenRooms": "Tvoje otvorene sobe",
+  "password": "Lozinka",
+  "path": "Puna putanja datoteke",
+  "pause": "Pauza",
+  "pauseFadeDuration": "Trajanje blijeđenja pri pauzi",
+  "pausePlayback": "Pauziraj reprodukciju",
+  "percentage": "Postotak",
+  "performanceMode": "Režim performansi",
+  "performanceNote": "Može utjecati na performanse",
+  "personalized": "Personalizirano",
+  "personalizedMixPlaylists": "Prilagođeni spiskovi pjesama",
+  "personalizedRelatedVideos": "Personalizirani povezani videi",
+  "personalizedRelatedVideosSubtitle": "Onemogućavanje ovoga povećat će potrošnju podataka",
+  "pickColorsFromDeviceWallpaper": "Odaberi boje iz pozadine uređaja",
+  "pickFromStorage": "Odaberi iz pohrane",
+  "pinned": "Zakačeno",
+  "pitch": "Visina tona",
+  "plain": "Obično",
+  "play": "Sviraj",
+  "playAfter": "Sviraj poslije",
+  "playAfterNextPrev": "Automatska reprodukcija na Sljedeće/Prethodno",
+  "playAll": "Sviraj sve",
+  "playFadeDuration": "Trajanje blijeđenja pri sviranju",
+  "playLast": "Sviraj zadnje",
+  "playNext": "Sviraj sljedeće",
+  "playbackSetting": "Reprodukcija",
+  "playbackSettingSubtitle": "Može se pristupiti direktno u plejeru dugim pritiskom na audio dugme",
+  "playedPercentage": "Procenat reprodukcije",
+  "playlist": "Spisak pjesama",
+  "playlists": "Spiskovi pjesama",
+  "playlistsImportM3uNative": "Ovo će uvesti M3U spiskove samo za korištenje u Namidi, koristite u slučaju migracije",
+  "playlistsImportM3uSynced": "Ovo će automatski uvesti M3U spiskove iz fascikli indeksera i držati ih usklađenim s originalnom M3U datotekom. Omogućite ako pristupate/mijenjate spiskove iz drugih aplikacija",
+  "playlistsImportM3uSyncedAutoImport": "Automatski uvezi M3U spiskove pjesama",
+  "playlistsImportServer": "Automatski će uvesti spiskove pjesama s podešenih muzičkih mrežnih pružatelja (Jellyfin, Subsonic/Navidrome, itd.) prilikom osvježavanja biblioteke",
+  "playlistsImportServerAutoImport": "Samostalno uvezi spiskove pjesama s poslužitelja",
+  "pleaseEnterADifferentName": "Ovo ime već postoji :(\nmolim pokušajte drugo fensi ime",
+  "pleaseEnterALink": "Molim unesite poveznicu",
+  "pleaseEnterALinkSubtitle": "Uffff... Je li ovo YouTube poveznica?",
+  "pleaseEnterAName": "Molim unesite ime",
+  "port": "Port",
+  "preventDuplicatedTracks": "Spriječi duplicirane pjesme",
+  "preventDuplicatedTracksSubtitle": "Koristi naziv datoteke za jedinstvenu identifikaciju pjesama",
+  "preview": "Pregled",
+  "previous": "Prethodno",
+  "previousButtonReplays": "Dugme prethodno ponavlja",
+  "previousButtonReplaysSubtitle": "ako je pritisnuto dok je trenutna pozicija bila veća od trajanja traženja",
+  "prioritizeEmbeddedLyrics": "Prioritet ugrađenim tekstovima",
+  "priority": "Prioritet",
+  "private": "Privatno",
+  "progress": "Napredak",
+  "promptToChangeTrackPath": "Obično se ovo dešava kada izbrišete/premjestite/preimenujete datoteku izvan Namide. Želite li ažurirati trenutnu putanju?",
+  "public": "Javno",
+  "queue": "Red čekanja",
+  "queues": "Redovi čekanja",
+  "random": "Nasumično",
+  "randomPicks": "Nasumični odabir",
+  "rating": "Ocjena",
+  "reIndex": "Ponovo indeksiraj",
+  "reIndexSubtitle": "Izgradite svoju muzičku biblioteku ispočetka",
+  "reIndexWarning": "Ovaj proces može potrajati, ovisno o veličini vaše biblioteke.\n\nOmoti neće biti ponovo indeksirani dok god postoje",
+  "readOnlyPlaylist": "Spisak pjesama samo za čitanje",
+  "reason": "Razlog",
+  "receive": "Zaprimi",
+  "recentActions": "Nedavne radnje",
+  "recentAlbums": "Nedavni albumi",
+  "recentArtists": "Nedavni izvođači",
+  "recentListens": "Nedavna slušanja",
+  "recentQueues": "Nedavni redovi",
+  "recentSearches": "Nedavne pretrage",
+  "recentlyAdded": "Nedavno dodano",
+  "reconnect": "Ponovno poveži",
+  "recordLabel": "Izdavačka kuća",
+  "rediscoveries": "Ponovna otkrića",
+  "refresh": "Osvježi",
+  "refreshLibrary": "Osvježi biblioteku",
+  "refreshLibrarySubtitle": "Provjeri novo dodanu ili izbrisanu muziku",
+  "refreshOnStartup": "Osvježi pri pokretanju",
+  "reject": "Odbaci",
+  "relatedVideos": "Povezani videi",
+  "releaseType": "Vrsta izdanja",
+  "relevance": "Podudarnost",
+  "rememberAudioOnlyMode": "Zapamti režim samo zvuk",
+  "remixer": "Remikser",
+  "remove": "Ukloni",
+  "removeDuplicates": "Ukloni duplikate",
+  "removeFromDownloads": "Ukloni iz fascikle za preuzimanje",
+  "removeFromFavourites": "Ukloni iz omiljenih",
+  "removeFromLibrary": "Ukloni iz biblioteke",
+  "removeFromPlaylist": "Ukloni sa spiska pjesama",
+  "removeQueue": "Ukloni red čekanja",
+  "removeSourceFromHistory": "Ukloni izvor iz historije",
+  "removeSponsorSegmentsFromDownloads": "Ukloni sponzorske dijelove iz preuzimanjima",
+  "removeSponsorSegmentsFromDownloadsSubtitle": "Isjeci odabrane kategorije iz preuzetih datoteka",
+  "removeWhitespaces": "Ukloni praznine",
+  "removed": "Uklonjeno",
+  "rename": "Preimenuj",
+  "renamePlaylist": "Preimenuj spisak pjesama",
+  "reorderable": "Promjenjiv redoslijed",
+  "repeatForNTimes": "{number, plural, one{Ponovi još {number} put} few{Ponovi još {number} puta} other{Ponovi još {number} puta}}",
+  "repeatMode": "Režim ponavljanja",
+  "repeatModeAll": "Ponovi cijeli red",
+  "repeatModeNone": "Stani na zadnjoj pjesmi",
+  "repeatModeOne": "Ponovi trenutnu pjesmu",
+  "repeatRate": "Stopa ponavljanja",
+  "replaceAllListensWithAnotherTrack": "Zamijeni sva slušanja drugom pjesmom",
+  "replies": "Odgovori",
+  "reply": "Odgovori",
+  "requiresClearingImageCacheAndReIndexing": "Zahtijeva brisanje predmemorije slika i ponovno indeksiranje",
+  "rescanVideos": "Ponovo skeniraj videe",
+  "resetBrightness": "Resetuj svjetlinu",
+  "resetToDefault": "Postavi na",
+  "respectNoMedia": "Poštuj .nomedia",
+  "respectNoMediaSubtitle": "Ne uključuj direktorije koji imaju .nomedia",
+  "restart": "Ponovo pokreni",
+  "restoreBackup": "Vrati rezervnu kopiju",
+  "restoreDefaults": "Vrati zadane postavke",
+  "restoredBackupSuccessfully": "Rezervna kopija vraćena",
+  "restoredBackupSuccessfullySub": "Datoteka rezervne kopije je uspješno vraćena",
+  "resume": "Nastavi",
+  "resumeIfWasInterrupted": "Nastavi ako je pauzirano zbog prekida",
+  "resumeIfWasPausedByDeviceDisconnect": "Nastavi ako je zaustavljeno odspajanjem uređaja",
+  "resumeIfWasPausedByVolume": "Nastavi ako je pauzirano zbog glasnoće",
+  "resumeIfWasPausedForLessThanNMin": "{number, plural, one{Nastavi ako je zaustavljeno na manje od {number} minute} few{Nastavi ako je zaustavljeno na manje od {number} minute} other{Nastavi ako je zaustavljeno na manje od {number} minuta}}",
+  "returnYoutubeDislike": "Vrati Youtube Dislike prikaz",
+  "reverseOrder": "Obrnuti redoslijed",
+  "rightAction": "Desna radnja",
+  "ringtone": "Melodija zvona",
+  "romanization": "Romanizacija",
+  "rule": "Pravilo",
+  "ruleAlreadyExists": "Pravilo već postoji",
+  "sameDirectoryOnly": "Samo isti direktorij",
+  "sample": "Uzorak",
+  "sampleRate": "Stopa uzorkovanja",
+  "save": "Sačuvaj",
+  "saveToLibrary": "Sačuvaj u biblioteku",
+  "savedIn": "Sačuvano u",
+  "saving": "Čuvanje",
+  "scaleMultiplier": "Množitelj skale",
+  "search": "Traži",
+  "searchYoutube": "Traži YouTube",
+  "seconds": "Sekundi",
+  "seeProjectCodeOnSite": "Pogledaj kôd projekta na {site}",
+  "seekDuration": "Trajanje traženja",
+  "seekDurationInfo": "Možete dodirnuti trenutno trajanje za traženje unazad i ukupno trajanje za traženje unaprijed",
+  "seekbar": "Traka za traženje",
+  "selectAll": "Odaberi sve",
+  "selectFilesAlreadyInLocalLibrary": "Odaberi datoteke već u lokalnoj biblioteci",
+  "selectedTracks": "Odabrane pjesme",
+  "selfPromotion": "Samopromocija",
+  "semitones": "Polutonovi",
+  "send": "Podijeli",
+  "sendToAllDevices": "Podijeli na sve uređaje",
+  "separatorsBlacklistSubtitle": "Ove riječi neće biti podijeljene",
+  "separatorsMessage": "Nema potrebe za umetanjem razmaka, osim ako želite koristiti slovo/simbol koji se može naći u cijeloj riječi (poput x i ft.)",
+  "server": "Mrežni pružatelj",
+  "serverAddress": "Adresa servera",
+  "serverBlockedThisDevice": "Mrežni pružatelj je blokirao ovaj uređaj",
+  "serverCache": "Međumemorija servera",
+  "serverRejectedTheConnectionRequest": "Mrežni pružatelj je odbio zahtjev za povezivanje",
+  "setAs": "Postavi kao",
+  "setAsDefault": "Postavi kao zadano",
+  "setFileLastModifiedAsVideoUploadDate": "Postavi zadnju izmjenu datoteke kao datum uploada videa",
+  "setMonoAudio": "Postavi jednokanalni zvuk",
+  "setMoods": "Postavi raspoloženja",
+  "setMoodsSubtitle": "Koristite zareze (,) za odvajanje",
+  "setRating": "Postavi ocjenu",
+  "setTags": "Postavi oznake",
+  "setYoutubeLink": "Postavi YouTube poveznicu",
+  "settings": "Postavke",
+  "setupFirstStartup": "Postavljanje prvog pokretanja",
+  "share": "Dijeli",
+  "shareLogs": "Podijeli zapise",
+  "shortcuts": "Prečice",
+  "shouldDuck": "Treba utišati",
+  "shouldDuckNote": "Označava da bi glasnoća trebala biti smanjena. npr. obavijest",
+  "shouldPause": "Treba pauzirati",
+  "shouldPauseNote": "Označava da bi reprodukcija trebala biti pauzirana. npr. pozivi",
+  "showAll": "Prikaži sve",
+  "showChannelWatermarkInFullscreen": "Prikaži vodeni žig kanala u cijelom ekranu",
+  "showFailedOnly": "Prikaži samo neuspjele",
+  "showHideUnknownFields": "Prikaži/sakrij nepoznata polja",
+  "showInSeekbar": "Prikaži u traci za traženje",
+  "showMixPlaylistsIn": "Prikaži mikseve u",
+  "showMore": "Prikaži više",
+  "showShortVideosIn": "Prikaži Shorts u",
+  "showSkipButton": "Prikaži dugme za preskakanje",
+  "showVideoEndcards": "Prikaži završne kartice videa",
+  "showWebm": "Prikaži webm",
+  "shuffle": "Izmiješaj",
+  "shuffleAll": "Nasumično sve",
+  "shuffleNext": "Nasumično biranje",
+  "signIn": "Prijavi se",
+  "signInCanceled": "Prijava otkazana",
+  "signInFailed": "Prijava neuspjela",
+  "signInToYourAccount": "Prijavite se na svoj račun",
+  "signInYouDontHaveAccount": "Nemate prijavljen račun",
+  "signInYouNeedAccountToViewPage": "Trebate račun za pregled ove stranice",
+  "signOut": "Odjavi se",
+  "signOutFromName": "Odjavi se sa {name}",
+  "signingInAllowsBasicUsage": "Prijava omogućava osnovno korištenje",
+  "signingInAllowsBasicUsageSubtitle": "Dobijte rani pristup putem Patreona ili korištenjem kupona",
+  "similarDiscoverDate": "Sličan datum otkrivanja",
+  "similarDiscoverDateSubtitle": "Generiši pjesme koje su otkrivene otprilike u isto vrijeme kao {currentTrack}",
+  "similarTimeRange": "Sličan vremenski raspon",
+  "similarTimeRangeSubtitle": "Generiši pjesme koje ste slušali otprilike u isto vrijeme kao {currentTrack}",
+  "simpleLyricsLine": "Jednostavan redak stiha",
+  "simpleLyricsLineSubtitle": "Prikaži trenutni stih ispod omota albuma",
+  "single": "Singl",
+  "singles": "Singlovi",
+  "size": "Veličina",
+  "skip": "Preskoči",
+  "skipCountTracking": "Praćenje broja preskakanja",
+  "skipSilence": "Preskoči tišinu",
+  "skipSponsorSegmentsInVideos": "Preskoči sponzorske segmente u videima",
+  "sleepAfter": "Spavaj nakon",
+  "sleepTimer": "Tajmer za spavanje",
+  "smartPlaylist": "Pametni spisak pjesama",
+  "smartPlaylists": "Pametni spiskovi",
+  "socials": "Društvene mreže",
+  "socialsSubtitle": "Pratite nas na našim platformama za ažuriranja, savjete i razmjenu ideja",
+  "someWebServersRequireAuthentication": "Neki serveri zahtijevaju prijavu. Ažurirajte podatke za prijavu kako bi zadržali pristup svojoj biblioteci.",
+  "sortBy": "Sortiraj po",
+  "soundControl": "Upravljanje zvukom",
+  "source": "Izvor",
+  "speed": "Brzina",
+  "splitByChapters": "Razdvoji po poglavljima",
+  "splitByChaptersSubtitle": "Sačuvaj svako YouTube poglavlje kao posebnu datoteku u fasciklu",
+  "sponsor": "Sponzor",
+  "sponsorblock": "Ukloni sponzorisane dijelove",
+  "sponsorblockLeaderboard": "SponsorBlock ljestvica",
+  "staggeredAlbumGridView": "Rešetkasti prikaz albuma",
+  "start": "Početak",
+  "startServerToLetOtherDevicesConnectToThisDevice": "Pokreni mrežnog pružatelja kako bi se drugi uređaji mogli povezati s ovim uređajem",
+  "startsWith": "Počinje sa",
+  "stats": "Statistika",
+  "statsSubtitle": "Evo nekoliko informacija o vašoj biblioteci",
+  "stop": "Stop",
+  "stopAfterThisTrack": "Zaustavi nakon ove pjesme",
+  "stopAfterThisVideo": "Zaustavi nakon ovog videa",
+  "storagePermissionDenied": "Dozvola odbijena",
+  "storagePermissionDeniedSubtitle": "Molim dozvolite pristup da biste mogli izvršiti ovu radnju",
+  "streak": "Niz",
+  "stretchLyricsDuration": "Razvuci trajanje teksta",
+  "style": "Stil",
+  "styles": "Stilovi",
+  "subdirectory": "Poddirektorij",
+  "subscribe": "Pretplati se",
+  "subscribed": "Pretplaćeno",
+  "subscriber": "Pretplatnik",
+  "subscribers": "Pretplatnici",
+  "subscriptions": "Pretplate",
+  "succeeded": "Uspjelo",
+  "suggestionSubtitle": "Imate problem ili prijedlog? Otvorite prijavu na {site}",
+  "support": "Podrška",
+  "supremacy": "Nadmoć",
+  "sussyBaka": "Bracika, nema pjesama",
+  "swipeActions": "Radnje prevlačenja",
+  "swipeToOpenDrawer": "Prevuci za otvaranje ladice",
+  "sync": "Usklađivanje",
+  "syncAppDataBetweenYourDevices": "Uskladi podatke aplikacije između svojih uređaja",
+  "synced": "Sinhronizirano",
+  "synopsis": "Sinopsis",
+  "tagFields": "Polja oznaka",
+  "tags": "Oznake",
+  "tapAction": "Radnja dodirom",
+  "tapToSeek": "Dodirni za traženje",
+  "text": "Tekst",
+  "theFollowingChangesWereDetected": "Otkrivene su sljedeće izmjene",
+  "themeMode": "Režim teme",
+  "themeModeDark": "Tamna",
+  "themeModeLight": "Svijetla",
+  "themeModeSystem": "Sistemska",
+  "themeSettings": "Tema",
+  "themeSettingsSubtitle": "Ukupna atmosfera vašeg plejera",
+  "thisMonth": "Ovaj mjesec",
+  "thisPlaylistHasActiveSortersDisableThemBeforeReordering": "Ovaj spisak ima uključene razvrstivače, onemogućite ih prije promjene redoslijeda.",
+  "thisVideoIsLikelyDeletedOrSetToPrivate": "Ovaj video je vjerovatno izbrisan ili postavljen na privatno.",
+  "thisWeek": "Ove sedmice",
+  "thisYear": "Ove godine",
+  "threadsPerDownload": "Niti po preuzimanju",
+  "thumbnails": "Sličice",
+  "title": "Naslov",
+  "today": "Danas",
+  "top": "Vrh",
+  "topComments": "Najbolji komentari",
+  "topCommentsSubtitle": "Prikaži komentare na vrhu umjesto na dnu",
+  "topRecentAlbums": "Najnoviji albumi",
+  "topRecentArtists": "Najnoviji izvođači",
+  "topRecents": "Najnovije",
+  "totalListenTime": "Ukupno vrijeme slušanja",
+  "totalListens": "Ukupno slušanja",
+  "totalTracks": "Ukupno pjesama",
+  "totalTracksDuration": "Ukupno trajanje pjesama",
+  "track": "Pjesma",
+  "trackArtistsSeparator": "Razdjelnik izvođača",
+  "trackGenresSeparator": "Razdjelnik žanrova",
+  "trackInfo": "Informacije o pjesmi",
+  "trackNotFound": "Pjesma nije pronađena",
+  "trackNumber": "Broj pjesme",
+  "trackNumberTotal": "Ukupan broj pjesama",
+  "trackPathOldNew": "Staro ime: \"{oldName}\"\n\nNovo ime: \"{newName}\"\n\nJeste li sigurni?",
+  "trackPlayMode": "Režim reprodukcije",
+  "trackPlayModeSearchResults": "Rezultati pretrage",
+  "trackPlayModeSelectedOnly": "Samo odabrana pjesma",
+  "trackPlayModeTrackAlbum": "Album pjesme",
+  "trackPlayModeTrackArtist": "Glavni izvođač pjesme",
+  "trackPlayModeTrackGenre": "Žanr pjesme",
+  "trackPlayModeTrackStyle": "Muzički stil zapisa",
+  "trackThumbnailSizeInList": "Veličina sličice pjesme",
+  "trackTileCustomization": "Prilagođavanje pločice pjesme",
+  "trackTileItemsSeparator": "Razdjelnik stavki",
+  "tracks": "Pjesme",
+  "tracksExcludedByNomedia": "Pjesme isključene zbog .nomedia",
+  "tracksInfo": "Informacije o pjesmama",
+  "type": "Vrsta",
+  "unblock": "Odblokiraj",
+  "underrated": "Podcijenjeno",
+  "undo": "Poništi",
+  "undoChanges": "Poništi promjene?",
+  "undoChangesDeletedPlaylist": "Poništi obrisani spisak pjesama",
+  "undoChangesDeletedQueue": "Poništi izbrisani red čekanja",
+  "undoChangesDeletedTrack": "Poništi brisanje pjesme",
+  "uniqueArtworkHash": "Jedinstveni hash omota",
+  "unlimited": "Neograničeno",
+  "unlisted": "Nelistano",
+  "unlock": "Otključaj",
+  "unsubscribe": "Otkaži pretplatu",
+  "update": "Ažuriraj",
+  "updateDirectoryPath": "Ažuriraj putanju direktorija",
+  "updateMissingTracksOnly": "Ažuriraj samo nedostajuće pjesme",
+  "updating": "Ažuriranje",
+  "uploadDate": "Vrijeme učitavanja",
+  "useCollapsedSettingTiles": "Koristi sažete pločice postavki",
+  "useMediaStore": "Koristi Media Store",
+  "useMediaStoreSubtitle": "✓ trenutno indeksiranje\nx poštivanje .nomedia će biti prisilno omogućeno\nx neke oznake metapodataka će nedostajati\nx YouTube integracija za lokalnu biblioteku neće raditi",
+  "usePitchBlack": "Koristi potpuno crnu",
+  "usePitchBlackSubtitle": "Korisno za AMOLED ekrane.. i izgleda kul",
+  "used": "Iskorišteno",
+  "value": "Vrijednost",
+  "valueBetween50200": "Vrijednost treba biti između 50% i 200%",
+  "versionMismatchMakeSureBothAppsAreOnTheSameVersion": "Neslaganje verzija, uvjerite se da oba programa koriste istu verziju",
+  "vibration": "Vibracija",
+  "vibrationType": "Tip vibracije",
+  "video": "Video",
+  "videoCache": "Predmemorija videa",
+  "videoCacheFile": "Keširana video datoteka",
+  "videoCacheFiles": "Keširane video datoteke",
+  "videoOnly": "Samo video",
+  "videoPlaybackSource": "Izvor videa",
+  "videoPlaybackSourceAutoSubtitle": "Ovo će dati prioritet lokalnim videima, ako se ne nađu, dohvatit će s YouTube-a",
+  "videoPlaybackSourceLocal": "Lokalni videi",
+  "videoPlaybackSourceLocalExampleSubtitle": "Alan Walker - Faded.m4a­­­­\nVideo Alan Walker - Faded (480p).mp4",
+  "videoPlaybackSourceLocalSubtitle": "Provjerava ima li bilo koja video datoteka (pronađena unutar odabranih fascikli) naziv datoteke koji sadrži naziv datoteke pjesme",
+  "videoPlaybackSourceYoutube": "Sa YouTube-a",
+  "videoPlaybackSourceYoutubeSubtitle": "Provjerava u nazivu datoteke i komentaru pjesme bilo koju odgovarajuću YouTube poveznicu, video zapisi se keširaju za kasniju upotrebu.",
+  "videoQuality": "Kvaliteta videa",
+  "videoQualitySubtitle": "Bit će odabrana najviša dostupna kvaliteta.",
+  "videoQualitySubtitleNote": "Uvijek je dobro zadržati više alternativa u slučaju da kvaliteta nije pronađena, inače će se vratiti na najlošiju kvalitetu",
+  "videos": "Videi",
+  "view": "prikaz",
+  "viewAll": "Prikaži sve",
+  "views": "pregleda",
+  "volume": "Glasnoća",
+  "warning": "Upozorenje",
+  "waveformBarsCount": "Broj traka valnog oblika",
+  "webmNoEditTagsSupport": "WEBM format ne podržava uređivanje oznaka",
+  "week": "Sedmica",
+  "weeks": "Sedmice",
+  "wiredDevice": "Žičani uređaj",
+  "wirelessDevice": "Bežični uređaj",
+  "year": "Godina",
+  "yearInSongs": "{count, plural, one{Godina u {count} pjesmi} few{Godina u {count} pjesme} other{Godina u {count} pjesama}}",
+  "years": "Godine",
+  "yes": "Da",
+  "youCanNowSendAndReceiveDataWithThisDevice": "Sad možete slati i zaprimati podatke s ovim uređajem",
+  "yourCurrentMembershipIs": "Vaše trenutno članstvo je {name}",
+  "yourYear": "Tvoja {year}",
+  "youtube": "YouTube",
+  "youtubeId": "YouTube ID",
+  "youtubeLink": "YouTube poveznica",
+  "youtubeMusic": "YouTube Music",
+  "youtubeSettingsSubtitle": "Prilagodite YouTube iskustvo",
+  "youtubeStyleMiniplayer": "Mini-plejer u YouTube stilu",
+  "ytPreferNewComments": "Preferiraj nove komentare kada je moguće",
+  "ytPreferNewCommentsSubtitle": "Keširana verzija će se koristiti samo kada nema veze",
+  "zoom": "Uvećavanje"
+}

@@ -1,0 +1,10 @@
+name: playlist_manager
+description: Compile-time offline mock for playlist storage.
+version: 0.0.1
+publish_to: none
+environment:
+  sdk: ">=3.13.7 <4.0.0"
+dependencies:
+  nampack:
+    git:
+      url: https://github.com/MSOB7YY/nampack

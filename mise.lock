@@ -8,18 +8,6 @@ backend = "http:flutter"
 specifiers = ["3.47.8"]
 
 [tools."http:flutter".options]
-format = "tar.xz"
-
-[tools."http:flutter"."platforms.linux-x64"]
-checksum = "sha256:baf7dcc5a3dbba60fe863bf493a6cf203195621f7786eaa5a1bba02cd0d87dd2"
-url = "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.8-stable.tar.xz"
-
-[[tools."http:flutter"]]
-version = "3.47.8"
-backend = "http:flutter"
-specifiers = ["3.47.8"]
-
-[tools."http:flutter".options]
 format = "zip"
 
 [tools."http:flutter"."platforms.macos-arm64"]
@@ -33,3 +21,19 @@ url = "https://storage.googleapis.com/flutter_infra_release/releases/stable/maco
 [tools."http:flutter"."platforms.windows-x64"]
 checksum = "sha256:11e19ea3409808fe3b3765ea8149640c299e58cce6eda7c9f38fc1b4a193eb6e"
 url = "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.47.8-stable.zip"
+
+[[tools."http:flutter"]]
+version = "3.47.8"
+backend = "http:flutter"
+
+[tools."http:flutter".options]
+format = "tar.xz"
+
+[tools."http:flutter"."platforms.linux-x64"]
+checksum = "sha256:baf7dcc5a3dbba60fe863bf493a6cf203195621f7786eaa5a1bba02cd0d87dd2"
+url = "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.8-stable.tar.xz"
+
+[[tools.rust]]
+version = "1.99.1"
+backend = "core:rust"
+specifiers = ["1.99.1"]

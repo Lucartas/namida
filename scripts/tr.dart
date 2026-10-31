@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 void main(List<String> args) {
-  final e = File('external/language/translations/en.arb');
+  final e = File('assets/translations/en.arb');
   final map = (jsonDecode(e.readAsStringSync()) as Map).cast<String, dynamic>();
 
   for (final value in args) {

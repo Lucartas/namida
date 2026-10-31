@@ -12,6 +12,10 @@ import 'package:namida/core/extensions.dart';
 import 'package:namida/youtube/controller/youtube_history_controller.dart';
 import 'package:namida/youtube/controller/youtube_info_controller.dart';
 
+extension _StatsDummyVideoId on String {
+  bool get isDummyVideoId => startsWith('dummy_');
+}
+
 // by claude
 class StatsController {
   static StatsController get inst => _instance;

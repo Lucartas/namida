@@ -1059,7 +1059,7 @@ class NamidaVideoControlsState extends State<NamidaVideoControls> with TickerPro
               final isSelected = e.isSelected;
               final titleRaw = e.displayName;
               final title = [
-                titleRaw.capitalizeFirst(),
+                titleRaw?.capitalizeFirst(),
                 if (e.label != titleRaw) e.label?.capitalizeFirst(),
               ].joinText(separator: ' • ');
               final subtitle = e.mimeType?.toUpperCase();
@@ -1085,7 +1085,7 @@ class NamidaVideoControlsState extends State<NamidaVideoControls> with TickerPro
               size: 16.0,
               color: itemsColor,
             ),
-            text: selectedTrack?.displayName.capitalizeFirst() ?? '?',
+            text: selectedTrack?.displayName?.capitalizeFirst() ?? '?',
             textColor: itemsColor,
           ),
         );

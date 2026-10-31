@@ -1,4 +1,5 @@
 // ignore_for_file: avoid_rx_value_getter_outside_obx
+import 'dart:async';
 import 'dart:io';
 
 import 'package:history_manager/history_manager.dart';
@@ -276,6 +277,18 @@ abstract class Playable<T extends Object> {
   T toJson();
 }
 
+extension PlayableActions on Playable {
+  R? execute<R>({Function? selectable, Function? youtubeID}) {
+    final handler = playableType == PlayableType.ytVideo ? youtubeID : selectable;
+    return handler == null ? null : Function.apply(handler, [this]) as R?;
+  }
+
+  Future<R?> executeAsync<R>({Function? selectable, Function? youtubeID}) async {
+    final handler = playableType == PlayableType.ytVideo ? youtubeID : selectable;
+    return handler == null ? null : await Function.apply(handler, [this]) as R?;
+  }
+}
+
 abstract class Selectable<T extends Object> extends Playable<T> {
   const Selectable();
 
@@ -333,6 +346,10 @@ class Track extends Selectable<String> {
 
   Future<bool> exists() => isNetwork ? Future.value(true) : File(path).exists();
   bool existsSync() => isNetwork ? true : File(path).existsSync();
+
+  Future<dynamic> toAudioSource(int _, int __, dynamic ___) async => throw UnsupportedError(
+    'Audio source creation is unavailable in this build; local playback is implemented in Milestone 2.',
+  );
 
   @override
   bool operator ==(other) {

@@ -3,7 +3,7 @@ allprojects {
         google()
         mavenCentral()
         maven("https://jitpack.io")
-        // -- the old ffmpeg-kit fork's aar, ffmpeg now comes from ffmpeg_kit_extended_flutter
+        // -- Local Maven repository for bundled native artifacts, if needed.
         // maven {
         //   url = project(":app").file("repo").toURI()
         // }

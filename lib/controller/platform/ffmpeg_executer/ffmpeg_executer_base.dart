@@ -2,12 +2,7 @@ part of 'ffmpeg_executer.dart';
 
 abstract class FFMPEGExecuter {
   static FFMPEGExecuter platform() {
-    return _FFMPEGExecuterFFI();
-    // return NamidaPlatformBuilder.init(
-    //   android: _FFMPEGExecuterMobile.new,
-    //   windows: _FFMPEGExecuterDesktop.new,
-    //   linux: _FFMPEGExecuterDesktop.new,
-    // );
+    return _FFMPEGExecuterUnavailable();
   }
 
   FutureOr<void> init();
@@ -94,4 +89,32 @@ abstract class FFMPEGExecuter {
 
     return null;
   }
+}
+
+/// Compile-time adapter used until local metadata and transcoding support lands.
+class _FFMPEGExecuterUnavailable extends FFMPEGExecuter {
+  Never _unsupported(String operation) => throw UnsupportedError(
+    '$operation is unavailable in this build; FFmpeg support has not been added yet.',
+  );
+
+  @override
+  Future<void> init() async {}
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  Future<bool> ffmpegExecute(List<String> args, {bool noTimeout = false}) async => _unsupported('FFmpeg');
+
+  @override
+  Future<String?> ffprobeExecute(List<String> args) async => _unsupported('FFprobe');
+
+  @override
+  Future<Map<String, dynamic>?> getMediaInformation(String path) async => _unsupported('Media information extraction');
+
+  @override
+  Future<bool> supportsWebDAV({required bool isHttps}) async => false;
+
+  @override
+  Future<bool> supportsSMB() async => false;
 }

@@ -1,6 +1,9 @@
 [settings]
 lockfile = true
 
+[tools]
+rust = "1.99.1"
+
 [tools."http:flutter"]
 version = "3.47.8"
 # Flutter bundles the matching Dart SDK, so both commands use the same toolchain.

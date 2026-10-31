@@ -292,9 +292,9 @@ extension TracksUtils on List<Track> {
   String get composerSort => _firstNonEmpty((e) => e.sortInfo?.composer ?? '');
 }
 
-extension StringListJoiner on Iterable<String?> {
+extension StringListJoiner on Iterable<Object?> {
   String joinText({String separator = ' • '}) {
-    return where((element) => element != null && element != '').join(separator);
+    return where((element) => element != null && element.toString().isNotEmpty).map((element) => element.toString()).join(separator);
   }
 }
 
@@ -1011,17 +1011,11 @@ extension CloseDialogIfTrueFuture on FutureOr<bool> {
   }
 }
 
-extension FutureIterabletUtils on Iterable<Future<void>> {
-  Future<void> executeAllAndSilentReportErrors() async {
-    await Future.wait(this.map((e) => e.catchError(logger.report)));
-  }
-}
-
-extension FutureIterableNullUtils on Iterable<Future<void>?> {
+extension FutureIterableUtils on Iterable<dynamic> {
   Future<void> executeAllAndSilentReportErrors() async {
     final newList = <Future<dynamic>>[];
     for (final f in this) {
-      if (f != null) newList.add(f.catchError(logger.report));
+      if (f is Future) newList.add(f.catchError(logger.report));
     }
     await Future.wait(newList);
   }

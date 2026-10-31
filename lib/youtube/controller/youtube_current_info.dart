@@ -19,7 +19,7 @@ class _YoutubeCurrentInfoController {
   RxBaseCore<YoutiPieVideoPageResult?> get currentVideoPage => _currentVideoPage;
   RxBaseCore<int?> get currentDislikeCount => _currentDislikeCount;
   RxBaseCore<VideoStreamInfo?> get currentStreamInfo => _currentStreamInfo;
-  RxBaseCore<YoutiPieChannelPageResult?> get currentChannelPage => _currentChannelPage;
+  RxBaseCore<YoutiPieChannelInfo?> get currentChannelPage => _currentChannelPage;
   RxBaseCore<YoutiPieRelatedVideosResult?> get currentRelatedVideos => _currentRelatedVideos;
   RxBaseCore<YoutiPieCommentResult?> get currentComments => _currentComments;
   RxBaseCore<bool> get isLoadingVideoPage => _isLoadingVideoPage;
@@ -37,7 +37,7 @@ class _YoutubeCurrentInfoController {
   final _currentVideoPage = Rxn<YoutiPieVideoPageResult>();
   final _currentDislikeCount = Rxn<int>();
   final _currentStreamInfo = Rxn<VideoStreamInfo>();
-  final _currentChannelPage = Rxn<YoutiPieChannelPageResult>();
+  final _currentChannelPage = Rxn<YoutiPieChannelInfo>();
   final _currentRelatedVideos = Rxn<YoutiPieRelatedVideosResult>();
   final _currentComments = Rxn<YoutiPieCommentResult>();
   final currentYTStreams = Rxn<VideoStreamsResult>();

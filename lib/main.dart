@@ -11,7 +11,6 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:flutter_sharing_intent/flutter_sharing_intent.dart';
 import 'package:flutter_volume_controller/flutter_volume_controller.dart' show FlutterVolumeController;
 import 'package:http_cache_stream/http_cache_stream.dart';
 import 'package:media_kit/media_kit.dart' as mk;
@@ -514,16 +513,7 @@ Future<void> _clearIntentCachedFiles() async {
 
 void _initializeIntenties() {
   if (NamidaFeaturesVisibility.recieveSharingIntents) {
-    // -- Recieving Initial Android Shared Intent.
-    FlutterSharingIntent.instance.getInitialSharing().then(
-      (items) => NamidaReceiveIntentManager.executeReceivedItems(items, (f) => f.value, (f) => f.realPath),
-    );
-
-    // -- Listening to Android Shared Intents.
-    FlutterSharingIntent.instance.getMediaStream().listen(
-      (items) => NamidaReceiveIntentManager.executeReceivedItems(items, (f) => f.value, (f) => f.realPath),
-      onError: (err) => NamidaReceiveIntentManager.showErrorPlayingFileSnackbar(error: err.toString()),
-    );
+    // Android share intents are outside the buildable-app milestone.
   }
 
   // -- ios & macos: opened files arrive as absolute paths, links keep their scheme

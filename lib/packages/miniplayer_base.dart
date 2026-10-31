@@ -3194,7 +3194,7 @@ class PlayerVideoAudioChip extends StatelessWidget {
                               selected: isCurrent,
                               icon: Broken.audio_square,
                               title: [
-                                title.capitalizeFirst(),
+                                title?.capitalizeFirst(),
                                 if (e.label != title) e.label?.capitalizeFirst(),
                                 ?e.mimeType?.toUpperCase(),
                               ].joinText(separator: ' • '),
