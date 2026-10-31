@@ -29,15 +29,16 @@ feature unless later included explicitly.
   Android SDK platform 36/build-tools 36.1.0 and Java 21. The project uses
   Gradle 8.14, Android Gradle Plugin 8.11.1, Kotlin 2.2.20, and Java/Kotlin
   toolchain 17.
-- A normal `git clone` leaves four submodules uninitialized. `external/language`
-  is used by `l10n.yaml`; it remains a build input unless translations are
-  generated or stubbed locally. `external/party_relay/dart` is a path dependency
-  in `pubspec.yaml` and party code imports it, so it must be removed or mocked
-  for Milestone 1. The `ffmpeg_build` submodule supplies the Android AAR named
-  in the Flutter hook configuration. Its configured URL returns “Repository not
-  found,” which is expected for an upstream artifact this fork must not rely on;
-  Milestone 1 needs to remove or locally stub the FFmpeg integration if it is
-  not part of the mock build.
+- The upstream configuration lists four submodules. This fork keeps the
+  reachable `external/language` and `external/party_relay` repositories,
+  alongside `external/namida-assets`. The original language gitlink was 292
+  English keys behind the app; `external/language` is therefore pinned to the
+  reachable remote revision `d2d00cd0d4233c245ae869571afef14bbbf131a6`, while
+  `external/party_relay` stays at its original pinned revision. Localization
+  generation reads `external/language/translations`, and `pubspec.yaml` uses
+  `external/party_relay/dart`. The `ffmpeg_build` URL returns “Repository not
+  found”; it remains excluded, and the FFmpeg integration is removed or locally
+  stubbed where needed for the mock build.
 - The `namida-assets` submodule is used by screenshot/documentation tooling and
   README imagery; no Android asset or Dart import from it was found. It does not
   appear to be an Android app build input. The app’s bundled assets are under
@@ -65,24 +66,24 @@ feature unless later included explicitly.
   Milestone 1 should use a debug APK and should not require release-signing
   secrets. The verified Flutter build writes `app-debug.apk` and ABI-split APKs
   to `build/app/outputs/flutter-apk/`.
-- The Milestone 1 dependency cutover replaces the unavailable
+- The Milestone 1 dependency cutover replaces unavailable
   `basic_audio_handler`, `playlist_manager`, `youtipie`, login, and subscription
-  packages with local compile-time adapters under `packages/`. The public
-  translation repository is vendored under `assets/translations/`; the private
-  FFmpeg and party-relay submodules and their build hooks are removed. Dependency
-  resolution and the Android debug APK build now succeed without upstream
+  packages with local compile-time adapters under `packages/`. The reachable
+  translation and party-relay repositories remain submodules; the translation
+  gitlink points to a revision containing all app-required English keys. The
+  unavailable FFmpeg submodule and its build hooks remain excluded. Dependency
+  resolution and the Android debug APK build succeed without upstream
   credentials or a release keystore.
 
 ## Dependency boundaries to address
 
-The closed-source upstream dependencies identified above are replacement
-targets; this plan does not require recovering or importing their source. Other
-reachable Git dependencies should be kept only when they fit the fork’s intended
-implementation, since availability alone does not make them suitable
-replacements or establish redistribution rights. Several target packages are
-imported across core code, controllers, and UI, so Milestone 1 must either
-provide their compile-time types locally or remove the consuming feature paths;
-changing `pubspec.yaml` alone will not be sufficient.
+The unavailable upstream dependencies identified above are replacement targets;
+this plan does not require recovering or importing their source. Keep reachable
+libraries and submodules wired into the build for this milestone; decide later
+which should remain in the offline player. Several target packages are imported
+across core code, controllers, and UI, so Milestone 1 must either provide their
+compile-time types locally or remove the consuming feature paths; changing
+`pubspec.yaml` alone will not be sufficient.
 
 - **Local playback:** `basic_audio_handler` supplies types used across the
   player, settings, and UI. Milestone 1 needs a compile-time local mock/adapter;
@@ -106,19 +107,18 @@ changing `pubspec.yaml` alone will not be sufficient.
   operation required by local indexing/playback justifies a replacement
   implementation.
 - **Assets and translations:** `language` is required by code generation through
-  `l10n.yaml`; determine the minimum translation inputs needed for the offline
-  app. `namida-assets` supports screenshot/documentation workflows and is not
-  currently referenced as an app asset. `party_relay` is outside the
-  offline-player scope, but the package path dependency and imports must be
-  removed or isolated before the submodule can be omitted from an offline build.
+  `l10n.yaml` and remains as a submodule. `namida-assets` supports
+  screenshot/documentation workflows and is not currently referenced as an app
+  asset. `party_relay` remains as a reachable path dependency for now; whether
+  its feature belongs in the offline player can be decided later.
 
 ## Implementation and review approach
 
 Use the smallest boundary that keeps the Android target compiling. Milestone 1
-replaces upstream closed-source package references with local compile-time
-mocks/adapters and removes out-of-scope online/party paths. Keep mocks explicit
-and behaviorally honest. Milestone 2 replaces the local audio, playlist, and
-storage mocks with working implementations.
+replaces unavailable package references with local compile-time mocks/adapters
+while retaining the reachable translation and party-relay submodules. Keep
+mocks explicit and behaviorally honest. Milestone 2 replaces the local audio,
+playlist, and storage mocks with working implementations.
 
 ## Milestone 1 result
 
@@ -132,6 +132,13 @@ The documented build commands are:
 ```sh
 mise exec -- flutter pub get
 mise exec -- flutter build apk --debug
+```
+
+Initialize the two build-input submodules before those commands in a fresh
+checkout:
+
+```sh
+git submodule update --init --recursive external/language external/party_relay
 ```
 
 The verified APK is `build/app/outputs/flutter-apk/app-debug.apk` (about 161 MiB

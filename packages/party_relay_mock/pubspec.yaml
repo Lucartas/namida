@@ -1,6 +1,0 @@
-name: namida_party_relay
-description: Compile-time offline mock for party relay integration.
-version: 0.0.1
-publish_to: none
-environment:
-  sdk: ">=3.13.7 <4.0.0"
