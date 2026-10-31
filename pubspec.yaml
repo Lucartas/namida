@@ -93,6 +93,7 @@ dependencies:
       path: packages/home_widget
       ref: namida
   flutter_local_notifications: ^22.0.0-dev.3
+  flutter_sharing_intent: ^2.0.4
   queue: ^3.1.0+2
   jiffy:
     git:
