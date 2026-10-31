@@ -2,12 +2,13 @@
 
 ## Goal and boundaries
 
-- **Milestone 1 — buildable mocks:** replace closed-source upstream package
+- **Milestone 1 — buildable mocks (complete):** replace closed-source upstream package
   dependencies with small local mocks/adapters sufficient to compile, then
   produce a debug APK from a clean checkout without upstream credentials. The
   APK existing is the acceptance criterion: whether the app starts or later
   crashes is out of scope. Unsupported mock calls must fail clearly rather than
-  pretend to work.
+  pretend to work. Verified on 2026-10-31 with `mise exec -- flutter pub get`
+  and `mise exec -- flutter build apk --debug`.
 - **Milestone 2 — offline player:** replace the local-audio, queue, playlist,
   and storage mocks with working implementations. Local audio can be
   indexed/imported and played, with queue controls and persistent playlist
@@ -57,21 +58,20 @@ feature unless later included explicitly.
   and `namida_waveform` were reachable in the same checks; their status in the
   replacement plan should be decided from their use and intended Milestone 2
   boundary, not inferred from reachability.
-- There is no tracked `pubspec.lock`, and `.gitignore` ignores it. Numerous Git
-  dependencies have no pinned `ref`; normal Pub version constraints are also not
-  captured by a committed lockfile. Dependency resolution is therefore not
-  reproducible from this checkout alone.
+- The fork now tracks `pubspec.lock` so Pub package versions are fixed for this
+  app checkout. Git dependencies with no pinned `ref` remain an upstream
+  maintenance risk; the lockfile records the revisions used for this build.
 - The upstream release workflow uses a signing keystore for release APKs.
   Milestone 1 should use a debug APK and should not require release-signing
-  secrets. Android Gradle configuration also overrides the default APK filename
-  with `namida-v<version>[-<abi>].apk`, so verification should look in
-  `build/app/outputs/flutter-apk/` rather than require `app-debug.apk`.
-- `flutter pub get` reaches dependency resolution but stops when it tries to fetch
-  `namidaco/namico_subscription_manager`, one of the upstream packages slated
-  for replacement/removal. This confirms the current manifest cannot build
-  as-is; it does not indicate that the fork should obtain access to that source.
-  A full APK build remains unverified until the Milestone 1 dependency cutover
-  is implemented.
+  secrets. The verified Flutter build writes `app-debug.apk` and ABI-split APKs
+  to `build/app/outputs/flutter-apk/`.
+- The Milestone 1 dependency cutover replaces the unavailable
+  `basic_audio_handler`, `playlist_manager`, `youtipie`, login, and subscription
+  packages with local compile-time adapters under `packages/`. The public
+  translation repository is vendored under `assets/translations/`; the private
+  FFmpeg and party-relay submodules and their build hooks are removed. Dependency
+  resolution and the Android debug APK build now succeed without upstream
+  credentials or a release keystore.
 
 ## Dependency boundaries to address
 
@@ -119,6 +119,27 @@ replaces upstream closed-source package references with local compile-time
 mocks/adapters and removes out-of-scope online/party paths. Keep mocks explicit
 and behaviorally honest. Milestone 2 replaces the local audio, playlist, and
 storage mocks with working implementations.
+
+## Milestone 1 result
+
+The first milestone is implemented on the `chore/buildable-offline-foundation`
+branch. The debug build is intentionally only a compile/package acceptance
+check; the local playback and playlist adapters are placeholders for Milestone
+2, and YouTube/account operations remain unavailable.
+
+The documented build commands are:
+
+```sh
+mise exec -- flutter pub get
+mise exec -- flutter build apk --debug
+```
+
+The verified APK is `build/app/outputs/flutter-apk/app-debug.apk` (about 161 MiB
+for the universal build); Flutter also emits split APKs for `arm64-v8a`,
+`armeabi-v7a`, and `x86_64`. Android generates the standard debug key locally,
+so no private signing material is needed for this milestone. The build was
+verified in the current working checkout; a separate clean-clone or device
+runtime test was not performed.
 
 Organize changes by app subsystem, not strictly one PR per package. Keep the
 default branch buildable: merge each coherent change only when the Android build
