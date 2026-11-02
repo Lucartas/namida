@@ -28,9 +28,6 @@ if (keystorePropertiesFile.exists()) {
 
 kotlin {
     jvmToolchain(17)
-    compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-    }
 }
 
 android {
@@ -42,7 +39,7 @@ android {
         abi {
             isEnable = true
             reset()
-            // -- Keep 32-bit x86 out of the APK until all selected plugins support it.
+            // -- no x86: ffmpeg_kit_extended_flutter ships no 32-bit x86 library
             include("armeabi-v7a", "arm64-v8a", "x86_64")
             isUniversalApk = true
         }
@@ -56,7 +53,7 @@ android {
 
     defaultConfig {
         applicationId = "com.msob7y.namida"
-        minSdk = 26
+        minSdk = 26 // -- ffmpeg_kit_extended_flutter needs 26
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -87,6 +84,15 @@ android {
     }
 
     signingConfigs {
+        getByName("debug") {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties["keyAlias"] as? String
+                keyPassword = keystoreProperties["keyPassword"] as? String
+                storeFile = (keystoreProperties["storeFile"] as? String)?.let { file(it) }
+                storePassword = keystoreProperties["storePassword"] as? String
+            }
+        }
+
         register("release") {
             keyAlias = keystoreProperties["keyAlias"] as? String
             keyPassword = keystoreProperties["keyPassword"] as? String
@@ -104,6 +110,7 @@ android {
 
     buildTypes {
         named("debug") {
+            signingConfig = signingConfigs.getByName("debug")
             applicationIdSuffix = ".debug"
         }
 
