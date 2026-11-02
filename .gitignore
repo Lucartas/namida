@@ -26,8 +26,6 @@
 .pub/
 build/
 coverage/
-pubspec.lock
-!/pubspec.lock
 pubspec_overrides.yaml
 *.freezed.dart
 *.g.dart
