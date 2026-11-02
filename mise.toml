@@ -2,6 +2,7 @@
 lockfile = true
 
 [tools]
+java = "temurin-17"
 rust = "1.99.1"
 
 [tools."http:flutter"]
