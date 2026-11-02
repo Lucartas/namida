@@ -11,12 +11,11 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:flutter_sharing_intent/flutter_sharing_intent.dart';
-import 'package:flutter_sharing_intent/model/sharing_file.dart';
 import 'package:flutter_volume_controller/flutter_volume_controller.dart' show FlutterVolumeController;
 import 'package:http_cache_stream/http_cache_stream.dart';
 import 'package:media_kit/media_kit.dart' as mk;
 import 'package:namico_db_wrapper/namico_db_wrapper.dart';
+import 'package:namida_sharing_intent/namida_sharing_intent.dart';
 import 'package:path_provider/path_provider.dart' as pp;
 import 'package:rhttp/rhttp.dart';
 import 'package:super_drag_and_drop/super_drag_and_drop.dart';
@@ -342,7 +341,6 @@ Future<bool> _mainAppInitialization() async {
 
 Future<void> _secondaryAppInitialization(bool shouldShowOnBoarding) async {
   try {
-    await _clearStaleSharedIntentFiles();
     final intentInitialization = _initializeIntenties();
     _initLifeCycle();
     NamidaChannel.inst.logPreviousAbnormalExits().catchError(logger.report);
@@ -515,14 +513,6 @@ Future<void> _clearIntentCachedFiles() async {
   );
 }
 
-Future<void> _clearStaleSharedIntentFiles() async {
-  if (!Platform.isAndroid) return;
-  try {
-    final directory = Directory('${(await pp.getTemporaryDirectory()).path}/namida_received_intents');
-    if (await directory.exists()) await directory.delete(recursive: true);
-  } catch (_) {}
-}
-
 Future<void> _initializeIntenties() async {
   if (NamidaFeaturesVisibility.recieveSharingIntents) {
     // -- Receiving Initial Android Shared Intent.
@@ -530,12 +520,14 @@ Future<void> _initializeIntenties() async {
 
     // -- Listening to Android Shared Intents.
     FlutterSharingIntent.instance.getMediaStream().listen(
-      (items) => unawaited(_handleAndroidSharedItems(items)),
+      (items) => NamidaReceiveIntentManager.executeReceivedItems(items, (f) => f.value, (f) => f.realPath),
       onError: (err) => NamidaReceiveIntentManager.showErrorPlayingFileSnackbar(error: err.toString()),
     );
 
     try {
-      await initialSharing.then(_handleAndroidSharedItems);
+      await initialSharing.then(
+        (items) => NamidaReceiveIntentManager.executeReceivedItems(items, (f) => f.value, (f) => f.realPath),
+      );
     } catch (e, st) {
       logger.error('Failed to handle initial Android share intent', e: e, st: st);
     }
@@ -545,83 +537,6 @@ Future<void> _initializeIntenties() async {
   await NamidaChannel.inst.listenOpenedUrls(
     (items) => NamidaReceiveIntentManager.executeReceivedItems(items, (f) => f, (f) => f.startsWith('/') ? f : null),
   );
-}
-
-Future<void> _handleAndroidSharedItems(List<SharedFile> items) async {
-  final normalizedItems = <({String? value, String? realPath})>[];
-  for (var i = 0; i < items.length; i++) {
-    final item = items[i];
-    final value = item.value;
-    var realPath = _sharedIntentRealPath(item);
-
-    // The public plugin reports ACTION_VIEW file URIs as values. Resolve
-    // content URIs through Namida's Android storage bridge before dispatching.
-    if (value?.startsWith('content://') == true) {
-      try {
-        realPath = await NamidaStorage.inst.getRealPath(value);
-      } catch (_) {
-        realPath = null;
-      }
-    }
-
-    realPath = await _preserveSharedIntentFile(realPath, i);
-    normalizedItems.add((value: value, realPath: realPath));
-  }
-
-  NamidaReceiveIntentManager.executeReceivedItems(
-    normalizedItems,
-    (item) => item.value,
-    (item) => item.realPath,
-  );
-}
-
-Future<String?> _preserveSharedIntentFile(String? path, int index) async {
-  if (!Platform.isAndroid || path == null) return path;
-
-  try {
-    final cacheDirectory = await pp.getTemporaryDirectory();
-    final cachePrefix = '${cacheDirectory.path}/';
-    final stagingDirectory = Directory('${cacheDirectory.path}/namida_received_intents');
-    if (!path.startsWith(cachePrefix) || path.startsWith('${stagingDirectory.path}/')) return path;
-
-    // The public plugin copies content:// shares into the cache root, which
-    // Namida clears after startup. Move them into a session-owned subdirectory.
-    final source = File(path);
-    if (!await source.exists()) return path;
-
-    final originalName = source.uri.pathSegments.lastOrNull ?? 'shared_file';
-    final extensionIndex = originalName.lastIndexOf('.');
-    final extension = extensionIndex >= 0 ? originalName.substring(extensionIndex) : '';
-    final target = File('${stagingDirectory.path}/${DateTime.now().microsecondsSinceEpoch}_$index$extension');
-    await stagingDirectory.create(recursive: true);
-    try {
-      return (await source.rename(target.path)).path;
-    } catch (_) {
-      try {
-        return (await source.copy(target.path)).path;
-      } catch (_) {
-        return path;
-      }
-    }
-  } catch (_) {
-    return path;
-  }
-}
-
-String? _sharedIntentRealPath(SharedFile file) {
-  final value = file.value;
-  if (value == null) return null;
-
-  final isFileUri = value.startsWith('file://');
-  final path = isFileUri ? Uri.parse(value).toFilePath() : value;
-  if (file.type == SharedMediaType.IMAGE || file.type == SharedMediaType.VIDEO || file.type == SharedMediaType.FILE) {
-    return path;
-  }
-
-  // Some file providers classify shared text files as TEXT. Keep those usable
-  // as files when the plugin has resolved them to a local path.
-  if (value.startsWith('/') || isFileUri) return path;
-  return null;
 }
 
 Future<bool> requestManageStoragePermission({bool request = true, bool showError = true, String? directoryToCreate}) async {
