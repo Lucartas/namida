@@ -34,7 +34,7 @@ enum YTStreamsNaturalOrder {
   unknown,
 }
 
-mixin YoutubeStreamsManager<W extends YoutiPieListWrapper> {
+mixin YoutubeStreamsManager<W extends YoutiPieListWrapper<YoutubeFeed>> {
   /// The list as returned by youtube, this is never sorted in place.
   List<StreamInfoItem>? get streamsList;
   W? get listWrapper;
@@ -73,9 +73,9 @@ mixin YoutubeStreamsManager<W extends YoutiPieListWrapper> {
   late final sorting = Rxn<YTVideosSorting>(null);
   late final sortingByTop = _defaultSortingByTop.obs;
 
-  YoutiPieListSorterMixin? get _serverSorter {
+  YoutiPieListSorterMixin<YoutubeFeed>? get _serverSorter {
     final wrapper = listWrapper;
-    return wrapper is YoutiPieListSorterMixin ? wrapper as YoutiPieListSorterMixin<dynamic> : null;
+    return wrapper is YoutiPieListSorterMixin<YoutubeFeed> ? wrapper : null;
   }
 
   List<YoutiPieItemsSort> get _serverSorts {

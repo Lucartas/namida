@@ -111,7 +111,7 @@ class _IndexerMissingTracksSubpageState extends State<IndexerMissingTracksSubpag
     _loadingProgressOnGoing[_LoadingProgress.preparingFiles] = true;
 
     late final Set<String> audioFiles;
-    await Future.wait<dynamic>(<Future<dynamic>>[
+    await Future.wait([
       Indexer.inst.getAudioFiles().then((value) => audioFiles = value),
       HistoryController.inst.waitForHistoryAndMostPlayedLoad,
       PlaylistController.inst.waitForPlaylistsLoad,

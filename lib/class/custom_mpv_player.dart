@@ -7,7 +7,7 @@ import 'package:flutter/widgets.dart';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:basic_audio_handler/basic_audio_handler.dart';
-import 'package:just_audio/just_audio.dart' hide AudioTrack;
+import 'package:just_audio/just_audio.dart';
 import 'package:media_kit/media_kit.dart' as mk;
 import 'package:media_kit_video/media_kit_video.dart';
 
@@ -18,7 +18,7 @@ import 'package:namida/core/utils.dart';
 
 // Missing features: quick settings tile, picture in picture
 // `isPlaying()`, `hasVideo()`, `getVideoRational()`.
-class CustomMPVPlayer {
+class CustomMPVPlayer implements AVPlayer {
   // features: skip silence, looping animations, equalizer, equalizer presets, loudness enhancer
   // by claude
   static const _enableExperimentalFeatures = true;

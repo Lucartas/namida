@@ -1,4 +1,5 @@
 import 'package:history_manager/history_manager.dart';
+import 'package:youtipie/youtipie.dart';
 
 import 'package:namida/class/history_stats.dart';
 import 'package:namida/class/track.dart';
@@ -11,10 +12,6 @@ import 'package:namida/core/enums.dart';
 import 'package:namida/core/extensions.dart';
 import 'package:namida/youtube/controller/youtube_history_controller.dart';
 import 'package:namida/youtube/controller/youtube_info_controller.dart';
-
-extension _StatsDummyVideoId on String {
-  bool get isDummyVideoId => startsWith('dummy_');
-}
 
 // by claude
 class StatsController {

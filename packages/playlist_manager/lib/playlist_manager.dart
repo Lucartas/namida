@@ -239,7 +239,7 @@ class PlaylistManager<T, I, S> {
   Future<void> updatePlaylistsMetadata(Map<String, PlaylistMetadataEdit> edits) async => _offlinePlaylistUnavailable('Playlist metadata');
   Future<bool> writePlaylistToStorage(GeneralPlaylist<T, S> playlist) async => _offlinePlaylistUnavailable('Playlist storage');
   Future<void> removePlaylist(GeneralPlaylist<T, S> playlist) async => _offlinePlaylistUnavailable('Remove playlist');
-  dynamic prepareDefaultPlaylistsFileAsync() => _offlinePlaylistUnavailable('Playlist storage');
+  Future<void> prepareDefaultPlaylistsFileAsync() async => _offlinePlaylistUnavailable('Playlist storage');
 
   dynamic noSuchMethod(Invocation invocation) => _offlinePlaylistUnavailable(
     'Playlist manager operation (${invocation.memberName})',

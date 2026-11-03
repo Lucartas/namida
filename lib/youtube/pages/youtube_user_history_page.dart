@@ -68,7 +68,7 @@ class YoutubeUserHistoryPage extends StatelessWidget with NamidaRouteWidget {
             itemBuilder: (chunk, index, list) {
               final items = chunk.items;
               int itemsLengthWithoutHiddens = items.length;
-              if (!isShortsVisible) itemsLengthWithoutHiddens = (itemsLengthWithoutHiddens - chunk.shortsItemsCount.value.toInt()).toInt();
+              if (!isShortsVisible) itemsLengthWithoutHiddens -= chunk.shortsItemsCount.value;
               if (itemsLengthWithoutHiddens <= 0) return const SizedBox();
 
               final hasBeforeAndAfterPadding = chunk.title.isNotEmpty;
@@ -137,7 +137,7 @@ class YoutubeUserHistoryPage extends StatelessWidget with NamidaRouteWidget {
               itemExtentBuilder: (index, dimensions) {
                 final chunk = listItems.items[index];
                 int itemsLengthWithoutHiddens = chunk.items.length;
-                if (!isShortsVisible) itemsLengthWithoutHiddens = (itemsLengthWithoutHiddens - chunk.shortsItemsCount.value.toInt()).toInt();
+                if (!isShortsVisible) itemsLengthWithoutHiddens -= chunk.shortsItemsCount.value;
                 if (itemsLengthWithoutHiddens <= 0) return 0;
 
                 final hasBeforeAndAfterPadding = chunk.title.isNotEmpty;
@@ -211,7 +211,7 @@ class YoutubeUserHistoryPageHorizontal extends StatelessWidget {
         itemBuilder: (chunk, chunkIndex, list) {
           final items = chunk.items;
           int itemsLengthWithoutHiddens = items.length;
-          if (!isShortsVisible) itemsLengthWithoutHiddens = (itemsLengthWithoutHiddens - chunk.shortsItemsCount.value.toInt()).toInt();
+          if (!isShortsVisible) itemsLengthWithoutHiddens -= chunk.shortsItemsCount.value;
           if (itemsLengthWithoutHiddens <= 0) return const SizedBox();
 
           return SizedBox(
@@ -288,7 +288,7 @@ class YoutubeUserHistoryPageHorizontal extends StatelessWidget {
           itemExtentBuilder: (index, dimensions) {
             final chunk = listItems.items[index];
             int itemsLengthWithoutHiddens = chunk.items.length;
-            if (!isShortsVisible) itemsLengthWithoutHiddens = (itemsLengthWithoutHiddens - chunk.shortsItemsCount.value.toInt()).toInt();
+            if (!isShortsVisible) itemsLengthWithoutHiddens -= chunk.shortsItemsCount.value;
             if (itemsLengthWithoutHiddens <= 0) return 0;
             return itemsLengthWithoutHiddens * thumbnailItemExtent;
           },

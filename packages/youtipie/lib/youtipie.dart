@@ -1,3 +1,7 @@
+import 'package:nampack/reactive/reactive.dart';
+
+import 'src/mock_models.dart';
+
 export 'src/mock_models.dart';
 
 Never _unavailableRemoteOperation(Invocation invocation) => throw UnsupportedError(
@@ -8,6 +12,20 @@ class _UnavailableRemoteApi {
   const _UnavailableRemoteApi();
 
   dynamic noSuchMethod(Invocation invocation) => _unavailableRemoteOperation(invocation);
+}
+
+class YoutiPieCookies {
+  final Rxn<YoutiPieChannelInfo> activeAccountChannel = Rxn<YoutiPieChannelInfo>();
+  final Rx<Set<dynamic>> signedInAccounts = Rx<Set<dynamic>>(<dynamic>{});
+  bool? canAddMultiAccounts;
+  bool get canAuthorizeRequests => false;
+
+  void addOnAccountChanged(void Function() callback) {}
+  void removeOnAccountChanged(void Function() callback) {}
+  bool isSessionExpired(dynamic account) => false;
+  void signOut(dynamic userChannel) {}
+  void setAccount(dynamic userChannel) {}
+  void setAnonymous() {}
 }
 
 /// Compile-time facade for the upstream remote client.
@@ -26,7 +44,7 @@ abstract final class YoutiPie {
   static const dynamic cipher = _api;
   static const dynamic comment = _api;
   static const dynamic commentAction = _api;
-  static const dynamic cookies = _api;
+  static final YoutiPieCookies cookies = YoutiPieCookies();
   static const dynamic countryCode = _api;
   static const dynamic feed = _api;
   static const dynamic hashtag = _api;

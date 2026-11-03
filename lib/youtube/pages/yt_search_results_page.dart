@@ -604,8 +604,8 @@ class YoutubeSearchResultsPageState extends State<YoutubeSearchResultsPage> {
                                         final chunk = searchResult.items[index];
                                         final items = chunk.items;
                                         int itemsLengthWithoutHiddens = items.length;
-                                        if (!isShortsVisible) itemsLengthWithoutHiddens = (itemsLengthWithoutHiddens - chunk.shortsItemsCount.value.toInt()).toInt();
-                                        if (!isMixesVisible) itemsLengthWithoutHiddens = (itemsLengthWithoutHiddens - chunk.mixesPlaylistCount.value.toInt()).toInt();
+                                        if (!isShortsVisible) itemsLengthWithoutHiddens -= chunk.shortsItemsCount.value;
+                                        if (!isMixesVisible) itemsLengthWithoutHiddens -= chunk.mixesPlaylistCount.value;
                                         if (itemsLengthWithoutHiddens <= 0) return const SizedBox();
 
                                         if (settings.youtube.searchCleanup.value) {

@@ -5,7 +5,6 @@ import 'package:audio_service/audio_service.dart';
 import 'package:lrc/lrc.dart';
 
 import 'package:namida/base/audio_handler.dart';
-import 'package:namida/class/track.dart' show PlayableActions;
 import 'package:namida/controller/home_widget_controller.dart';
 import 'package:namida/controller/lyrics_controller.dart';
 import 'package:namida/controller/now_playing_broadcaster.dart';

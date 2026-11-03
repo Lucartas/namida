@@ -1,0 +1,7 @@
+name: ffmpeg_kit_extended_flutter
+description: Compile-time stub for the unavailable FFmpeg Kit dependency.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ">=3.13.7 <4.0.0"

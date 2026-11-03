@@ -6,7 +6,7 @@ typedef ChannelAboutLink = dynamic;
 typedef ChannelHomeSection = dynamic;
 typedef ChannelInfo = dynamic;
 typedef ChannelPageAbout = dynamic;
-typedef ChannelPageResult = dynamic;
+typedef ChannelPageResult = YoutiPieChannelPageResult;
 
 enum ChannelTab { videos }
 
@@ -14,18 +14,18 @@ extension ChannelTabTitle on ChannelTab {
   String get title => name;
 }
 
-typedef ChannelTabResult = dynamic;
-typedef ChannelUserResult = dynamic;
+typedef ChannelTabResult = YoutiPieChannelTabResult;
+typedef ChannelUserResult = YoutiPieUserChannelsResult;
 typedef CodecInfo = dynamic;
-typedef CommentInfoItem = dynamic;
-typedef CommentInfoItemBase = dynamic;
-typedef CommentNotificationResult = dynamic;
-typedef CommentReplyResult = dynamic;
-typedef CommentResult = dynamic;
-typedef FeedResult = dynamic;
-typedef HashtagResult = dynamic;
-typedef HistoryChunk = dynamic;
-typedef HistoryResult = dynamic;
+typedef CommentInfoItem = YoutiPieCommentInfoItem;
+typedef CommentInfoItemBase = YoutiPieCommentInfoItemBase;
+typedef CommentNotificationResult = YoutiPieNotificationCommentResult;
+typedef CommentReplyResult = YoutiPieCommentReplyResult;
+typedef CommentResult = YoutiPieCommentResult;
+typedef FeedResult = YoutiPieFeedResult;
+typedef HashtagResult = YoutiPieHashtagResult;
+typedef HistoryChunk = YoutiPieHistoryChunk;
+typedef HistoryResult = YoutiPieHistoryResult;
 typedef HlsVariant = dynamic;
 typedef ItemsSort = dynamic;
 
@@ -40,13 +40,24 @@ class MissingVideoInfo {
   final dynamic videoPage;
   final List<dynamic> sources;
   final dynamic subsource;
-  const MissingVideoInfo({this.videoId, this.title, this.channelId, this.channelName, this.description, this.date, this.durSeconds, this.videoPage, this.sources = const [], this.subsource});
+  const MissingVideoInfo({
+    this.videoId,
+    this.title,
+    this.channelId,
+    this.channelName,
+    this.description,
+    this.date,
+    this.durSeconds,
+    this.videoPage,
+    this.sources = const [],
+    this.subsource,
+  });
   static MissingVideoInfo fromMap(dynamic map) =>
       map is Map ? MissingVideoInfo(videoId: map['videoId'], title: map['title'], channelId: map['channelId'], channelName: map['channelName']) : const MissingVideoInfo();
 }
 
 typedef MusicBrowseEndpoint = dynamic;
-typedef MusicBrowseResult = dynamic;
+typedef MusicBrowseResult = YoutiPieMusicBrowseResult;
 typedef MusicChip = dynamic;
 typedef MusicFormOption = dynamic;
 typedef MusicSearchChip = dynamic;
@@ -54,7 +65,7 @@ typedef MusicSearchResult = dynamic;
 typedef MusicShelf = dynamic;
 typedef MusicTopResult = dynamic;
 typedef NotificationMenuAction = dynamic;
-typedef NotificationResult = dynamic;
+typedef NotificationResult = YoutiPieNotificationResult;
 typedef PlaylistIdUtils = dynamic;
 typedef PlaylistMixResult = dynamic;
 typedef PlaylistResult = dynamic;
@@ -62,19 +73,18 @@ typedef PlaylistResultBase = dynamic;
 typedef PlaylistUserResult = dynamic;
 typedef RelatedVideosResult = dynamic;
 typedef SearchFilters = dynamic;
-typedef SearchResult = dynamic;
+typedef SearchResult = YoutiPieSearchResult;
 typedef SearchSuggestionInfo = dynamic;
 typedef SponsorblockSegment = dynamic;
 typedef SponsorblockSegmentsResult = dynamic;
 typedef StreamBase = dynamic;
 typedef StreamSegments = dynamic;
-typedef Thumbnail = dynamic;
+typedef Thumbnail = YoutiPieThumbnail;
 typedef UrlUtils = dynamic;
 typedef UserChannelInfo = dynamic;
-typedef UserChannelsAllVideosResult = dynamic;
+typedef UserChannelsAllVideosResult = YoutiPieUserChannelsAllVideosResult;
 typedef VideoHeatMap = dynamic;
 typedef VideoInfo = dynamic;
-typedef VideoPlayability = dynamic;
 typedef VideoResult = dynamic;
 typedef YoutipieDescription = dynamic;
 typedef YtFeedBase = dynamic;
@@ -131,7 +141,7 @@ typedef SponsorBlockSegment = dynamic;
 typedef SponsorBlockSegmentsResult = dynamic;
 typedef StreamSegment = dynamic;
 typedef StylesWrapper = dynamic;
-typedef VideoPlayabilty = dynamic;
+typedef VideoPlayabilty = VideoPlayability;
 
 class YoutiPieChannelInfo extends ChannelInfoItem {
   const YoutiPieChannelInfo({
@@ -140,6 +150,7 @@ class YoutiPieChannelInfo extends ChannelInfoItem {
     super.title,
     super.thumbnails,
     super.subscribersCount,
+    super.subscribersCountText,
     super.subscribed,
     super.notifications,
     super.notificationParameters,
@@ -151,31 +162,45 @@ class YoutiPieChannelInfo extends ChannelInfoItem {
   void rebuild({dynamic newSubscribed, dynamic newNotifications, dynamic newNotificationParameters}) {}
 }
 
-typedef YoutiPieChannelPageResult = dynamic;
-typedef YoutiPieCommentResult = dynamic;
-typedef YoutiPieFeedResult = dynamic;
+class YoutiPieChannelPageResult extends YoutiPieChannelInfo {
+  final List<dynamic> tabs;
+  final dynamic videosCount;
+  final dynamic videosCountText;
+
+  const YoutiPieChannelPageResult({
+    super.id,
+    super.handler,
+    super.title,
+    super.thumbnails,
+    super.subscribersCount,
+    super.subscribersCountText,
+    super.subscribed,
+    super.notifications,
+    super.notificationParameters,
+    super.channelEngagement,
+    super.banners,
+    super.tvbanners,
+    super.mobileBanners,
+    this.tabs = const [],
+    this.videosCount,
+    this.videosCountText,
+  });
+
+  String buildUrl() => _unavailable('Remote channel URL');
+}
+
+// Result wrappers used by the app retain their upstream generic API, while all
+// remote operations remain unavailable in this compile-only package.
 typedef YoutiPieFetchAllRes = dynamic;
-typedef YoutiPieHashtagResult = dynamic;
-typedef YoutiPieHistoryChunk = dynamic;
-typedef YoutiPieHistoryResult = dynamic;
-typedef YoutiPieItemsSort = dynamic;
 typedef YoutiPieMixPlaylistResult = dynamic;
-typedef YoutiPieMusicBrowseResult = dynamic;
 typedef YoutiPieMusicChip = dynamic;
 typedef YoutiPieMusicFormOption = dynamic;
 typedef YoutiPieMusicSearchChip = dynamic;
 typedef YoutiPieMusicSearchResult = dynamic;
-typedef YoutiPieMusicTopResult = dynamic;
-typedef YoutiPieNotificationCommentResult = dynamic;
-typedef YoutiPieNotificationResult = dynamic;
 typedef YoutiPiePlaylistResult = dynamic;
-typedef YoutiPieSearchResult = dynamic;
-typedef YoutiPieThumbnail = dynamic;
-typedef YoutiPieUserChannelsAllVideosResult = dynamic;
 typedef YoutiPieVideoHeatMap = dynamic;
 typedef YoutiPieVideoInfo = dynamic;
 typedef YoutiPieVideoPageResult = dynamic;
-typedef YoutubeFeed = dynamic;
 
 enum PlaylistPrivacy { public, unlisted, private }
 
@@ -216,8 +241,95 @@ enum VideoPlayabiltyStatus { ok, unknown }
 enum VideoEndScreenItemType { video, playlist, channel, unknown }
 
 class MapSerializable {
+  const MapSerializable();
+
   static const String dummyKey = '_dummy';
   static const String timestampKey = '_timestamp';
+}
+
+class YoutiPieThumbnail extends MapSerializable {
+  final dynamic url;
+  final dynamic width;
+  final dynamic height;
+
+  const YoutiPieThumbnail({this.url, this.width, this.height});
+}
+
+class YoutiPieCommentInfoItemBase extends MapSerializable {
+  final dynamic author;
+  final dynamic authorAvatarUrl;
+  final dynamic commentId;
+  final dynamic content;
+  final dynamic engagement;
+  final dynamic isEdited;
+  final dynamic isHearted;
+  final dynamic isPinned;
+  final dynamic likeStatus;
+  final dynamic likesCount;
+  final dynamic linkedMainCommentId;
+  final dynamic linkedReply;
+  final dynamic publishedAt;
+  final dynamic publishedTimeText;
+  final dynamic repliesCount;
+  final dynamic replyContinuation;
+  final dynamic videoId;
+  final dynamic voiceReplyTranscript;
+
+  const YoutiPieCommentInfoItemBase({
+    this.author,
+    this.authorAvatarUrl,
+    this.commentId,
+    this.content,
+    this.engagement,
+    this.isEdited,
+    this.isHearted,
+    this.isPinned,
+    this.likeStatus,
+    this.likesCount,
+    this.linkedMainCommentId,
+    this.linkedReply,
+    this.publishedAt,
+    this.publishedTimeText,
+    this.repliesCount,
+    this.replyContinuation,
+    this.videoId,
+    this.voiceReplyTranscript,
+  });
+}
+
+class YoutiPieCommentInfoItem extends YoutiPieCommentInfoItemBase {
+  const YoutiPieCommentInfoItem({
+    super.author,
+    super.authorAvatarUrl,
+    super.commentId,
+    super.content,
+    super.engagement,
+    super.isEdited,
+    super.isHearted,
+    super.isPinned,
+    super.likeStatus,
+    super.likesCount,
+    super.linkedMainCommentId,
+    super.linkedReply,
+    super.publishedAt,
+    super.publishedTimeText,
+    super.repliesCount,
+    super.replyContinuation,
+    super.videoId,
+    super.voiceReplyTranscript,
+  });
+}
+
+class YoutiPieItemsSort {
+  final bool initiallySelected;
+  final String title;
+  final String token;
+  const YoutiPieItemsSort({this.initiallySelected = false, this.title = '', this.token = ''});
+}
+
+class _MockValue<T> {
+  final T value;
+  const _MockValue(this.value);
 }
 
 class ExecuteDetails {
@@ -246,8 +358,8 @@ class PublishTime {
       map is Map ? PublishTime(date: map['date'] is String ? DateTime.tryParse(map['date']) : null, text: map['text']?.toString()) : const PublishTime.unknown();
 }
 
-class PlaylistBasicInfo {
-  final dynamic id;
+class PlaylistBasicInfo extends MapSerializable {
+  final String id;
   final dynamic title;
   final dynamic videosCountText;
   final dynamic videosCount;
@@ -291,12 +403,13 @@ class PlaylistBasicInfo {
   }) => _unavailable('Playlist actions');
 }
 
-class ChannelInfoItem {
+class ChannelInfoItem extends MapSerializable {
   final dynamic id;
-  final dynamic handler;
+  final String handler;
   final dynamic title;
-  final List<dynamic> thumbnails;
+  final List<YoutiPieThumbnail> thumbnails;
   final dynamic subscribersCount;
+  final dynamic subscribersCountText;
   final dynamic subscribed;
   final dynamic notifications;
   final dynamic notificationParameters;
@@ -306,10 +419,11 @@ class ChannelInfoItem {
   final dynamic mobileBanners;
   const ChannelInfoItem({
     this.id,
-    this.handler,
+    this.handler = '',
     this.title,
     this.thumbnails = const [],
     this.subscribersCount,
+    this.subscribersCountText,
     this.subscribed,
     this.notifications,
     this.notificationParameters,
@@ -324,6 +438,7 @@ class ChannelInfoItem {
       title = '',
       thumbnails = const [],
       subscribersCount = null,
+      subscribersCountText = null,
       subscribed = null,
       notifications = null,
       notificationParameters = null,
@@ -333,13 +448,49 @@ class ChannelInfoItem {
       mobileBanners = null;
 }
 
-class StreamInfoItem {
-  final dynamic id;
-  final dynamic title;
+abstract class YoutubeFeed extends MapSerializable implements MusicAlbumInfoItem, MusicNavigationItem {
+  dynamic get id;
+  dynamic get title;
+  dynamic get subtitle;
+  List<dynamic> get thumbnails;
+  dynamic get isMix;
+  dynamic get isShortContent;
+  dynamic get initialVideos;
+  dynamic get items;
+  dynamic get playlistId;
+  dynamic get endpoint;
+  dynamic get cacheKey;
+  dynamic get color;
+  dynamic get artists;
+
+  const YoutubeFeed();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+extension YoutubeFeedMixPlaylist on YoutubeFeed {
+  bool get isMixPlaylist {
+    final item = this;
+    if (item is StreamInfoItem) return item.isMixPlaylist == true;
+    if (item is PlaylistInfoItem) return item.isMix == true;
+    return false;
+  }
+}
+
+class StreamInfoItem extends YoutubeFeed implements PlaylistBasicInfo {
+  final String id;
+  final String title;
   final dynamic shortDescription;
   final dynamic channel;
   final dynamic channelName;
   final dynamic channelId;
+  final List<YoutiPieThumbnail> thumbnails;
+  final dynamic subtitle;
+  final dynamic isMix;
+  final dynamic isShortContent;
+  final dynamic isMixPlaylist;
+  final List<dynamic> initialVideos;
   final dynamic thumbnailGifUrl;
   final dynamic publishedFromText;
   final dynamic publishedAt;
@@ -360,6 +511,12 @@ class StreamInfoItem {
     this.channel,
     this.channelName,
     this.channelId,
+    this.thumbnails = const [],
+    this.subtitle,
+    this.isMix = false,
+    this.isShortContent = false,
+    this.isMixPlaylist = false,
+    this.initialVideos = const [],
     this.thumbnailGifUrl,
     this.publishedFromText,
     this.publishedAt,
@@ -377,39 +534,39 @@ class StreamInfoItem {
   dynamic get availableDescription => shortDescription;
   dynamic buildUrl() => _unavailable('Remote video URL');
   Map<String, dynamic> toMap() => {};
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
   static StreamInfoItem fromMap(dynamic map) => map is Map ? StreamInfoItem(id: map['id'] ?? '', title: map['title'] ?? '') : const StreamInfoItem();
 }
 
-class YoutiPieChannelTabResult extends YoutiPieListWrapper<dynamic> with YoutiPieListSorterMixin<dynamic> {
-  final dynamic channelId;
-  const YoutiPieChannelTabResult({super.items = const [], super.continuation, this.channelId});
+class YoutiPieChannelTabResult extends YoutiPieListWrapper<YoutubeFeed> {
+  final String? channelId;
+  const YoutiPieChannelTabResult({List<YoutubeFeed> items = const [], super.continuation, this.channelId}) : super(items: items);
 }
 
-class StreamInfoItemShort {
-  final dynamic id;
-  final dynamic title;
+class StreamInfoItemShort extends MapSerializable {
+  final String id;
+  final String title;
   final dynamic viewsText;
   final dynamic viewsCount;
   final dynamic liveThumbs;
   const StreamInfoItemShort({this.id = '', this.title = '', this.viewsText, this.viewsCount, this.liveThumbs});
 }
 
-class StreamInfoItemNotification {
-  final dynamic id;
-  final dynamic title;
+class StreamInfoItemNotification extends YoutiPieCommentInfoItemBase {
+  final String id;
+  final String title;
   final dynamic isRead;
   final dynamic menuActions;
   final dynamic isComment;
   final dynamic shortText;
   final dynamic publishedAt;
-  final dynamic possibleInfo;
+  final NotificationPossibleInfo? possibleInfo;
   final dynamic thumbs;
   final dynamic uploaderthumbs;
   final dynamic isCommentReply;
   final dynamic notificationId;
   final dynamic linkedCommentId;
-  final dynamic linkedReply;
-  final dynamic linkedMainCommentId;
   const StreamInfoItemNotification({
     this.id = '',
     this.title = '',
@@ -424,14 +581,27 @@ class StreamInfoItemNotification {
     this.isCommentReply,
     this.notificationId,
     this.linkedCommentId,
-    this.linkedReply,
-    this.linkedMainCommentId,
+    super.linkedReply,
+    super.linkedMainCommentId,
   });
 }
 
+class NotificationPossibleInfo {
+  final String title;
+  final String channelTitle;
+  const NotificationPossibleInfo({this.title = '', this.channelTitle = ''});
+}
+
+class VideoPlayability extends MapSerializable {
+  final String? reason;
+  final List<String>? messages;
+  final dynamic status;
+  const VideoPlayability({this.reason, this.messages, this.status});
+}
+
 class VideoStreamInfo {
-  final dynamic id;
-  final dynamic title;
+  final String id;
+  final String title;
   final dynamic durSeconds;
   final dynamic keywords;
   final dynamic channelName;
@@ -483,16 +653,28 @@ class AudioTrack {
 class AudioStream {
   final dynamic id;
   final dynamic url;
-  final dynamic duration;
-  final dynamic bitrate;
+  final Duration? duration;
+  final int bitrate;
   final dynamic codecInfo;
-  final AudioTrack? audioTrack;
+  final dynamic audioTrack;
   final dynamic itag;
   final dynamic isWebm;
   final dynamic sizeInBytes;
   final dynamic sampleRate;
   final dynamic channelCount;
-  const AudioStream({this.id, this.url, this.duration, this.bitrate, this.codecInfo, this.audioTrack, this.itag, this.isWebm = false, this.sizeInBytes = 0, this.sampleRate, this.channelCount});
+  const AudioStream({
+    this.id,
+    this.url,
+    this.duration,
+    this.bitrate = 0,
+    this.codecInfo,
+    this.audioTrack,
+    this.itag,
+    this.isWebm = false,
+    this.sizeInBytes = 0,
+    this.sampleRate,
+    this.channelCount,
+  });
   static AudioStream fromMap(dynamic map) => const AudioStream();
   dynamic bitrateText() => _unavailable('Remote audio stream');
   dynamic buildUrl() => _unavailable('Remote audio stream');
@@ -502,15 +684,15 @@ class AudioStream {
 class VideoStream {
   final dynamic id;
   final dynamic url;
-  final dynamic duration;
-  final dynamic bitrate;
+  final Duration? duration;
+  final int bitrate;
   final dynamic codecInfo;
-  final dynamic width;
-  final dynamic height;
+  final int width;
+  final int height;
   final dynamic fps;
   final dynamic itag;
-  final dynamic qualityLabel;
-  final bool isSelected;
+  final String qualityLabel;
+  final dynamic isSelected;
   final dynamic displayName;
   final dynamic label;
   final dynamic mimeType;
@@ -522,13 +704,13 @@ class VideoStream {
     this.id,
     this.url,
     this.duration,
-    this.bitrate,
+    this.bitrate = 0,
     this.codecInfo,
-    this.width,
-    this.height,
-    this.fps,
+    this.width = 0,
+    this.height = 0,
+    this.fps = 0,
     this.itag,
-    this.qualityLabel,
+    this.qualityLabel = '',
     this.isSelected = false,
     this.displayName,
     this.label,
@@ -557,6 +739,8 @@ class VideoStreamsResult {
   final dynamic overlay;
   final dynamic endscreens;
   final dynamic loudnessDBData;
+  final String? hlsManifestUrl;
+  final String? dashManifestUrl;
   final Map<String, AudioStream>? audioStreamsOrganizedByLanguage;
   const VideoStreamsResult({
     this.videoId,
@@ -571,6 +755,8 @@ class VideoStreamsResult {
     this.overlay,
     this.endscreens = const [],
     this.loudnessDBData,
+    this.hlsManifestUrl,
+    this.dashManifestUrl,
     this.audioStreamsOrganizedByLanguage,
   });
   bool hasExpired() => false;
@@ -597,10 +783,11 @@ class CacheDetailsBase {
   dynamic readAllMapsSync(dynamic keys) => _unavailable('Remote cache');
 }
 
-class YoutiPieListWrapper<T> {
+class YoutiPieListWrapper<T extends MapSerializable> with YoutiPieListSorterMixin<T> {
   final List<T> items;
   final dynamic continuation;
   const YoutiPieListWrapper({this.items = const [], this.continuation});
+  int get length => items.length;
   bool get canFetchNext => false;
   Future<bool> fetchNext() async => _unavailable('Remote list pagination');
   dynamic fetchAll({dynamic onProgress, ExecuteDetails? details}) => _unavailable('Remote list pagination');
@@ -630,22 +817,127 @@ class YoutiPieUserPlaylistsResult extends YoutiPieListWrapper<PlaylistInfoItemUs
   const YoutiPieUserPlaylistsResult({List<PlaylistInfoItemUser> items = const [], dynamic continuation}) : items = items, super(items: items, continuation: continuation);
 }
 
-class YoutiPieUserChannelsResult extends YoutiPieListWrapper<YoutiPieChannelInfo?> {
+class YoutiPieUserChannelsResult extends YoutiPieListWrapper<YoutiPieChannelInfo> {
   @override
-  final List<YoutiPieChannelInfo?> items;
-  const YoutiPieUserChannelsResult({List<YoutiPieChannelInfo?> items = const [], dynamic continuation}) : items = items, super(items: items, continuation: continuation);
+  final List<YoutiPieChannelInfo> items;
+  const YoutiPieUserChannelsResult({List<YoutiPieChannelInfo> items = const [], dynamic continuation}) : items = items, super(items: items, continuation: continuation);
+}
+
+class _YoutiPieShortsSection {
+  const _YoutiPieShortsSection();
+  Map<int, List<int>?> get relatedItemsShortsData => const <int, List<int>?>{};
+  Map<int, bool> get shortsIndicesLookup => const <int, bool>{};
+  StreamInfoItemShort getAsShort(dynamic _) => const StreamInfoItemShort();
+}
+
+class YoutiPieFeedResult extends YoutiPieListWrapper<YoutubeFeed> {
+  final _YoutiPieShortsSection shortsSection;
+  const YoutiPieFeedResult({List<YoutubeFeed> items = const [], dynamic continuation, this.shortsSection = const _YoutiPieShortsSection()})
+    : super(items: items, continuation: continuation);
+}
+
+class YoutiPieHistoryChunk extends MapSerializable {
+  final String title;
+  final List<dynamic> items;
+  final _MockValue<int> shortsItemsCount;
+  final _MockValue<int> mixesPlaylistCount;
+
+  const YoutiPieHistoryChunk({this.title = '', this.items = const [], _MockValue<int>? shortsItemsCount, _MockValue<int>? mixesPlaylistCount})
+    : shortsItemsCount = shortsItemsCount ?? const _MockValue<int>(0),
+      mixesPlaylistCount = mixesPlaylistCount ?? const _MockValue<int>(0);
+}
+
+class YoutiPieHistoryResult extends YoutiPieListWrapper<YoutiPieHistoryChunk> {
+  const YoutiPieHistoryResult({List<YoutiPieHistoryChunk> items = const [], dynamic continuation}) : super(items: items, continuation: continuation);
+}
+
+class YoutiPieNotificationResult extends YoutiPieListWrapper<StreamInfoItemNotification> {
+  const YoutiPieNotificationResult({List<StreamInfoItemNotification> items = const [], dynamic continuation}) : super(items: items, continuation: continuation);
+}
+
+class YoutiPieNotificationCommentResult extends YoutiPieCommentResult {
+  final YoutiPieCommentInfoItem? linkedReply;
+  final dynamic linkedMainCommentId;
+  const YoutiPieNotificationCommentResult({
+    super.items = const [],
+    super.continuation,
+    super.sorters,
+    super.commentsCount,
+    super.pausedMessage,
+    super.videoId,
+    this.linkedReply,
+    this.linkedMainCommentId,
+  });
+}
+
+class YoutiPieCommentResult extends YoutiPieListWrapper<YoutiPieCommentInfoItem> {
+  final dynamic sorters;
+  final dynamic commentsCount;
+  final dynamic pausedMessage;
+  final dynamic videoId;
+
+  const YoutiPieCommentResult({
+    List<YoutiPieCommentInfoItem> items = const [],
+    dynamic continuation,
+    this.sorters,
+    this.commentsCount,
+    this.pausedMessage,
+    this.videoId,
+  }) : super(items: items, continuation: continuation);
+
+  bool get isEmpty => items.isEmpty;
+  YoutiPieCommentInfoItem operator [](int index) => items[index];
+  dynamic get createParams => null;
+  dynamic transferLocalItemsTo(dynamic other) => _unavailable('Remote comment pagination');
+}
+
+class YoutiPieHashtagResult extends YoutiPieListWrapper<YoutubeFeed> {
+  const YoutiPieHashtagResult({List<YoutubeFeed> items = const [], dynamic continuation}) : super(items: items, continuation: continuation);
+}
+
+class YoutiPieMusicBrowseResult extends YoutiPieListWrapper<YoutiPieMusicShelf> {
+  final dynamic formOptions;
+  final dynamic chips;
+  final dynamic avatarThumbnails;
+  final dynamic bannerThumbnails;
+  final dynamic subtitle;
+  final dynamic title;
+  final dynamic channelId;
+
+  const YoutiPieMusicBrowseResult({
+    List<YoutiPieMusicShelf> items = const [],
+    dynamic continuation,
+    this.formOptions,
+    this.chips,
+    this.avatarThumbnails,
+    this.bannerThumbnails,
+    this.subtitle,
+    this.title,
+    this.channelId,
+  }) : super(items: items, continuation: continuation);
+  dynamic findSongsPlaylistId() => null;
+}
+
+class YoutiPieSearchResult extends YoutiPieListWrapper<YoutiPieHistoryChunk> {
+  final dynamic correctedQuery;
+  const YoutiPieSearchResult({List<YoutiPieHistoryChunk> items = const [], dynamic continuation, this.correctedQuery}) : super(items: items, continuation: continuation);
+}
+
+class YoutiPieUserChannelsAllVideosResult extends YoutiPieListWrapper<YoutubeFeed> {
+  const YoutiPieUserChannelsAllVideosResult({List<YoutubeFeed> items = const [], dynamic continuation}) : super(items: items, continuation: continuation);
 }
 
 mixin YoutiPieListSorterMixin<T> {
-  dynamic get itemsSort => const [];
-  dynamic get customSort => null;
+  List<YoutiPieItemsSort> get itemsSort => const [];
+  YoutiPieItemsSort? get customSort => null;
   Future<bool> fetchWithNewSort({dynamic sort, ExecuteDetails? details}) async => _unavailable('Remote list sorting');
 }
 
 class YoutiPiePlaylistResultBase extends YoutiPieListWrapper<StreamInfoItem> {
   final PlaylistBasicInfo basicInfo;
   final dynamic cacheKey;
-  const YoutiPiePlaylistResultBase({required this.basicInfo, required List<StreamInfoItem> items, this.cacheKey, dynamic continuation}) : super(items: items, continuation: continuation);
+  const YoutiPiePlaylistResultBase({required this.basicInfo, required List<StreamInfoItem> items, this.cacheKey, dynamic continuation})
+    : super(items: items, continuation: continuation);
   PlaylistBasicInfo get info => basicInfo;
   dynamic get playlistId => basicInfo.id;
   @override
@@ -657,10 +949,11 @@ class YoutiPiePlaylistResultBase extends YoutiPieListWrapper<StreamInfoItem> {
   Map<String, dynamic> toMapRaw() => _unavailable('Remote playlist serialization');
 }
 
-class YoutiPieCommentReplyResult extends YoutiPieListWrapper<dynamic> {
+class YoutiPieCommentReplyResult extends YoutiPieListWrapper<YoutiPieCommentInfoItemBase> {
   final dynamic commentId;
   final dynamic cacheKey;
-  const YoutiPieCommentReplyResult({this.commentId, this.cacheKey, dynamic items = const [], dynamic continuation}) : super(items: items, continuation: continuation);
+  const YoutiPieCommentReplyResult({this.commentId, this.cacheKey, List<YoutiPieCommentInfoItemBase> items = const [], dynamic continuation})
+    : super(items: items, continuation: continuation);
   int get length => (items as List).length;
   @override
   bool get canFetchNext => continuation != null;
@@ -800,9 +1093,9 @@ class YoutiPieMusicBrowseEndpoint {
   YoutiPieMusicBrowseEndpoint withFormValues(dynamic values) => this;
 }
 
-class YoutiPieMusicShelf {
+class YoutiPieMusicShelf extends MapSerializable {
   final YoutiPieMusicShelfLayout layout;
-  final dynamic items;
+  final List<YoutubeFeed> items;
   final bool hasHeader;
   final dynamic title;
   final dynamic strapline;
@@ -821,12 +1114,12 @@ class YoutiPieMusicShelf {
   });
 }
 
-class YoutiPieRelatedVideosResult extends YoutiPieListWrapper<dynamic> {
+class YoutiPieRelatedVideosResult extends YoutiPieListWrapper<YoutubeFeed> {
   final dynamic cacheKey;
   final dynamic videoId;
   final dynamic isPersonalized;
   final dynamic shortsSection;
-  const YoutiPieRelatedVideosResult({this.cacheKey, dynamic items = const [], dynamic continuation, this.videoId, this.isPersonalized, this.shortsSection})
+  const YoutiPieRelatedVideosResult({this.cacheKey, List<YoutubeFeed> items = const [], dynamic continuation, this.videoId, this.isPersonalized, this.shortsSection})
     : super(items: items, continuation: continuation);
   @override
   bool get canFetchNext => continuation != null;
@@ -835,7 +1128,10 @@ class YoutiPieRelatedVideosResult extends YoutiPieListWrapper<dynamic> {
 }
 
 class HlsMasterPlaylist {
-  const HlsMasterPlaylist();
+  final List<dynamic> variants;
+  const HlsMasterPlaylist({this.variants = const []});
+
+  String buildSingleVariantMaster(dynamic variant) => _unavailable('Live HLS variant selection');
 }
 
 class YoutiAccountManager {
@@ -906,7 +1202,15 @@ class MusicNavigationItem {
   const MusicNavigationItem({this.id, this.title, this.subtitle, this.color, this.endpoint});
 }
 
-class PlaylistInfoItem extends PlaylistBasicInfo {
+class YoutiPieMusicTopResult extends MapSerializable {
+  final YoutubeFeed item;
+  final List<YoutubeFeed> items;
+  final dynamic subtitle;
+
+  const YoutiPieMusicTopResult({required this.item, this.items = const [], this.subtitle});
+}
+
+class PlaylistInfoItem extends PlaylistBasicInfo implements YoutubeFeed {
   final List<dynamic> initialVideos;
   const PlaylistInfoItem({
     super.id = '',
@@ -919,6 +1223,24 @@ class PlaylistInfoItem extends PlaylistBasicInfo {
     super.uploader,
     this.initialVideos = const [],
   });
+
+  @override
+  dynamic get isShortContent => false;
+  @override
+  dynamic get items => null;
+  @override
+  dynamic get playlistId => id;
+  @override
+  dynamic get endpoint => null;
+  @override
+  dynamic get cacheKey => null;
+  @override
+  dynamic get color => null;
+  @override
+  dynamic get artists => null;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+
   static bool isMixPlaylist(String id) => id.startsWith('RD');
 }
 

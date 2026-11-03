@@ -11,11 +11,12 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:namida_compile_shims/namida_compile_shims.dart';
+import 'package:namida_sharing_intent/namida_sharing_intent.dart';
 import 'package:flutter_volume_controller/flutter_volume_controller.dart' show FlutterVolumeController;
 import 'package:http_cache_stream/http_cache_stream.dart';
 import 'package:media_kit/media_kit.dart' as mk;
 import 'package:namico_db_wrapper/namico_db_wrapper.dart';
-import 'package:namida_sharing_intent/namida_sharing_intent.dart';
 import 'package:path_provider/path_provider.dart' as pp;
 import 'package:rhttp/rhttp.dart';
 import 'package:super_drag_and_drop/super_drag_and_drop.dart';
@@ -341,7 +342,7 @@ Future<bool> _mainAppInitialization() async {
 
 Future<void> _secondaryAppInitialization(bool shouldShowOnBoarding) async {
   try {
-    final intentInitialization = _initializeIntenties();
+    _initializeIntenties();
     _initLifeCycle();
     NamidaChannel.inst.logPreviousAbnormalExits().catchError(logger.report);
 
@@ -374,7 +375,6 @@ Future<void> _secondaryAppInitialization(bool shouldShowOnBoarding) async {
     VersionController.inst.ensureInitialized();
     SyncDiscovery.autoRestoreOnStartup();
     SyncSender.inst.setupAutoSync();
-    await intentInitialization;
     _clearIntentCachedFiles(); // clearing files cached by intents
     // CurrentColor.inst.generateAllColorPalettes();
   } catch (e, st) {
@@ -513,28 +513,22 @@ Future<void> _clearIntentCachedFiles() async {
   );
 }
 
-Future<void> _initializeIntenties() async {
+void _initializeIntenties() {
   if (NamidaFeaturesVisibility.recieveSharingIntents) {
-    // -- Receiving Initial Android Shared Intent.
-    final initialSharing = FlutterSharingIntent.instance.getInitialSharing();
+    // -- Recieving Initial Android Shared Intent.
+    FlutterSharingIntent.instance.getInitialSharing().then(
+      (items) => NamidaReceiveIntentManager.executeReceivedItems(items, (f) => f.value, (f) => f.realPath),
+    );
 
     // -- Listening to Android Shared Intents.
     FlutterSharingIntent.instance.getMediaStream().listen(
       (items) => NamidaReceiveIntentManager.executeReceivedItems(items, (f) => f.value, (f) => f.realPath),
       onError: (err) => NamidaReceiveIntentManager.showErrorPlayingFileSnackbar(error: err.toString()),
     );
-
-    try {
-      await initialSharing.then(
-        (items) => NamidaReceiveIntentManager.executeReceivedItems(items, (f) => f.value, (f) => f.realPath),
-      );
-    } catch (e, st) {
-      logger.error('Failed to handle initial Android share intent', e: e, st: st);
-    }
   }
 
   // -- ios & macos: opened files arrive as absolute paths, links keep their scheme
-  await NamidaChannel.inst.listenOpenedUrls(
+  NamidaChannel.inst.listenOpenedUrls(
     (items) => NamidaReceiveIntentManager.executeReceivedItems(items, (f) => f, (f) => f.startsWith('/') ? f : null),
   );
 }

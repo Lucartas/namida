@@ -26,7 +26,7 @@ import 'package:namida/youtube/pages/user/youtube_account_manage_page.dart';
 class YoutubeAccountController {
   const YoutubeAccountController._();
 
-  static final current = _OfflineYoutiPieAccountManager();
+  static final current = YoutiPie.cookies;
   static final membership = _CurrentMembership._();
 
   static RxBaseCore<YoutiLoginProgress?> get signInProgress => _signInProgress;
@@ -329,16 +329,6 @@ class YoutubeAccountController {
   static void setAccountAnonymous() {
     YoutiPie.cookies.setAnonymous();
   }
-}
-
-class _OfflineYoutiPieAccountManager {
-  final activeAccountChannel = Rxn<YoutiPieChannelInfo?>();
-  final signedInAccounts = Rx<Set<YoutiPieChannelInfo>>(<YoutiPieChannelInfo>{});
-  bool canAddMultiAccounts = false;
-  int? index;
-
-  void addOnAccountChanged(dynamic _) {}
-  void removeOnAccountChanged(dynamic _) {}
 }
 
 class _CurrentMembership {

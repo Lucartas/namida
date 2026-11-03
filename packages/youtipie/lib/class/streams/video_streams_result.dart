@@ -1,1 +1,1 @@
-export 'package:youtipie/youtipie.dart';
+export 'package:youtipie/youtipie.dart' hide AudioTrack;

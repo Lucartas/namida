@@ -34,7 +34,7 @@ class YTCommentCard<W extends YoutiPieListWrapper<CommentInfoItemBase>> extends 
   final bool showRepliesBox;
   final String? videoId;
   final CommentInfoItemBase? comment;
-  final dynamic Function()? mainList;
+  final W Function()? mainList;
 
   final CommentInfoItem Function()? mainCommentForReplies;
   final Rxn<YoutiPieCommentReplyResult>? mainRepliesList;

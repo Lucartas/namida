@@ -178,6 +178,10 @@ dependencies:
       path: packages/on_audio_query
 
   # ---- Video Indexing & Playback ----
+  namida_compile_shims:
+    path: packages/namida_compile_shims
+  ffmpeg_kit_extended_flutter:
+    path: packages/ffmpeg_kit_extended_flutter
   youtipie:
     path: packages/youtipie
   namico_login_manager:

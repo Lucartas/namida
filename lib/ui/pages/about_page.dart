@@ -12,7 +12,6 @@ import 'package:just_audio/just_audio.dart';
 import 'package:rhttp/rhttp.dart';
 
 import 'package:namida/class/eggs_data.dart';
-import 'package:namida/class/custom_mpv_player.dart';
 import 'package:namida/class/file_parts.dart';
 import 'package:namida/class/route.dart';
 import 'package:namida/class/version_wrapper.dart';
@@ -704,7 +703,7 @@ class __KuruKuruActivatorState extends State<_KuruKuruActivator> with SingleTick
 
   AnimationController? _controller;
   Animation<double>? _animation;
-  List<CustomMPVPlayer>? _activePlayers;
+  List<AVPlayer>? _activePlayers;
 
   int _speedLevel = 0;
 

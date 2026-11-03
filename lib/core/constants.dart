@@ -1059,7 +1059,6 @@ class AppPaths {
         Duration() when isPermanent => 'permanent',
         Duration(isNegative: true) => 'expired',
         Duration(:final inDays, :final inHours) => '${inDays}d ${inHours % Duration.hoursPerDay}h',
-        _ => null,
       };
       return {
         'type': sub.toMembershipType().name,

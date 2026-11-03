@@ -42,7 +42,7 @@ abstract class YoutubeMainPageFetcherActions<W> {
 
 final _resultsFetchTime = <ValueKey, DateTime>{};
 
-class YoutubeMainPageFetcherAccBase<W, T> extends StatefulWidget {
+class YoutubeMainPageFetcherAccBase<W extends YoutiPieListWrapper<T>, T extends MapSerializable> extends StatefulWidget {
   final bool transparentShimmer;
   final YoutiPieOperation operation;
   final String title;
@@ -114,7 +114,9 @@ class YoutubeMainPageFetcherAccBase<W, T> extends StatefulWidget {
   State<YoutubeMainPageFetcherAccBase> createState() => _YoutubePageState<W, T>();
 }
 
-class _YoutubePageState<W, T> extends State<YoutubeMainPageFetcherAccBase<W, T>> with TickerProviderStateMixin, PullToRefreshMixin implements YoutubeMainPageFetcherActions<W> {
+class _YoutubePageState<W extends YoutiPieListWrapper<T>, T extends MapSerializable> extends State<YoutubeMainPageFetcherAccBase<W, T>>
+    with TickerProviderStateMixin, PullToRefreshMixin
+    implements YoutubeMainPageFetcherActions<W> {
   ValueKey get _getFetchTimeMapKey => widget.fetchTimeMapKey ?? ValueKey(W);
 
   @override
@@ -277,20 +279,19 @@ class _YoutubePageState<W, T> extends State<YoutubeMainPageFetcherAccBase<W, T>>
   }
 
   Widget _buildDefaultSliverList(W listItems) {
-    final List<T> items = (listItems as dynamic).items.cast<T>();
     final searchBoxManager = _searchBoxManager;
-    if (searchBoxManager == null) return _buildDefaultSliverListRaw(listItems, items);
+    if (searchBoxManager == null) return _buildDefaultSliverListRaw(listItems, listItems.items);
     final searchTextResolver = widget.searchTextResolver;
-    if (searchTextResolver == null) return _buildDefaultSliverListRaw(listItems, items);
+    if (searchTextResolver == null) return _buildDefaultSliverListRaw(listItems, listItems.items);
     final searchQuery = searchBoxManager.searchQuery;
     return ObxO(
       rx: searchQuery,
       builder: (context, query) {
         List<T>? filteredItems;
         if (query.isNotEmpty) {
-          filteredItems = searchBoxManager.filterPlaylistNamesWithResolver(items, query, searchTextResolver);
+          filteredItems = searchBoxManager.filterPlaylistNamesWithResolver(listItems.items, query, searchTextResolver);
         }
-        return _buildDefaultSliverListRaw(listItems, filteredItems ?? items);
+        return _buildDefaultSliverListRaw(listItems, filteredItems ?? listItems.items);
       },
     );
   }
@@ -317,11 +318,10 @@ class _YoutubePageState<W, T> extends State<YoutubeMainPageFetcherAccBase<W, T>>
   Future<bool> _fetchFeedNext() async {
     bool fetched = false;
     final feed = _currentFeed;
-    final dynamic currentFeed = feed.value;
-    if (currentFeed?.canFetchNext != true) return fetched;
+    if (feed.value?.canFetchNext != true) return fetched;
 
     _isLoadingNext.value = true;
-    fetched = await currentFeed?.fetchNext() ?? false;
+    fetched = await feed.value?.fetchNext() ?? false;
     if (fetched == true) feed.refresh();
     _isLoadingNext.value = false;
     return fetched;

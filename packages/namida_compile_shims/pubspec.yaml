@@ -1,0 +1,11 @@
+name: namida_compile_shims
+description: Small compile-time compatibility helpers for the offline fork.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ">=3.13.7 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter

@@ -7,11 +7,11 @@ import 'package:flutter/services.dart';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:basic_audio_handler/basic_audio_handler.dart';
-import 'package:just_audio/just_audio.dart' hide AudioTrack;
+import 'package:just_audio/just_audio.dart';
 import 'package:namico_db_wrapper/namico_db_wrapper.dart';
-import 'package:youtipie/class/streams/audio_stream.dart' hide AudioTrack;
-import 'package:youtipie/class/streams/video_stream.dart' hide AudioTrack;
-import 'package:youtipie/class/streams/video_streams_result.dart' hide AudioTrack;
+import 'package:youtipie/class/streams/audio_stream.dart';
+import 'package:youtipie/class/streams/video_stream.dart';
+import 'package:youtipie/class/streams/video_streams_result.dart';
 
 import 'package:namida/base/audio_handler.dart';
 import 'package:namida/class/audio_cache_detail.dart';
@@ -56,7 +56,7 @@ class Player {
 
   static final audioConfigs = _AudioConfigsManager();
 
-  late dynamic _audioHandler;
+  late NamidaAudioVideoHandler<Playable> _audioHandler;
 
   RxBaseCore<bool> get playWhenReady => _audioHandler.playWhenReady;
 
@@ -115,7 +115,7 @@ class Player {
               : YoutubeInfoController.current.currentYTStreams.valueR?.videoStreams.firstOrNull?.duration) ??
           Duration.zero;
     }
-    return playerDuration ?? Duration.zero;
+    return playerDuration;
   }
 
   Duration get getCurrentVideoDuration {
@@ -134,7 +134,7 @@ class Player {
               : YoutubeInfoController.current.currentYTStreams.valueR?.videoStreams.firstOrNull?.duration) ??
           Duration.zero;
     }
-    return playerDuration ?? Duration.zero;
+    return playerDuration;
   }
 
   bool get isCurrentAudioFromCache => _audioHandler.isCurrentAudioFromCache;
@@ -567,7 +567,7 @@ class Player {
   }
 
   FutureOr<void> shuffleTracks(bool allTracks) async {
-    if (_audioHandler.partyGate?.interceptQueueRewrite(allTracks ? PartyQueueRewrite.shuffleAll : PartyQueueRewrite.shuffleNext) == true) return;
+    if (_audioHandler.partyGate?.interceptQueueRewrite(allTracks ? .shuffleAll : .shuffleNext) == true) return;
     if (settings.player.shuffleQueue.value) {
       // -- awaited directly, the shuffleQueue listener doesn't wait for the original order to be restored
       await _audioHandler.setQueueShuffled(false);
@@ -594,7 +594,7 @@ class Player {
   }
 
   int removeDuplicatesFromQueue() {
-    if (_audioHandler.partyGate?.interceptQueueRewrite(PartyQueueRewrite.removeDuplicates) == true) return 0;
+    if (_audioHandler.partyGate?.interceptQueueRewrite(.removeDuplicates) == true) return 0;
     return _audioHandler.removeDuplicatesFromQueue();
   }
 
@@ -917,7 +917,7 @@ class Player {
   }
 
   Future<void> clearQueue() async {
-    if (_audioHandler.partyGate?.interceptQueueRewrite(PartyQueueRewrite.clear) == true) return;
+    if (_audioHandler.partyGate?.interceptQueueRewrite(.clear) == true) return;
     await _audioHandler.onDispose().ignoreError();
     await _audioHandler.clearQueue();
   }
@@ -1129,28 +1129,30 @@ class Player {
 
     if (source.supportResuming) {
       queue = queue.map(
-        (queueItem) => queueItem.execute(
-          selectable: (e) => e is TrackWithDate
-              ? TrackWithDate(
-                  dateAdded: e.dateAdded,
-                  track: e.track,
-                  queueSource: source,
-                  source: e.sourceNull,
+        (queueItem) =>
+            queueItem.execute(
+                  selectable: (e) => e is TrackWithDate
+                      ? TrackWithDate(
+                          dateAdded: e.dateAdded,
+                          track: e.track,
+                          queueSource: source,
+                          source: e.sourceNull,
+                        )
+                      : TrackWithDate(
+                          dateAdded: 0, // 0 to allow correct comparison with old queue
+                          track: e.track,
+                          queueSource: source,
+                          source: null,
+                        ),
+                  youtubeID: (e) => YoutubeID(
+                    id: e.id,
+                    playlistID: e.playlistID,
+                    queueSource: source,
+                    source: e.sourceNull,
+                    watchNull: e.watchNull,
+                  ),
                 )
-              : TrackWithDate(
-                  dateAdded: 0, // 0 to allow correct comparison with old queue
-                  track: e.track,
-                  queueSource: source,
-                  source: null,
-                ),
-          youtubeID: (e) => YoutubeID(
-            id: e.id,
-            playlistID: e.playlistID,
-            queueSource: source,
-            source: e.sourceNull,
-            watchNull: e.watchNull,
-          ),
-        ) as Playable,
+                as Playable,
       );
     }
 
@@ -1286,7 +1288,7 @@ class Player {
 
   // ======================
 
-  static CustomMPVPlayer createTempPlayer({bool disableVideo = true}) {
+  static AVPlayer createTempPlayer({bool disableVideo = true}) {
     return NamidaAudioVideoHandler.createPlayer(
       disableVideo: disableVideo,
       exoplayerCreator: () => AudioPlayer(preferSWDecoders: false),
@@ -1469,7 +1471,7 @@ class _AudioConfigsManager {
 
 /// media session callbacks (notification, android auto, wear..) are user actions.
 class _MediaSessionAudioHandler extends CompositeAudioHandler {
-  final dynamic _handler;
+  final NamidaAudioVideoHandler _handler;
   _MediaSessionAudioHandler(this._handler) : super(_handler);
 
   @override
