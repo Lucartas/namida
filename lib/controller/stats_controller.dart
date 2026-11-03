@@ -1,5 +1,4 @@
 import 'package:history_manager/history_manager.dart';
-import 'package:youtipie/youtipie.dart';
 
 import 'package:namida/class/history_stats.dart';
 import 'package:namida/class/track.dart';

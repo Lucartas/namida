@@ -1288,7 +1288,7 @@ abstract final class YTUrlUtils {
   static String buildPlaylistUrl(String id) => 'https://www.youtube.com/playlist?list=$id';
 }
 
-extension YoutiPieStringUtils on String {
+extension YTStringUtils on String {
   bool get isDummyVideoId => startsWith('dummy_');
   bool isYTTitleFaulty() => trim().isEmpty;
 }
