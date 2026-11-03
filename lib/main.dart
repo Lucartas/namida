@@ -11,7 +11,6 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:namida_compile_shims/namida_compile_shims.dart';
 import 'package:flutter_sharing_intent/flutter_sharing_intent.dart';
 import 'package:flutter_volume_controller/flutter_volume_controller.dart' show FlutterVolumeController;
 import 'package:http_cache_stream/http_cache_stream.dart';
