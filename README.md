@@ -464,18 +464,7 @@ sudo dnf install ./namida.rpm   # Fedora/RHEL (download .rpm from beta releases)
 
 # Contribute
 
-## Build an Android debug APK
-
-Install the pinned Flutter and Rust toolchains with `mise install`. The Android
-SDK must include platform 36 and build-tools 36.1.0, and the machine needs a
-Java 21 JDK. Kotlin and Java sources still target Java 17 bytecode. Then run:
-
-```sh
-mise exec -- flutter pub get
-mise exec -- flutter build apk --debug
-```
-
-The APK is written to `build/app/outputs/flutter-apk/`.
+- Building is not currently directly possible, see why on https://github.com/namidaco/namida/issues/37#issuecomment-1780341883
 
 <!-- [![Translation status](https://translate.codeberg.org/widget/namida-translations/namicomponent/horizontal-auto.svg)](https://translate.codeberg.org/engage/namida-translations/) -->
 
