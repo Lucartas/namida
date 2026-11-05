@@ -1,1 +1,3 @@
-export 'package:youtipie/youtipie.dart';
+typedef SponsorblockSegmentsResult = dynamic;
+
+typedef SponsorBlockSegmentsResult = dynamic;

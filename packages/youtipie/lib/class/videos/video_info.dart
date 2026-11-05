@@ -1,1 +1,3 @@
-export 'package:youtipie/youtipie.dart';
+typedef VideoInfo = dynamic;
+
+typedef YoutiPieVideoInfo = dynamic;

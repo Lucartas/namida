@@ -1,1 +1,3 @@
-export 'package:youtipie/youtipie.dart';
+typedef MusicSearchResult = dynamic;
+
+typedef YoutiPieMusicSearchResult = dynamic;

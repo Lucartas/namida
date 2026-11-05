@@ -1,1 +1,3 @@
-export 'package:youtipie/youtipie.dart';
+typedef VideoHeatMap = dynamic;
+
+typedef YoutiPieVideoHeatMap = dynamic;

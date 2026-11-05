@@ -1,1 +1,1 @@
-export 'package:youtipie/youtipie.dart';
+typedef UserChannelInfo = dynamic;

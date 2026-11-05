@@ -15,7 +15,9 @@ import 'package:youtipie/class/youtipie_feed/music_album_info_item.dart';
 import 'package:youtipie/class/youtipie_feed/playlist_basic_info.dart';
 import 'package:youtipie/class/youtipie_feed/playlist_info_item.dart';
 import 'package:youtipie/class/youtipie_feed/playlist_info_item_user.dart';
-import 'package:youtipie/youtipie.dart';
+import 'package:youtipie/core/http.dart';
+import 'package:youtipie/class/playlist_for_video.dart' show YoutiPiePlaylistEditCallbacks;
+import 'package:youtipie/core/extensions.dart' show PickRemoteListItem;
 
 import 'package:namida/base/pull_to_refresh.dart';
 import 'package:namida/base/youtube_streams_manager.dart';

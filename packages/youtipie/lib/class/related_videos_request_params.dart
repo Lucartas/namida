@@ -1,1 +1,3 @@
-export 'package:youtipie/youtipie.dart';
+class RelatedVideosRequestParams {
+  const RelatedVideosRequestParams.allowAll();
+}

@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:youtipie/class/sponsorblock_segment.dart';
 import 'package:youtipie/class/streams/stream_segments.dart';
 import 'package:youtipie/class/videos/video_heat_map.dart';
-import 'package:youtipie/youtipie.dart';
 
 import 'package:namida/class/progress_span.dart';
 import 'package:namida/controller/bookmarks_controller.dart';

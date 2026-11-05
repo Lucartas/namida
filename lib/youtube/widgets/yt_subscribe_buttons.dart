@@ -7,7 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:like_button/like_button.dart';
 import 'package:youtipie/class/channels/channel_info.dart';
 import 'package:youtipie/core/enum.dart';
-import 'package:youtipie/youtipie.dart';
+import 'package:youtipie/core/http.dart';
+import 'package:youtipie/core/extensions.dart' show PickRemoteListItem;
 
 import 'package:namida/controller/navigator_controller.dart';
 import 'package:namida/core/extensions.dart';

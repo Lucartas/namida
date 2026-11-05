@@ -7,7 +7,7 @@ import 'package:youtipie/class/comments/comment_info_item.dart';
 import 'package:youtipie/class/execute_details.dart';
 import 'package:youtipie/class/result_wrapper/comment_reply_result.dart';
 import 'package:youtipie/class/result_wrapper/comment_result.dart';
-import 'package:youtipie/youtipie.dart';
+import 'package:youtipie/core/http.dart';
 
 import 'package:namida/base/pull_to_refresh.dart';
 import 'package:namida/class/route.dart';

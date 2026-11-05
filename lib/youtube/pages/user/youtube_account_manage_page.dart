@@ -9,7 +9,7 @@ import 'package:namico_subscription_manager/class/support_tier.dart';
 import 'package:namico_subscription_manager/core/enum.dart';
 import 'package:namico_subscription_manager/namico_subscription_manager.dart';
 import 'package:youtipie/class/youtipie_feed/user_channel_info.dart';
-import 'package:youtipie/youtipie.dart' hide logger;
+import 'package:youtipie/managers/account_manager.dart' show LoginPageConfiguration;
 
 import 'package:namida/class/route.dart';
 import 'package:namida/controller/logs_controller.dart';

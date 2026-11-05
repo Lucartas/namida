@@ -11,8 +11,8 @@ import 'package:screen_brightness/screen_brightness.dart';
 import 'package:youtipie/class/result_wrapper/playlist_result_base.dart';
 import 'package:youtipie/class/streams/endscreens/endscreen_item_base.dart';
 import 'package:youtipie/class/streams/video_streams_result.dart';
-import 'package:youtipie/core/enum.dart';
-import 'package:youtipie/youtipie.dart';
+import 'package:youtipie/core/http.dart';
+import 'package:youtipie/core/extensions.dart' show YoutiPieVideoStreamsListUtils;
 
 import 'package:namida/class/route.dart';
 import 'package:namida/class/subtitle_track.dart';

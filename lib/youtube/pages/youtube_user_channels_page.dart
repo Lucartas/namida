@@ -4,7 +4,7 @@ import 'package:nampack/reactive/reactive.dart';
 import 'package:youtipie/class/channels/channel_info.dart';
 import 'package:youtipie/class/result_wrapper/channel_user_result.dart';
 import 'package:youtipie/core/enum.dart';
-import 'package:youtipie/youtipie.dart';
+import 'package:youtipie/core/http.dart';
 
 import 'package:namida/class/route.dart';
 import 'package:namida/core/dimensions.dart';

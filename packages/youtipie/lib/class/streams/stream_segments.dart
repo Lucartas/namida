@@ -1,1 +1,3 @@
-export 'package:youtipie/youtipie.dart';
+typedef StreamSegments = dynamic;
+
+typedef StreamSegment = dynamic;

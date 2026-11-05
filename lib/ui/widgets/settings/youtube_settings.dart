@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:youtipie/core/http.dart';
+import 'package:youtipie/core/enum.dart' show InnertubeClients;
 
 import 'package:namida/base/setting_subpage_provider.dart';
 import 'package:namida/class/route.dart';

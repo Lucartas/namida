@@ -1,1 +1,3 @@
-export 'package:youtipie/youtipie.dart';
+typedef MusicFormOption = dynamic;
+
+typedef YoutiPieMusicFormOption = dynamic;

@@ -15,7 +15,8 @@ import 'package:youtipie/class/youtipie_feed/playlist_basic_info.dart';
 import 'package:youtipie/class/youtipie_feed/playlist_info_item_user.dart';
 import 'package:youtipie/core/enum.dart';
 import 'package:youtipie/core/playlist_id_utils.dart';
-import 'package:youtipie/youtipie.dart';
+import 'package:youtipie/class/playlist_for_video.dart' show YoutiPiePlaylistEditCallbacks;
+import 'package:youtipie/core/extensions.dart' show PickRemoteListItem;
 
 import 'package:namida/class/route.dart';
 import 'package:namida/controller/navigator_controller.dart';

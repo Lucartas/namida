@@ -6,6 +6,7 @@ import 'package:youtipie/class/videos/missing_video_info.dart';
 import 'package:youtipie/class/videos/video_playability.dart';
 import 'package:youtipie/class/videos/video_result.dart';
 import 'package:youtipie/core/enum.dart';
+import 'package:youtipie/core/extensions.dart' show YoutiPieNumberFormatting;
 import 'package:youtipie/core/url_utils.dart';
 
 import 'package:namida/base/yt_video_like_manager.dart';

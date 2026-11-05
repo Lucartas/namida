@@ -6,8 +6,8 @@ import 'package:youtipie/class/execute_details.dart';
 import 'package:youtipie/class/result_wrapper/playlist_result_base.dart';
 import 'package:youtipie/class/youtipie_feed/playlist_basic_info.dart';
 import 'package:youtipie/class/youtipie_feed/playlist_info_item_user.dart';
-import 'package:youtipie/core/enum.dart';
-import 'package:youtipie/youtipie.dart';
+import 'package:youtipie/class/cache_details.dart' show CacheDecision;
+import 'package:youtipie/core/extensions.dart' show PickRemoteListItem;
 
 import 'package:namida/class/route.dart';
 import 'package:namida/controller/connectivity.dart';

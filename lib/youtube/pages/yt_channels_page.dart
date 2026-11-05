@@ -13,7 +13,8 @@ import 'package:youtipie/class/result_wrapper/user_channels_all_videos_result.da
 import 'package:youtipie/class/stream_info_item/stream_info_item.dart';
 import 'package:youtipie/class/youtipie_feed/yt_feed_base.dart';
 import 'package:youtipie/core/enum.dart';
-import 'package:youtipie/youtipie.dart';
+import 'package:youtipie/core/http.dart';
+import 'package:youtipie/core/extensions.dart' show PickRemoteListItem;
 
 import 'package:namida/base/pull_to_refresh.dart';
 import 'package:namida/base/youtube_channel_controller.dart';

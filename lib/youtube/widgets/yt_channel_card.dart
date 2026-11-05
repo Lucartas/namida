@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:youtipie/class/channels/channel_info.dart';
-import 'package:youtipie/youtipie.dart';
+import 'package:youtipie/core/extensions.dart' show PickRemoteListItem;
 
 import 'package:namida/class/route.dart';
 import 'package:namida/core/extensions.dart';

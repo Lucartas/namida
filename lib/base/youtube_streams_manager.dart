@@ -5,6 +5,7 @@ import 'package:youtipie/class/items_sort.dart';
 import 'package:youtipie/class/result_wrapper/list_wrapper_base.dart';
 import 'package:youtipie/class/stream_info_item/stream_info_item.dart';
 import 'package:youtipie/class/youtipie_feed/yt_feed_base.dart';
+import 'package:youtipie/core/enum.dart' show YoutiPieFetchAllResType;
 
 import 'package:namida/controller/navigator_controller.dart';
 import 'package:namida/core/extensions.dart';

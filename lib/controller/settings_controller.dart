@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 
 import 'package:basic_audio_handler/basic_audio_handler.dart';
 import 'package:history_manager/history_manager.dart';
-import 'package:youtipie/core/http.dart';
+import 'package:youtipie/core/enum.dart' show InnertubeClients;
 
 import 'package:namida/base/settings_file_writer.dart';
 import 'package:namida/class/count_per_row.dart';

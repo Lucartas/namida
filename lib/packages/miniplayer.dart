@@ -9,8 +9,6 @@ import 'package:flutter/rendering.dart' hide Selectable;
 
 import 'package:just_audio/just_audio.dart' show VideoInfoData;
 import 'package:youtipie/class/streams/video_stream.dart';
-import 'package:youtipie/youtipie.dart' show CodecInfoUtils;
-
 import 'package:namida/base/audio_handler.dart';
 import 'package:namida/base/yt_video_like_manager.dart';
 import 'package:namida/class/route.dart';

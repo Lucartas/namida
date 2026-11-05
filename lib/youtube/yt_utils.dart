@@ -17,7 +17,8 @@ import 'package:youtipie/class/videos/video_result.dart';
 import 'package:youtipie/class/youtipie_feed/playlist_basic_info.dart';
 import 'package:youtipie/core/enum.dart';
 import 'package:youtipie/core/url_utils.dart';
-import 'package:youtipie/youtipie.dart';
+import 'package:youtipie/core/http.dart';
+import 'package:youtipie/core/extensions.dart' show PickRemoteListItem;
 
 import 'package:namida/class/audio_cache_detail.dart';
 import 'package:namida/class/file_parts.dart';

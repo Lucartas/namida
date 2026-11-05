@@ -18,11 +18,9 @@ import 'package:youtipie/class/streams/video_stream_info.dart';
 import 'package:youtipie/class/streams/video_streams_result.dart';
 import 'package:youtipie/class/videos/video_playability.dart';
 import 'package:youtipie/class/videos/video_result.dart';
-import 'package:youtipie/class/youtipie_description/youtipie_description.dart';
 import 'package:youtipie/class/youtipie_feed/playlist_basic_info.dart';
-import 'package:youtipie/core/enum.dart';
 import 'package:youtipie/core/url_utils.dart';
-import 'package:youtipie/youtipie.dart' hide ExecuteDelayedMinUtils, logger;
+import 'package:youtipie/class/styles_wrapper.dart' show StylesWrapper;
 
 import 'package:namida/class/audio_cache_detail.dart';
 import 'package:namida/class/faudiomodel.dart';

@@ -1,1 +1,3 @@
-export 'package:youtipie/youtipie.dart';
+typedef PlaylistMixResult = dynamic;
+
+typedef YoutiPieMixPlaylistResult = dynamic;

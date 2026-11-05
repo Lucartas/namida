@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import 'package:youtipie/class/styles_wrapper.dart' show StylesWrapper;
 import 'package:youtipie/class/youtipie_description/youtipie_description.dart';
 
 import 'package:namida/class/route.dart';

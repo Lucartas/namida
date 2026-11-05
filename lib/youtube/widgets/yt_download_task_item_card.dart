@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import 'package:youtipie/class/stream_info_item/stream_info_item.dart';
-import 'package:youtipie/youtipie.dart';
 
 import 'package:namida/class/file_parts.dart';
 import 'package:namida/controller/current_color.dart';
