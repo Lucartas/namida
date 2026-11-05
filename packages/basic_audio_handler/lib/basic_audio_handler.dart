@@ -439,7 +439,6 @@ class BasicAudioHandler<Q> extends BaseAudioHandler {
   final equalizerExtended = EqualizerExtended();
   final loudnessEnhancerExtended = LoudnessEnhancerExtended();
 
-  RxBaseCore<Duration?> get currentItemDuration => _compileOnlyFailure('BasicAudioHandler.currentItemDuration');
   Duration? get liveJoinPosition => _compileOnlyFailure('BasicAudioHandler.liveJoinPosition');
   double get userPlayerVolumeForItem => _compileOnlyFailure('BasicAudioHandler.userPlayerVolumeForItem');
   int get seekCount => _compileOnlyFailure('BasicAudioHandler.seekCount');
@@ -467,41 +466,12 @@ class BasicAudioHandler<Q> extends BaseAudioHandler {
   void invokeQueueModifyLockRelease({bool isCanceled = false}) => _compileOnlyFailure('BasicAudioHandler.invokeQueueModifyLockRelease');
   int? shuffleNextIndex() => _compileOnlyFailure('BasicAudioHandler.shuffleNextIndex');
   bool isSameAsOriginalQueue(Iterable<Q> items) => _compileOnlyFailure('BasicAudioHandler.isSameAsOriginalQueue');
-  bool getLoudnessEnhancerEnabledTrackValue() => _compileOnlyFailure('BasicAudioHandler.getLoudnessEnhancerEnabledTrackValue');
-  bool getLoudnessEnhancerEnabledTrackValueR() => _compileOnlyFailure('BasicAudioHandler.getLoudnessEnhancerEnabledTrackValueR');
-  void refreshPlatformIcons() => _compileOnlyFailure('BasicAudioHandler.refreshPlatformIcons');
-  void cancelPlayErrorSkipTimer() => _compileOnlyFailure('BasicAudioHandler.cancelPlayErrorSkipTimer');
   Rx<int> get playErrorRemainingSecondsToSkip => _compileOnlyFailure('BasicAudioHandler.playErrorRemainingSecondsToSkip');
-  void toggleItemFavourite(Q item) => _compileOnlyFailure('BasicAudioHandler.toggleItemFavourite');
-  bool get displayFavouriteButtonAsLikeInNotification => _compileOnlyFailure('BasicAudioHandler.displayFavouriteButtonAsLikeInNotification');
-  void refreshNotification() => _compileOnlyFailure('BasicAudioHandler.refreshNotification');
-  void refreshChapterNotificationButtons() => _compileOnlyFailure('BasicAudioHandler.refreshChapterNotificationButtons');
-  void refreshCrossfadeTransition() => _compileOnlyFailure('BasicAudioHandler.refreshCrossfadeTransition');
-  int getOwnCrossfadeMS() => _compileOnlyFailure('BasicAudioHandler.getOwnCrossfadeMS');
   void invokeQueueModifyOnModifyCancel() => _compileOnlyFailure('BasicAudioHandler.invokeQueueModifyOnModifyCancel');
   Future<void> resetGaplessPlaybackData() => _compileOnlyFailure('BasicAudioHandler.resetGaplessPlaybackData');
   Future<void> shuffleAllItems() => _compileOnlyFailure('BasicAudioHandler.shuffleAllItems');
   Future<void> shuffleNextItems() => _compileOnlyFailure('BasicAudioHandler.shuffleNextItems');
   int removeDuplicatesFromQueue() => _compileOnlyFailure('BasicAudioHandler.removeDuplicatesFromQueue');
-  Future<void> setAudioOnlyPlayback(bool audioOnly) => _compileOnlyFailure('BasicAudioHandler.setAudioOnlyPlayback');
-  Future<void> tryAddingMixPlaylist(String videoId) => _compileOnlyFailure('BasicAudioHandler.tryAddingMixPlaylist');
-  Future<void> tryGenerateWaveform(covariant Object? video) => _compileOnlyFailure('BasicAudioHandler.tryGenerateWaveform');
-  Future<void> onItemPlayYoutubeIDSetQuality({
-    required covariant Object? mainStreams,
-    required covariant Object? stream,
-    required covariant Object? cachedFile,
-    required bool useCache,
-    required String videoId,
-    required covariant Object? videoItem,
-  }) => _compileOnlyFailure('BasicAudioHandler.onItemPlayYoutubeIDSetQuality');
-  Future<void> onItemPlayYoutubeIDSetAudio({
-    required covariant Object? mainStreams,
-    required covariant Object? stream,
-    required covariant Object? cachedFile,
-    required bool useCache,
-    required String videoId,
-  }) => _compileOnlyFailure('BasicAudioHandler.onItemPlayYoutubeIDSetAudio');
-  Future<void> recheckCachedVideos(String videoId) => _compileOnlyFailure('BasicAudioHandler.recheckCachedVideos');
 
   Future<bool> moveToNext(int index) => _compileOnlyFailure('BasicAudioHandler.moveToNext');
   Future<bool> moveToAfterLatestInserted(int index) => _compileOnlyFailure('BasicAudioHandler.moveToAfterLatestInserted');
@@ -521,44 +491,12 @@ class BasicAudioHandler<Q> extends BaseAudioHandler {
   Future<void> setAudioTrack(String? trackId) => _compileOnlyFailure('BasicAudioHandler.setAudioTrack');
   Future<void> setTextTrack(String? trackId) => _compileOnlyFailure('BasicAudioHandler.setTextTrack');
   Future<bool> setExternalSubtitle(String? uri) => _compileOnlyFailure('BasicAudioHandler.setExternalSubtitle');
-  Future<void> userPause({int? pauseFadeMillis}) => _compileOnlyFailure('BasicAudioHandler.userPause');
-  Future<void> userPlay() => _compileOnlyFailure('BasicAudioHandler.userPlay');
-  Future<void> userTogglePlayPause() => _compileOnlyFailure('BasicAudioHandler.userTogglePlayPause');
-
-  Future<void> userSkipToQueueItem(int index) => _compileOnlyFailure('BasicAudioHandler.userSkipToQueueItem');
 
   dynamic get currentPlayer => _compileOnlyFailure('BasicAudioHandler.currentPlayer');
 
   QueueShuffler<Q> get queueShuffler => _compileOnlyFailure('BasicAudioHandler.queueShuffler');
   bool get isQueueShuffled => _compileOnlyFailure('BasicAudioHandler.isQueueShuffled');
-  dynamic get defaultAndroidLoadConfig => _compileOnlyFailure('BasicAudioHandler.defaultAndroidLoadConfig');
-  bool get defaultGaplessEnabled => _compileOnlyFailure('BasicAudioHandler.defaultGaplessEnabled');
-  bool get defaultShouldStartPlayingOnNextPrev => _compileOnlyFailure('BasicAudioHandler.defaultShouldStartPlayingOnNextPrev');
-  bool get publishQueueToMediaBrowser => _compileOnlyFailure('BasicAudioHandler.publishQueueToMediaBrowser');
-  int get defaultCrossFadeMilliseconds => _compileOnlyFailure('BasicAudioHandler.defaultCrossFadeMilliseconds');
-  int get defaultCrossFadeTriggerStartOffsetSeconds => _compileOnlyFailure('BasicAudioHandler.defaultCrossFadeTriggerStartOffsetSeconds');
-  bool get enableCrossFade => _compileOnlyFailure('BasicAudioHandler.enableCrossFade');
-  bool get enableVolumeFadeOnPlayPause => _compileOnlyFailure('BasicAudioHandler.enableVolumeFadeOnPlayPause');
-  bool get playerInfiniyQueueOnNextPrevious => _compileOnlyFailure('BasicAudioHandler.playerInfiniyQueueOnNextPrevious');
-  bool get playerPauseOnVolume0 => _compileOnlyFailure('BasicAudioHandler.playerPauseOnVolume0');
-  bool get jumpToFirstItemAfterFinishingQueue => _compileOnlyFailure('BasicAudioHandler.jumpToFirstItemAfterFinishingQueue');
-  PlayerRepeatMode get playerRepeatMode => _compileOnlyFailure('BasicAudioHandler.playerRepeatMode');
   PlayerRepeatMode get displayRepeatMode => _compileOnlyFailure('BasicAudioHandler.displayRepeatMode');
-  int get playerPauseFadeDurInMilli => _compileOnlyFailure('BasicAudioHandler.playerPauseFadeDurInMilli');
-  int get playerPlayFadeDurInMilli => _compileOnlyFailure('BasicAudioHandler.playerPlayFadeDurInMilli');
-  int get listenCounterMarkPlayedPercentage => _compileOnlyFailure('BasicAudioHandler.listenCounterMarkPlayedPercentage');
-  int get listenCounterMarkPlayedSeconds => _compileOnlyFailure('BasicAudioHandler.listenCounterMarkPlayedSeconds');
-  int get maximumSleepTimerMins => _compileOnlyFailure('BasicAudioHandler.maximumSleepTimerMins');
-  int get maximumSleepTimerItems => _compileOnlyFailure('BasicAudioHandler.maximumSleepTimerItems');
-  int getListenRestartPositionThresholdMS() => _compileOnlyFailure('BasicAudioHandler.getListenRestartPositionThresholdMS');
-  InterruptionAction get onBecomingNoisyEventStream => _compileOnlyFailure('BasicAudioHandler.onBecomingNoisyEventStream');
-  Duration get defaultInterruptionResumeThreshold => _compileOnlyFailure('BasicAudioHandler.defaultInterruptionResumeThreshold');
-  Duration get defaultVolume0ResumeThreshold => _compileOnlyFailure('BasicAudioHandler.defaultVolume0ResumeThreshold');
-  Duration get defaultConnectWiredResumeThresholdMin => _compileOnlyFailure('BasicAudioHandler.defaultConnectWiredResumeThresholdMin');
-  Duration get defaultConnectWirelessResumeThresholdMin => _compileOnlyFailure('BasicAudioHandler.defaultConnectWirelessResumeThresholdMin');
-  double get replayGainLinearVolumeMultiplierValue => _compileOnlyFailure('BasicAudioHandler.replayGainLinearVolumeMultiplierValue');
-
-  AVPlayer createPlayerInstance() => _compileOnlyFailure('BasicAudioHandler.createPlayerInstance');
 
   @override
   Future<void> play({bool checkIfPlaybackEnded = true}) => _compileOnlyFailure('BasicAudioHandler.play');
@@ -590,20 +528,12 @@ class BasicAudioHandler<Q> extends BaseAudioHandler {
 
   Future<void> setCrossfadeTransition(CrossfadeTransition<Q> transition) => _compileOnlyFailure('BasicAudioHandler.setCrossfadeTransition');
 
-  FutureOr<void> beforeQueueAddOrInsert(Iterable<Q> items) => _compileOnlyFailure('BasicAudioHandler.beforeQueueAddOrInsert');
   Future<void>? beforeSkippingToItem() => _compileOnlyFailure('BasicAudioHandler.beforeSkippingToItem');
-  void onIndexChanged(int newIndex, Q newItem) => _compileOnlyFailure('BasicAudioHandler.onIndexChanged');
   Future<void> onQueueChanged() => _compileOnlyFailure('BasicAudioHandler.onQueueChanged');
 
   Future<void> onReorderItems(int index, Q item) => _compileOnlyFailure('BasicAudioHandler.onReorderItems');
-  FutureOr<ItemPrepareConfig<Q, UriSource>?> prepareItem(Q item, int index) => _compileOnlyFailure('BasicAudioHandler.prepareItem');
-  Future<void> onItemPlay(Q item, int index, Function skipItem, ItemPreparedPlayerInfo<Q>? preparedItemInfo) => _compileOnlyFailure('BasicAudioHandler.onItemPlay');
-  FutureOr<int> itemToDurationInSeconds(Q item) => _compileOnlyFailure('BasicAudioHandler.itemToDurationInSeconds');
-  Future<MediaItem> itemToMediaItem(Q item) => _compileOnlyFailure('BasicAudioHandler.itemToMediaItem');
-  String itemToMediaItemId(Q item) => _compileOnlyFailure('BasicAudioHandler.itemToMediaItemId');
   Future<void> onPlaybackCompleted() => _compileOnlyFailure('BasicAudioHandler.onPlaybackCompleted');
 
-  void onPlaybackError(Object error, StackTrace stackTrace) => _compileOnlyFailure('BasicAudioHandler.onPlaybackError');
   Future<void> onDispose() => _compileOnlyFailure('BasicAudioHandler.onDispose');
 
   Future<void> seekToLiveEdge() => _compileOnlyFailure('BasicAudioHandler.seekToLiveEdge');
@@ -623,21 +553,6 @@ class BasicAudioHandler<Q> extends BaseAudioHandler {
   }) => _compileOnlyFailure('BasicAudioHandler.updateSleepTimerValues');
 
   void resetSleepTimer() => _compileOnlyFailure('BasicAudioHandler.resetSleepTimer');
-
-  Future<Map<String, int>> prepareTotalListenTime() => _compileOnlyFailure('BasicAudioHandler.prepareTotalListenTime');
-  Object identifyBy(Q element) => _compileOnlyFailure('BasicAudioHandler.identifyBy');
-  InterruptionAction defaultOnInterruption(InterruptionType type) => _compileOnlyFailure('BasicAudioHandler.defaultOnInterruption');
-  String? itemToTotalListenTimeKey(Q? item) => _compileOnlyFailure('BasicAudioHandler.itemToTotalListenTimeKey');
-  FutureOr<void> onItemMarkedListened(Q item, int listenedSeconds, double listenedPercentage) => _compileOnlyFailure('BasicAudioHandler.onItemMarkedListened');
-  Future<PlayerConfig?> getPlayerConfigForItem(Q? item, AVPlayer player) => _compileOnlyFailure('BasicAudioHandler.getPlayerConfigForItem');
-  void onFavouriteRatingRequested(Q item, bool favourite) => _compileOnlyFailure('BasicAudioHandler.onFavouriteRatingRequested');
-  void onRepeatModeChange(PlayerRepeatMode repeatMode) => _compileOnlyFailure('BasicAudioHandler.onRepeatModeChange');
-  void onShuffleModeChange(bool shuffled) => _compileOnlyFailure('BasicAudioHandler.onShuffleModeChange');
-  void onTotalListenTimeIncrease(Map<String, int> totalTimeInSeconds, String key) => _compileOnlyFailure('BasicAudioHandler.onTotalListenTimeIncrease');
-  Future<void> onItemLastPositionReport(Q? item, int currentPositionMs) => _compileOnlyFailure('BasicAudioHandler.onItemLastPositionReport');
-  void onSleepTimerEnd() => _compileOnlyFailure('BasicAudioHandler.onSleepTimerEnd');
-  void onPlaybackEventStream(PlaybackEvent event) => _compileOnlyFailure('BasicAudioHandler.onPlaybackEventStream');
-  PlayerConfig getDefaultPlayerConfig(Q? item) => _compileOnlyFailure('BasicAudioHandler.getDefaultPlayerConfig');
 
   Future<void> assignNewQueue<Id>({
     required int playAtIndex,
@@ -670,9 +585,4 @@ class BasicAudioHandler<Q> extends BaseAudioHandler {
   int? shufflePeekPreviousIndex() => _compileOnlyFailure('BasicAudioHandler.shufflePeekPreviousIndex');
 
   FutureOr<void> clearQueue() => _compileOnlyFailure('BasicAudioHandler.clearQueue');
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => _compileOnlyFailure(
-    'BasicAudioHandler.${invocation.memberName}',
-  );
 }
