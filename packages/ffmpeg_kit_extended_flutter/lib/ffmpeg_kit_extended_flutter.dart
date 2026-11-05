@@ -1,38 +1,34 @@
-/// Compile-time API surface for the unavailable FFmpeg Kit implementation.
-///
-/// Milestone 1 only needs the application to analyze and build. Calls that
-/// require FFmpeg remain explicitly unavailable until a local backend is added.
-enum LogLevel { quiet }
+Never _unavailable(String api) => throw UnsupportedError('$api is unavailable in this build.');
 
+enum LogLevel { quiet }
 enum LogRedirectionStrategy { neverPrintLogs }
 
 abstract final class FFmpegKitExtended {
-  static Future<void> initialize() async {}
-
-  static String getRegisteredProtocols() => '';
+  static Future<void> initialize() => _unavailable('FFmpegKitExtended.initialize');
+  static String getRegisteredProtocols() => _unavailable('FFmpegKitExtended.getRegisteredProtocols');
 }
 
 abstract final class FFmpegKitConfig {
-  static void setMaxConcurrentSessions(int _) {}
-  static void setLogLevel(LogLevel _) {}
-  static void setLogRedirectionStrategy(LogRedirectionStrategy _) {}
+  static void setMaxConcurrentSessions(int value) => _unavailable('FFmpegKitConfig.setMaxConcurrentSessions');
+  static void setLogLevel(LogLevel value) => _unavailable('FFmpegKitConfig.setLogLevel');
+  static void setLogRedirectionStrategy(LogRedirectionStrategy value) => _unavailable('FFmpegKitConfig.setLogRedirectionStrategy');
 }
 
 class Session {
-  Future<Object> executeAsync() async => throw UnsupportedError('FFmpeg execution is unavailable in this build.');
-  Future<void> cancel() async {}
-  Object? getReturnCode() => null;
-  String? getOutput() => null;
+  Future<Object> executeAsync() => _unavailable('Session.executeAsync');
+  void cancel() => _unavailable('Session.cancel');
+  Object? getReturnCode() => _unavailable('Session.getReturnCode');
+  String? getOutput() => _unavailable('Session.getOutput');
 }
 
 abstract final class FFmpegKit {
-  static Session createSessionFromArguments(List<String> _) => Session();
+  static Session createSessionFromArguments(List<String> args) => _unavailable('FFmpegKit.createSessionFromArguments');
 }
 
 abstract final class FFprobeKit {
-  static Session createSessionFromArguments(List<String> _) => Session();
+  static Session createSessionFromArguments(List<String> args) => _unavailable('FFprobeKit.createSessionFromArguments');
 }
 
 abstract final class ReturnCode {
-  static bool isSuccess(Object? _) => false;
+  static bool isSuccess(Object? returnCode) => _unavailable('ReturnCode.isSuccess');
 }
