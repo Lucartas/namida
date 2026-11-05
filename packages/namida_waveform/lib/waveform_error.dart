@@ -1,0 +1,1 @@
+enum WaveformError { none, openInput }
