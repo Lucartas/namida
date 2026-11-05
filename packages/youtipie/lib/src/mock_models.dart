@@ -11,7 +11,7 @@ typedef ChannelPageResult = YoutiPieChannelPageResult;
 enum ChannelTab { videos }
 
 extension ChannelTabTitle on ChannelTab {
-  String get title => name;
+  String get title => _unavailable('ChannelTab.title');
 }
 
 typedef ChannelTabResult = YoutiPieChannelTabResult;
@@ -52,8 +52,7 @@ class MissingVideoInfo {
     this.sources = const [],
     this.subsource,
   });
-  static MissingVideoInfo fromMap(dynamic map) =>
-      map is Map ? MissingVideoInfo(videoId: map['videoId'], title: map['title'], channelId: map['channelId'], channelName: map['channelName']) : const MissingVideoInfo();
+  static MissingVideoInfo fromMap(dynamic map) => _unavailable('MissingVideoInfo.fromMap');
 }
 
 typedef MusicBrowseEndpoint = dynamic;
@@ -122,17 +121,7 @@ enum YoutiPieOperation {
 }
 
 extension YoutiPieOperationAccount on YoutiPieOperation {
-  bool get requiresAccount => switch (this) {
-    YoutiPieOperation.fetchFeed ||
-    YoutiPieOperation.fetchHistory ||
-    YoutiPieOperation.fetchNotifications ||
-    YoutiPieOperation.fetchNotificationsNext ||
-    YoutiPieOperation.fetchUserChannels ||
-    YoutiPieOperation.fetchUserChannelsNext ||
-    YoutiPieOperation.fetchUserPlaylists ||
-    YoutiPieOperation.fetchUserPlaylistsNext => true,
-    _ => false,
-  };
+  bool get requiresAccount => _unavailable('YoutiPieOperation.requiresAccount');
 }
 
 // Additional model names referenced by the app while remote features are disabled.
@@ -159,7 +148,7 @@ class YoutiPieChannelInfo extends ChannelInfoItem {
     super.tvbanners,
     super.mobileBanners,
   });
-  void rebuild({dynamic newSubscribed, dynamic newNotifications, dynamic newNotificationParameters}) {}
+  void rebuild({dynamic newSubscribed, dynamic newNotifications, dynamic newNotificationParameters}) => _unavailable('YoutiPieChannelInfo.rebuild');
 }
 
 class YoutiPieChannelPageResult extends YoutiPieChannelInfo {
@@ -209,11 +198,7 @@ enum ChannelNotifications { all, personalized, none }
 enum LikeAction { addLike, removeLike, addDislike, removeDislike }
 
 extension LikeActionExpectedStatus on LikeAction {
-  LikeStatus toExpectedStatus() => this == LikeAction.addLike
-      ? LikeStatus.liked
-      : this == LikeAction.addDislike
-      ? LikeStatus.disliked
-      : LikeStatus.undefined;
+  LikeStatus toExpectedStatus() => _unavailable('LikeAction.toExpectedStatus');
 }
 
 enum NotificationMenuActionType { hide, volume }
@@ -337,7 +322,7 @@ class ExecuteDetails {
   const ExecuteDetails.forceRequest();
   const ExecuteDetails.cache(dynamic _);
   static const kForceRequest = ExecuteDetails.forceRequest();
-  factory ExecuteDetails.normal() => const ExecuteDetails();
+  factory ExecuteDetails.normal() => _unavailable('ExecuteDetails.normal');
 }
 
 class CacheDecision {
@@ -354,8 +339,7 @@ class PublishTime {
   final String? text;
   const PublishTime({this.date, this.text});
   const PublishTime.unknown() : date = null, text = null;
-  static PublishTime fromMap(dynamic map) =>
-      map is Map ? PublishTime(date: map['date'] is String ? DateTime.tryParse(map['date']) : null, text: map['text']?.toString()) : const PublishTime.unknown();
+  static PublishTime fromMap(dynamic map) => _unavailable('PublishTime.fromMap');
 }
 
 class PlaylistBasicInfo extends MapSerializable {
@@ -385,11 +369,9 @@ class PlaylistBasicInfo extends MapSerializable {
     this.uploader,
     this.isInLibrary,
   });
-  static PlaylistBasicInfo fromMap(dynamic map) => map is Map
-      ? PlaylistBasicInfo(id: map['id'] ?? '', title: map['title'], videosCountText: map['videosCountText'], videosCount: map['videosCount'])
-      : const PlaylistBasicInfo();
+  static PlaylistBasicInfo fromMap(dynamic map) => _unavailable('PlaylistBasicInfo.fromMap');
   dynamic buildUrl() => _unavailable('Remote playlist URL');
-  Map<String, dynamic> toMap() => {};
+  Map<String, dynamic> toMap() => _unavailable('PlaylistBasicInfo.toMap');
   dynamic getPopupMenuItems({
     dynamic queueSource,
     dynamic playlistToFetch,
@@ -449,33 +431,25 @@ class ChannelInfoItem extends MapSerializable {
 }
 
 abstract class YoutubeFeed extends MapSerializable implements MusicAlbumInfoItem, MusicNavigationItem {
-  dynamic get id;
-  dynamic get title;
-  dynamic get subtitle;
-  List<dynamic> get thumbnails;
-  dynamic get isMix;
-  dynamic get isShortContent;
-  dynamic get initialVideos;
-  dynamic get items;
-  dynamic get playlistId;
-  dynamic get endpoint;
-  dynamic get cacheKey;
-  dynamic get color;
-  dynamic get artists;
+  dynamic get id => _unavailable('YoutubeFeed.id');
+  dynamic get title => _unavailable('YoutubeFeed.title');
+  dynamic get subtitle => _unavailable('YoutubeFeed.subtitle');
+  List<dynamic> get thumbnails => _unavailable('YoutubeFeed.thumbnails');
+  dynamic get isMix => _unavailable('YoutubeFeed.isMix');
+  dynamic get isShortContent => _unavailable('YoutubeFeed.isShortContent');
+  dynamic get initialVideos => _unavailable('YoutubeFeed.initialVideos');
+  dynamic get items => _unavailable('YoutubeFeed.items');
+  dynamic get playlistId => _unavailable('YoutubeFeed.playlistId');
+  dynamic get endpoint => _unavailable('YoutubeFeed.endpoint');
+  dynamic get cacheKey => _unavailable('YoutubeFeed.cacheKey');
+  dynamic get color => _unavailable('YoutubeFeed.color');
+  dynamic get artists => _unavailable('YoutubeFeed.artists');
 
   const YoutubeFeed();
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 extension YoutubeFeedMixPlaylist on YoutubeFeed {
-  bool get isMixPlaylist {
-    final item = this;
-    if (item is StreamInfoItem) return item.isMixPlaylist == true;
-    if (item is PlaylistInfoItem) return item.isMix == true;
-    return false;
-  }
+  bool get isMixPlaylist => _unavailable('YoutubeFeed.isMixPlaylist');
 }
 
 class StreamInfoItem extends YoutubeFeed implements PlaylistBasicInfo {
@@ -531,12 +505,33 @@ class StreamInfoItem extends YoutubeFeed implements PlaylistBasicInfo {
     this.badges,
     this.isActuallyShortContent,
   });
-  dynamic get availableDescription => shortDescription;
+  dynamic get videosCountText => _unavailable('StreamInfoItem.videosCountText');
+  dynamic get videosCount => _unavailable('StreamInfoItem.videosCount');
+  dynamic get viewsCountText => _unavailable('StreamInfoItem.viewsCountText');
+  dynamic get description => _unavailable('StreamInfoItem.description');
+  dynamic get uploader => _unavailable('StreamInfoItem.uploader');
+  dynamic get isInLibrary => _unavailable('StreamInfoItem.isInLibrary');
+  dynamic get items => _unavailable('StreamInfoItem.items');
+  dynamic get playlistId => _unavailable('StreamInfoItem.playlistId');
+  dynamic get endpoint => _unavailable('StreamInfoItem.endpoint');
+  dynamic get cacheKey => _unavailable('StreamInfoItem.cacheKey');
+  dynamic get color => _unavailable('StreamInfoItem.color');
+  dynamic get artists => _unavailable('StreamInfoItem.artists');
+  dynamic getPopupMenuItems({
+    dynamic queueSource,
+    dynamic playlistToFetch,
+    dynamic userPlaylist,
+    bool displayOpenPlaylist = false,
+    bool displayDownloadItem = true,
+    bool displayShuffle = true,
+    bool displayPlay = true,
+    bool showProgressSheet = false,
+    bool isInFullScreen = false,
+  }) => _unavailable('StreamInfoItem.getPopupMenuItems');
+  dynamic get availableDescription => _unavailable('StreamInfoItem.availableDescription');
   dynamic buildUrl() => _unavailable('Remote video URL');
-  Map<String, dynamic> toMap() => {};
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-  static StreamInfoItem fromMap(dynamic map) => map is Map ? StreamInfoItem(id: map['id'] ?? '', title: map['title'] ?? '') : const StreamInfoItem();
+  Map<String, dynamic> toMap() => _unavailable('StreamInfoItem.toMap');
+  static StreamInfoItem fromMap(dynamic map) => _unavailable('StreamInfoItem.fromMap');
 }
 
 class YoutiPieChannelTabResult extends YoutiPieListWrapper<YoutubeFeed> {
@@ -634,11 +629,11 @@ class VideoStreamInfo {
     this.publishDate,
     this.uploadDate,
   });
-  dynamic get availableDescription => description;
-  dynamic get publishedAt => publishDate;
-  Map<String, dynamic> toMap() => {};
-  static VideoStreamInfo merge(String id, VideoStreamInfo? oldInfo, VideoStreamInfo newInfo) => newInfo;
-  static VideoStreamInfo fromMap(dynamic map) => map is Map ? VideoStreamInfo(id: map['id'] ?? '', title: map['title'] ?? '') : const VideoStreamInfo();
+  dynamic get availableDescription => _unavailable('VideoStreamInfo.availableDescription');
+  dynamic get publishedAt => _unavailable('VideoStreamInfo.publishedAt');
+  Map<String, dynamic> toMap() => _unavailable('VideoStreamInfo.toMap');
+  static VideoStreamInfo merge(String id, VideoStreamInfo? oldInfo, VideoStreamInfo newInfo) => _unavailable('VideoStreamInfo.merge');
+  static VideoStreamInfo fromMap(dynamic map) => _unavailable('VideoStreamInfo.fromMap');
 }
 
 class AudioTrack {
@@ -675,10 +670,10 @@ class AudioStream {
     this.sampleRate,
     this.channelCount,
   });
-  static AudioStream fromMap(dynamic map) => const AudioStream();
+  static AudioStream fromMap(dynamic map) => _unavailable('AudioStream.fromMap');
   dynamic bitrateText() => _unavailable('Remote audio stream');
   dynamic buildUrl() => _unavailable('Remote audio stream');
-  Map<String, dynamic> toMap() => {};
+  Map<String, dynamic> toMap() => _unavailable('AudioStream.toMap');
 }
 
 class VideoStream {
@@ -720,10 +715,10 @@ class VideoStream {
     this.isWebm = false,
     this.sizeInBytes = 0,
   });
-  static VideoStream fromMap(dynamic map) => const VideoStream();
+  static VideoStream fromMap(dynamic map) => _unavailable('VideoStream.fromMap');
   dynamic bitrateText() => _unavailable('Remote video stream');
   dynamic buildUrl() => _unavailable('Remote video stream');
-  Map<String, dynamic> toMap() => {};
+  Map<String, dynamic> toMap() => _unavailable('VideoStream.toMap');
 }
 
 class VideoStreamsResult {
@@ -759,8 +754,8 @@ class VideoStreamsResult {
     this.dashManifestUrl,
     this.audioStreamsOrganizedByLanguage,
   });
-  bool hasExpired() => false;
-  Map<String, dynamic> toMap() => {};
+  bool hasExpired() => _unavailable('VideoStreamsResult.hasExpired');
+  Map<String, dynamic> toMap() => _unavailable('VideoStreamsResult.toMap');
 }
 
 class CacheDetails<T> {
@@ -768,7 +763,7 @@ class CacheDetails<T> {
   final dynamic key;
   final dynamic accountId;
   const CacheDetails({this.section, this.key, this.accountId});
-  Future<T?> read() async => _unavailable('Remote cache');
+  Future<T?> read() => _unavailable('CacheDetails.read');
   T? readSync() => _unavailable('Remote cache');
 }
 
@@ -777,7 +772,7 @@ class CacheDetailsBase {
   final dynamic key;
   final dynamic Function()? accountId;
   const CacheDetailsBase(this.section, this.key, this.accountId);
-  Future<void> close() async => _unavailable('Remote cache');
+  Future<void> close() => _unavailable('CacheDetailsBase.close');
   dynamic loadEverythingSync(dynamic callback) => _unavailable('Remote cache');
   dynamic loadEverythingExtractedSync(dynamic paths, dynamic callback) => _unavailable('Remote cache');
   dynamic readAllMapsSync(dynamic keys) => _unavailable('Remote cache');
@@ -787,9 +782,9 @@ class YoutiPieListWrapper<T extends MapSerializable> with YoutiPieListSorterMixi
   final List<T> items;
   final dynamic continuation;
   const YoutiPieListWrapper({this.items = const [], this.continuation});
-  int get length => items.length;
-  bool get canFetchNext => false;
-  Future<bool> fetchNext() async => _unavailable('Remote list pagination');
+  int get length => _unavailable('YoutiPieListWrapper.length');
+  bool get canFetchNext => _unavailable('YoutiPieListWrapper.canFetchNext');
+  Future<bool> fetchNext() => _unavailable('YoutiPieListWrapper.fetchNext');
   dynamic fetchAll({dynamic onProgress, ExecuteDetails? details}) => _unavailable('Remote list pagination');
 }
 
@@ -825,9 +820,9 @@ class YoutiPieUserChannelsResult extends YoutiPieListWrapper<YoutiPieChannelInfo
 
 class _YoutiPieShortsSection {
   const _YoutiPieShortsSection();
-  Map<int, List<int>?> get relatedItemsShortsData => const <int, List<int>?>{};
-  Map<int, bool> get shortsIndicesLookup => const <int, bool>{};
-  StreamInfoItemShort getAsShort(dynamic _) => const StreamInfoItemShort();
+  Map<int, List<int>?> get relatedItemsShortsData => _unavailable('_YoutiPieShortsSection.relatedItemsShortsData');
+  Map<int, bool> get shortsIndicesLookup => _unavailable('_YoutiPieShortsSection.shortsIndicesLookup');
+  StreamInfoItemShort getAsShort(dynamic _) => _unavailable('_YoutiPieShortsSection.getAsShort');
 }
 
 class YoutiPieFeedResult extends YoutiPieListWrapper<YoutubeFeed> {
@@ -885,9 +880,9 @@ class YoutiPieCommentResult extends YoutiPieListWrapper<YoutiPieCommentInfoItem>
     this.videoId,
   }) : super(items: items, continuation: continuation);
 
-  bool get isEmpty => items.isEmpty;
-  YoutiPieCommentInfoItem operator [](int index) => items[index];
-  dynamic get createParams => null;
+  bool get isEmpty => _unavailable('YoutiPieCommentResult.isEmpty');
+  YoutiPieCommentInfoItem operator [](int index) => _unavailable('YoutiPieCommentResult.[]');
+  dynamic get createParams => _unavailable('YoutiPieCommentResult.createParams');
   dynamic transferLocalItemsTo(dynamic other) => _unavailable('Remote comment pagination');
 }
 
@@ -915,7 +910,7 @@ class YoutiPieMusicBrowseResult extends YoutiPieListWrapper<YoutiPieMusicShelf> 
     this.title,
     this.channelId,
   }) : super(items: items, continuation: continuation);
-  dynamic findSongsPlaylistId() => null;
+  dynamic findSongsPlaylistId() => _unavailable('YoutiPieMusicBrowseResult.findSongsPlaylistId');
 }
 
 class YoutiPieSearchResult extends YoutiPieListWrapper<YoutiPieHistoryChunk> {
@@ -928,9 +923,9 @@ class YoutiPieUserChannelsAllVideosResult extends YoutiPieListWrapper<YoutubeFee
 }
 
 mixin YoutiPieListSorterMixin<T> {
-  List<YoutiPieItemsSort> get itemsSort => const [];
-  YoutiPieItemsSort? get customSort => null;
-  Future<bool> fetchWithNewSort({dynamic sort, ExecuteDetails? details}) async => _unavailable('Remote list sorting');
+  List<YoutiPieItemsSort> get itemsSort => _unavailable('YoutiPieListSorterMixin.itemsSort');
+  YoutiPieItemsSort? get customSort => _unavailable('YoutiPieListSorterMixin.customSort');
+  Future<bool> fetchWithNewSort({dynamic sort, ExecuteDetails? details}) => _unavailable('YoutiPieListSorterMixin.fetchWithNewSort');
 }
 
 class YoutiPiePlaylistResultBase extends YoutiPieListWrapper<StreamInfoItem> {
@@ -938,14 +933,14 @@ class YoutiPiePlaylistResultBase extends YoutiPieListWrapper<StreamInfoItem> {
   final dynamic cacheKey;
   const YoutiPiePlaylistResultBase({required this.basicInfo, required List<StreamInfoItem> items, this.cacheKey, dynamic continuation})
     : super(items: items, continuation: continuation);
-  PlaylistBasicInfo get info => basicInfo;
-  dynamic get playlistId => basicInfo.id;
+  PlaylistBasicInfo get info => _unavailable('YoutiPiePlaylistResultBase.info');
+  dynamic get playlistId => _unavailable('YoutiPiePlaylistResultBase.playlistId');
   @override
-  bool get canFetchNext => continuation != null;
-  Future<bool> fetchNext() async => fetchNextFunction(null);
+  bool get canFetchNext => _unavailable('YoutiPiePlaylistResultBase.canFetchNext');
+  Future<bool> fetchNext() => _unavailable('YoutiPiePlaylistResultBase.fetchNext');
   @override
   dynamic fetchAll({dynamic onProgress, ExecuteDetails? details}) => _unavailable('Remote playlist pagination');
-  Future<bool> fetchNextFunction(ExecuteDetails? details) async => _unavailable('Remote playlist pagination');
+  Future<bool> fetchNextFunction(ExecuteDetails? details) => _unavailable('YoutiPiePlaylistResultBase.fetchNextFunction');
   Map<String, dynamic> toMapRaw() => _unavailable('Remote playlist serialization');
 }
 
@@ -954,10 +949,10 @@ class YoutiPieCommentReplyResult extends YoutiPieListWrapper<YoutiPieCommentInfo
   final dynamic cacheKey;
   const YoutiPieCommentReplyResult({this.commentId, this.cacheKey, List<YoutiPieCommentInfoItemBase> items = const [], dynamic continuation})
     : super(items: items, continuation: continuation);
-  int get length => (items as List).length;
+  int get length => _unavailable('YoutiPieCommentReplyResult.length');
   @override
-  bool get canFetchNext => continuation != null;
-  Future<bool> fetchNext() async => _unavailable('Remote comment pagination');
+  bool get canFetchNext => _unavailable('YoutiPieCommentReplyResult.canFetchNext');
+  Future<bool> fetchNext() => _unavailable('YoutiPieCommentReplyResult.fetchNext');
   dynamic transferLocalItemsTo(dynamic other) => _unavailable('Remote comment pagination');
 }
 
@@ -1010,18 +1005,10 @@ class YoutiPieSearchFilters {
     this.exclude = const [],
   });
   static const defaults = YoutiPieSearchFilters();
-  bool get hasDateRange => after != null || before != null;
-  bool get isDefault =>
-      type == YoutiPieSearchType.all &&
-      sort == YoutiPieSearchSort.relevance &&
-      uploadDate == YoutiPieSearchUploadDate.none &&
-      musicType == null &&
-      matchMode == null &&
-      excluded.isEmpty &&
-      after == null &&
-      before == null;
-  static YoutiPieSearchParsedDateOperators? parseDateOperators(String _) => null;
-  static String stripDateOperators(String text) => text;
+  bool get hasDateRange => _unavailable('YoutiPieSearchFilters.hasDateRange');
+  bool get isDefault => _unavailable('YoutiPieSearchFilters.isDefault');
+  static YoutiPieSearchParsedDateOperators? parseDateOperators(String text) => _unavailable('YoutiPieSearchFilters.parseDateOperators');
+  static String stripDateOperators(String text) => _unavailable('YoutiPieSearchFilters.stripDateOperators');
   YoutiPieSearchFilters copyWith({
     YoutiPieSearchType? type,
     YoutiPieSearchSort? sort,
@@ -1034,19 +1021,7 @@ class YoutiPieSearchFilters {
     bool? clearAfter,
     bool? clearBefore,
     List<String>? exclude,
-  }) => YoutiPieSearchFilters(
-    type: type ?? this.type,
-    sort: sort ?? this.sort,
-    uploadDate: uploadDate ?? this.uploadDate,
-    musicType: musicType ?? this.musicType,
-    matchMode: matchMode ?? this.matchMode,
-    excluded: excluded ?? this.excluded,
-    after: after ?? this.after,
-    before: before ?? this.before,
-    clearAfter: clearAfter ?? this.clearAfter,
-    clearBefore: clearBefore ?? this.clearBefore,
-    exclude: exclude ?? this.exclude,
-  );
+  }) => _unavailable('YoutiPieSearchFilters.copyWith');
 }
 
 class YoutiPieSearchParsedDateOperators {
@@ -1058,16 +1033,13 @@ class YoutiPieSearchParsedDateOperators {
 class YoutiPieSearchDate {
   final DateTime dateTime;
   const YoutiPieSearchDate(this.dateTime);
-  static YoutiPieSearchDate fromDateTime(DateTime dateTime) => YoutiPieSearchDate(dateTime);
-  static YoutiPieSearchDate? parse(String text) {
-    final date = DateTime.tryParse(text);
-    return date == null ? null : YoutiPieSearchDate(date);
-  }
+  static YoutiPieSearchDate fromDateTime(DateTime dateTime) => _unavailable('YoutiPieSearchDate.fromDateTime');
+  static YoutiPieSearchDate? parse(String text) => _unavailable('YoutiPieSearchDate.parse');
 
-  DateTime toDateTime() => dateTime;
-  DateTime toDateTimeUtc() => dateTime.toUtc();
+  DateTime toDateTime() => _unavailable('YoutiPieSearchDate.toDateTime');
+  DateTime toDateTimeUtc() => _unavailable('YoutiPieSearchDate.toDateTimeUtc');
   @override
-  String toString() => dateTime.toIso8601String();
+  String toString() => _unavailable('YoutiPieSearchDate.toString');
 }
 
 class YoutiPieSearchOperators {
@@ -1077,8 +1049,8 @@ class YoutiPieSearchOperators {
   final List<String> excluded;
   final YoutiPieSearchMatchMode? matchMode;
   const YoutiPieSearchOperators({this.remainingText = '', this.phrases = const [], this.titlePhrases = const [], this.excluded = const [], this.matchMode});
-  static String buildQuery(String query, {dynamic matchMode, Iterable<String> excluded = const []}) => query;
-  static YoutiPieSearchOperators? parse(String _) => null;
+  static String buildQuery(String query, {dynamic matchMode, Iterable<String> excluded = const []}) => _unavailable('YoutiPieSearchOperators.buildQuery');
+  static YoutiPieSearchOperators? parse(String text) => _unavailable('YoutiPieSearchOperators.parse');
 }
 
 class YoutiPieMusicBrowseEndpoint {
@@ -1089,8 +1061,8 @@ class YoutiPieMusicBrowseEndpoint {
   static const charts = YoutiPieMusicBrowseEndpoint('charts');
   static const moodsAndGenres = YoutiPieMusicBrowseEndpoint('moodsAndGenres');
   static const newReleases = YoutiPieMusicBrowseEndpoint('newReleases');
-  String? extractPlaylistId() => null;
-  YoutiPieMusicBrowseEndpoint withFormValues(dynamic values) => this;
+  String? extractPlaylistId() => _unavailable('YoutiPieMusicBrowseEndpoint.extractPlaylistId');
+  YoutiPieMusicBrowseEndpoint withFormValues(dynamic values) => _unavailable('YoutiPieMusicBrowseEndpoint.withFormValues');
 }
 
 class YoutiPieMusicShelf extends MapSerializable {
@@ -1122,9 +1094,9 @@ class YoutiPieRelatedVideosResult extends YoutiPieListWrapper<YoutubeFeed> {
   const YoutiPieRelatedVideosResult({this.cacheKey, List<YoutubeFeed> items = const [], dynamic continuation, this.videoId, this.isPersonalized, this.shortsSection})
     : super(items: items, continuation: continuation);
   @override
-  bool get canFetchNext => continuation != null;
+  bool get canFetchNext => _unavailable('YoutiPieRelatedVideosResult.canFetchNext');
   @override
-  Future<bool> fetchNext() async => _unavailable('Remote related-video pagination');
+  Future<bool> fetchNext() => _unavailable('YoutiPieRelatedVideosResult.fetchNext');
 }
 
 class HlsMasterPlaylist {
@@ -1135,7 +1107,7 @@ class HlsMasterPlaylist {
 }
 
 class YoutiAccountManager {
-  static Future<dynamic> signIn({required dynamic pageConfig, required dynamic onProgress, required bool forceSignIn}) async => _unavailable('Account sign-in');
+  static Future<dynamic> signIn({required dynamic pageConfig, required dynamic onProgress, required bool forceSignIn}) => _unavailable('YoutiAccountManager.signIn');
 }
 
 class EndScreenDisplay {
@@ -1225,23 +1197,20 @@ class PlaylistInfoItem extends PlaylistBasicInfo implements YoutubeFeed {
   });
 
   @override
-  dynamic get isShortContent => false;
+  dynamic get isShortContent => _unavailable('PlaylistInfoItem.isShortContent');
   @override
-  dynamic get items => null;
+  dynamic get items => _unavailable('PlaylistInfoItem.items');
   @override
-  dynamic get playlistId => id;
+  dynamic get playlistId => _unavailable('PlaylistInfoItem.playlistId');
   @override
-  dynamic get endpoint => null;
+  dynamic get endpoint => _unavailable('PlaylistInfoItem.endpoint');
   @override
-  dynamic get cacheKey => null;
+  dynamic get cacheKey => _unavailable('PlaylistInfoItem.cacheKey');
   @override
-  dynamic get color => null;
+  dynamic get color => _unavailable('PlaylistInfoItem.color');
   @override
-  dynamic get artists => null;
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-
-  static bool isMixPlaylist(String id) => id.startsWith('RD');
+  dynamic get artists => _unavailable('PlaylistInfoItem.artists');
+  static bool isMixPlaylist(String id) => _unavailable('PlaylistInfoItem.isMixPlaylist');
 }
 
 class YoutiPieChannelHomeSection {
@@ -1253,44 +1222,39 @@ class YoutiPieChannelHomeSection {
 }
 
 abstract final class YTPlaylistIdUtils {
-  static bool isUserCreated(String? id) => id != null && id.startsWith('PL');
+  static bool isUserCreated(String? id) => _unavailable('YTPlaylistIdUtils.isUserCreated');
 }
 
 abstract final class YoutiPieVideoThumbnail {
-  static List<String> mix(String id) => ['https://i.ytimg.com/vi/$id/hqdefault.jpg'];
-  static List<String> mixLow(String id) => ['https://i.ytimg.com/vi/$id/default.jpg'];
+  static List<String> mix(String id) => _unavailable('YoutiPieVideoThumbnail.mix');
+  static List<String> mixLow(String id) => _unavailable('YoutiPieVideoThumbnail.mixLow');
 }
 
 extension PickRemoteListItem<T> on List<T> {
-  T? pick() => isEmpty ? null : first;
+  T? pick() => _unavailable('List.pick');
 }
 
 extension YoutiPieVideoStreamsListUtils on List<VideoStream> {
-  List<VideoStream> withoutWebmIfNeccessaryOrExperimentalCodecs({bool allowExperimentalCodecs = false}) => this;
+  List<VideoStream> withoutWebmIfNeccessaryOrExperimentalCodecs({bool allowExperimentalCodecs = false}) => _unavailable('VideoStream list filtering');
 }
 
 extension YoutiPieNumberFormatting on num {
-  String formatDecimalShort([bool expanded = false]) => toString();
+  String formatDecimalShort([bool expanded = false]) => _unavailable('YoutiPieNumberFormatting.formatDecimalShort');
 }
 
 extension InnertubeClientConfiguration on InnertubeClients {
-  dynamic get configuration => const _InnertubeConfiguration();
-}
-
-class _InnertubeConfiguration {
-  const _InnertubeConfiguration();
-  bool get requireJSPlayer => false;
+  dynamic get configuration => _unavailable('InnertubeClients.configuration');
 }
 
 abstract final class YTUrlUtils {
-  static String buildVideoUrl(String id, {int? timestampSeconds}) => 'https://www.youtube.com/watch?v=$id${timestampSeconds == null ? '' : '&t=$timestampSeconds'}';
-  static String buildChannelUrl(String id) => 'https://www.youtube.com/channel/$id';
-  static String buildPlaylistUrl(String id) => 'https://www.youtube.com/playlist?list=$id';
+  static String buildVideoUrl(String id, {int? timestampSeconds}) => _unavailable('YTUrlUtils.buildVideoUrl');
+  static String buildChannelUrl(String id) => _unavailable('YTUrlUtils.buildChannelUrl');
+  static String buildPlaylistUrl(String id) => _unavailable('YTUrlUtils.buildPlaylistUrl');
 }
 
 extension YTStringUtils on String {
-  bool get isDummyVideoId => startsWith('dummy_');
-  bool isYTTitleFaulty() => trim().isEmpty;
+  bool get isDummyVideoId => _unavailable('String.isDummyVideoId');
+  bool isYTTitleFaulty() => _unavailable('String.isYTTitleFaulty');
 }
 
 Never _unavailable(String operation) => throw UnsupportedError('$operation is unavailable in this offline build.');
