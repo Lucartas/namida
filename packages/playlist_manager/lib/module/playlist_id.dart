@@ -3,10 +3,9 @@ class PlaylistID {
   final String? playlistId;
   const PlaylistID({required this.id, this.playlistId});
 
-  factory PlaylistID.fromJson(Map<String, dynamic> json) => PlaylistID(
-    id: json['id'] as String? ?? '',
-    playlistId: json['playlistId'] as String?,
-  );
+  factory PlaylistID.fromJson(Map<String, dynamic> json) => _unavailable('PlaylistID.fromJson');
 
-  Map<String, dynamic> toJson() => {'id': id, if (playlistId != null) 'playlistId': playlistId};
+  Map<String, dynamic> toJson() => _unavailable('PlaylistID.toJson');
 }
+
+Never _unavailable(String api) => throw UnsupportedError('$api is unavailable in this build.');

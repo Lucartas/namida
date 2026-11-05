@@ -67,7 +67,7 @@ class PlaylistTagsSelection {
   final dynamic included;
   final dynamic excluded;
   const PlaylistTagsSelection({this.tag = '', this.included = const [], this.excluded = const []});
-  String toText() => tag;
+  String toText() => _unavailable('PlaylistTagsSelection.toText');
 }
 
 class PlaylistMetadataEdit {
@@ -80,14 +80,8 @@ class PlaylistMetadataEdit {
 
   const PlaylistMetadataEdit({this.isPinned, this.comment, this.tags, this.moods, this.modifiedDate, this.isFav});
 
-  PlaylistMetadataEdit copyWith({bool? isPinned, String? comment, List<String>? tags, List<String>? moods, int? modifiedDate, bool? isFav}) => PlaylistMetadataEdit(
-    isPinned: isPinned ?? this.isPinned,
-    comment: comment ?? this.comment,
-    tags: tags ?? this.tags,
-    moods: moods ?? this.moods,
-    modifiedDate: modifiedDate ?? this.modifiedDate,
-    isFav: isFav ?? this.isFav,
-  );
+  PlaylistMetadataEdit copyWith({bool? isPinned, String? comment, List<String>? tags, List<String>? moods, int? modifiedDate, bool? isFav}) =>
+      _unavailable('PlaylistMetadataEdit.copyWith');
 }
 
 class PlaylistRemoteSource {
@@ -97,3 +91,5 @@ class PlaylistRemoteSource {
   const PlaylistRemoteSource({required this.sourceKey, required this.remoteId});
   static const none = PlaylistRemoteSource._none();
 }
+
+Never _unavailable(String api) => throw UnsupportedError('$api is unavailable in this build.');
