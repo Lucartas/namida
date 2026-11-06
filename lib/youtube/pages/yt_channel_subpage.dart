@@ -20,8 +20,7 @@ import 'package:youtipie/class/thumbnail.dart';
 import 'package:youtipie/class/youtipie_feed/channel_info_item.dart';
 import 'package:youtipie/class/youtipie_feed/playlist_basic_info.dart';
 import 'package:youtipie/class/youtipie_feed/playlist_info_item.dart';
-import 'package:youtipie/core/enum.dart' show YoutiPieFetchAllResType, YoutiPieSearchSort, YoutiPieSearchType;
-import 'package:youtipie/core/extensions.dart' show PickRemoteListItem;
+import 'package:youtipie/youtipie.dart';
 
 import 'package:namida/base/pull_to_refresh.dart';
 import 'package:namida/base/youtube_channel_controller.dart';

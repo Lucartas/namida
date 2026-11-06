@@ -12,6 +12,7 @@ import 'package:youtipie/class/streams/audio_track.dart';
 import 'package:youtipie/class/streams/video_stream.dart';
 import 'package:youtipie/class/youtipie_feed/playlist_basic_info.dart';
 import 'package:youtipie/core/enum.dart';
+import 'package:youtipie/core/extensions.dart';
 import 'package:youtipie/core/url_utils.dart';
 
 import 'package:namida/base/audio_handler.dart';

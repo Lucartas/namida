@@ -1,3 +1,5 @@
+export 'package:youtipie/core/enum.dart' show InnertubeClients;
+
 import 'package:youtipie/managers/account_manager.dart' show YoutiPieCookies;
 import 'package:youtipie/src/unavailable.dart';
 

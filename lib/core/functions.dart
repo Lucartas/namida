@@ -11,7 +11,7 @@ import 'package:history_manager/history_manager.dart';
 import 'package:playlist_manager/module/playlist_id.dart';
 import 'package:playlist_manager/playlist_manager.dart';
 import 'package:youtipie/class/execute_details.dart';
-import 'package:youtipie/core/extensions.dart' show PickRemoteListItem;
+import 'package:youtipie/core/extensions.dart' show ThumbnailPickerExt;
 
 import 'package:namida/class/eggs_data.dart';
 import 'package:namida/class/folder.dart';

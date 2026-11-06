@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 
 import 'package:namico_db_wrapper/namico_db_wrapper.dart';
 import 'package:rhttp/rhttp.dart';
-import 'package:youtipie/class/videos/video_thumbnail.dart' show YoutiPieVideoThumbnail;
+import 'package:youtipie/class/thumbnail.dart';
 
 import 'package:namida/class/http_manager.dart';
 import 'package:namida/controller/ffmpeg_controller.dart';

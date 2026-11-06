@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:youtipie/class/videos/video_result.dart';
 import 'package:youtipie/core/enum.dart';
-import 'package:youtipie/core/http.dart';
+import 'package:youtipie/youtipie.dart';
 
 import 'package:namida/controller/navigator_controller.dart';
 import 'package:namida/controller/settings_controller.dart';

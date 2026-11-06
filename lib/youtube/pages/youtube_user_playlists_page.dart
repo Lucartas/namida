@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:youtipie/class/result_wrapper/playlist_user_result.dart';
 import 'package:youtipie/class/youtipie_feed/playlist_info_item_user.dart';
 import 'package:youtipie/core/enum.dart';
-import 'package:youtipie/core/http.dart';
-import 'package:youtipie/core/extensions.dart' show PickRemoteListItem;
+import 'package:youtipie/youtipie.dart';
 
 import 'package:namida/class/route.dart';
 import 'package:namida/core/dimensions.dart';

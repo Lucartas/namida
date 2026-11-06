@@ -20,7 +20,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:youtipie/class/youtipie_feed/user_channel_info.dart';
-import 'package:youtipie/core/http.dart' show YoutiPie;
+import 'package:youtipie/youtipie.dart' show YoutiPie;
 
 import 'package:namida/base/settings_file_writer.dart';
 import 'package:namida/class/file_parts.dart';

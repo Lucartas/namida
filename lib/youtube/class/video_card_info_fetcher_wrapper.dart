@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:youtipie/class/stream_info_item/stream_info_item.dart';
 import 'package:youtipie/class/streams/video_stream_info.dart';
-import 'package:youtipie/core/extensions.dart' show PickRemoteListItem;
+import 'package:youtipie/youtipie.dart';
 
 import 'package:namida/controller/connectivity.dart';
 import 'package:namida/controller/video_controller.dart';

@@ -8,7 +8,7 @@ import 'package:namico_db_wrapper/namico_db_wrapper.dart';
 import 'package:youtipie/class/cache_details.dart';
 import 'package:youtipie/class/publish_time.dart';
 import 'package:youtipie/core/enum.dart';
-import 'package:youtipie/core/http.dart';
+import 'package:youtipie/youtipie.dart';
 
 import 'package:namida/base/generator_base.dart';
 import 'package:namida/controller/navigator_controller.dart';

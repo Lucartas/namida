@@ -7,7 +7,7 @@ import 'package:youtipie/class/result_wrapper/playlist_result.dart';
 import 'package:youtipie/class/result_wrapper/playlist_result_base.dart';
 import 'package:youtipie/class/stream_info_item/stream_info_item.dart';
 import 'package:youtipie/class/stream_info_item/stream_info_item_short.dart';
-import 'package:youtipie/core/extensions.dart' show PickRemoteListItem;
+import 'package:youtipie/youtipie.dart';
 
 import 'package:namida/controller/player_controller.dart';
 import 'package:namida/controller/settings_controller.dart';

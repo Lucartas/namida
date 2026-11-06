@@ -1,13 +1,15 @@
 import 'package:youtipie/class/streams/video_stream.dart' show VideoStream;
 import 'package:youtipie/src/unavailable.dart';
 
-extension PickRemoteListItem<T> on List<T> {
+extension ThumbnailPickerExt<T> on List<T> {
   T? pick() => unavailable('List.pick');
 }
 
-extension YoutiPieVideoStreamsListUtils on List<VideoStream> {
+extension StreamFilterVideoUtils on List<VideoStream> {
   List<VideoStream> withoutWebmIfNeccessaryOrExperimentalCodecs({bool allowExperimentalCodecs = false}) => unavailable('VideoStream list filtering');
 }
+
+typedef CodecInfoUtils = dynamic;
 
 extension YoutiPieNumberFormatting on num {
   String formatDecimalShort([bool expanded = false]) => unavailable('YoutiPieNumberFormatting.formatDecimalShort');

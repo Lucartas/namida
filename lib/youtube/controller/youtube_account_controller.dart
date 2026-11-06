@@ -10,7 +10,7 @@ import 'package:namico_subscription_manager/namico_subscription_manager.dart';
 import 'package:youtipie/class/youtipie_feed/user_channel_info.dart';
 import 'package:youtipie/core/enum.dart';
 import 'package:youtipie/managers/account_manager.dart';
-import 'package:youtipie/core/http.dart';
+import 'package:youtipie/youtipie.dart' hide logger;
 
 import 'package:namida/class/route.dart';
 import 'package:namida/controller/connectivity.dart';

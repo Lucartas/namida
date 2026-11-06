@@ -27,7 +27,7 @@ import 'package:youtipie/class/videos/missing_video_info.dart';
 import 'package:youtipie/class/videos/video_result.dart';
 import 'package:youtipie/core/enum.dart';
 import 'package:youtipie/core/http.dart';
-import 'package:youtipie/class/videos/video_playability.dart' show VideoPlayabiltyStatus;
+import 'package:youtipie/youtipie.dart' hide logger;
 
 import 'package:namida/class/video.dart';
 import 'package:namida/controller/connectivity.dart';

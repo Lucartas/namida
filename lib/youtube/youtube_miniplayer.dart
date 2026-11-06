@@ -12,7 +12,7 @@ import 'package:youtipie/class/videos/video_info.dart';
 import 'package:youtipie/class/youtipie_feed/playlist_info_item.dart';
 import 'package:youtipie/core/enum.dart';
 import 'package:youtipie/core/url_utils.dart';
-import 'package:youtipie/core/extensions.dart' show YoutiPieNumberFormatting;
+import 'package:youtipie/youtipie.dart';
 
 import 'package:namida/base/yt_video_like_manager.dart';
 import 'package:namida/class/route.dart';
