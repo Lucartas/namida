@@ -107,10 +107,21 @@ interfaces.
   the player separate from the local-player model.
 - **Media/build artifacts:** the old `external/ffmpeg_build` submodule is
   unavailable and is no longer an Android build input; some legacy scripts
-  still mention it. FFmpeg execution code remains in the app, while
-  `namida_waveform` is a separate dependency. Before Milestone 2, decide which
-  media operations local indexing/playback require and whether they need a
-  replacement implementation.
+  still mention it. FFmpeg execution code remains in the app. The upstream
+  `namida_waveform` repository is reachable (HEAD checked at
+  `226bab7f013f51770f991bdd3e895edd8313cffd`) and contains the native waveform,
+  spectrum, rhythm, lossless-check, and palette implementation. Its build hook
+  compiles native code and links against `libffmpegkit`, using build metadata
+  supplied by the real `ffmpeg_kit_extended_flutter` package. This branch's
+  local `ffmpeg_kit_extended_flutter` package is compile-only and supplies
+  neither that hook metadata nor the native library. The upstream waveform
+  package also declares the real FFmpeg package as a Git dependency, while the
+  app currently selects the local package at the same package name; restoring
+  only the waveform dependency therefore does not restore a compatible build
+  graph. Reintroducing waveform support requires resolving that FFmpeg package
+  and its native artifacts as a separate task. This dependency combination has
+  not been build-tested. Before Milestone 2, decide which media operations local
+  indexing/playback require and whether they need a replacement implementation.
 - **Assets and translations:** `language` is required by code generation through
   `l10n.yaml` and remains as a submodule. `namida-assets` supports
   screenshot/documentation workflows and is not currently referenced as an app
