@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
-import 'package:just_audio/just_audio.dart' show AudioPlayer, AudioTrack, LiveWindow, PlaybackEvent, ProcessingState, TextTrack, UriSource, VideoInfoData, VideoSourceOptions;
+import 'package:just_audio/just_audio.dart'
+    show AndroidAudioEffect, AudioPlayer, AudioTrack, LiveWindow, PlaybackEvent, ProcessingState, TextTrack, UriSource, VideoInfoData, VideoSourceOptions;
 import 'package:nampack/nampack.dart';
 
 Never _compileOnlyFailure(String member) => throw UnsupportedError(
@@ -122,8 +123,8 @@ class ParametricEqualizer {
     20000,
   ];
 
-  factory ParametricEqualizer.fromMap(dynamic map) => _compileOnlyFailure('ParametricEqualizer.fromMap');
-  factory ParametricEqualizer.fromLegacyGains(dynamic _) => _compileOnlyFailure('ParametricEqualizer.fromLegacyGains');
+  factory ParametricEqualizer.fromMap(Map<Object?, Object?> map) => _compileOnlyFailure('ParametricEqualizer.fromMap');
+  factory ParametricEqualizer.fromLegacyGains(Map<double, double> _) => _compileOnlyFailure('ParametricEqualizer.fromLegacyGains');
   factory ParametricEqualizer.fromEqualizerApo(String _) => _compileOnlyFailure('ParametricEqualizer.fromEqualizerApo');
 
   Map<String, dynamic> toMap() => _compileOnlyFailure('ParametricEqualizer.toMap');
@@ -155,7 +156,7 @@ class EqualizerPreset {
 
   static const List<EqualizerPreset> allDefaults = [EqualizerPreset(name: 'Flat')];
 
-  static EqualizerPreset? fromMap(dynamic map) => _compileOnlyFailure('EqualizerPreset.fromMap');
+  static EqualizerPreset? fromMap(Map<Object?, Object?> map) => _compileOnlyFailure('EqualizerPreset.fromMap');
 
   Map<String, dynamic> toMap() => _compileOnlyFailure('EqualizerPreset.toMap');
   EqualizerPreset copyWith({String? name, ParametricEqualizer? equalizer}) => _compileOnlyFailure('EqualizerPreset.copyWith');
@@ -164,7 +165,7 @@ class EqualizerPreset {
 class PlayerConfig {
   final bool skipSilence;
   final bool loudnessEnhancerEnabled;
-  final dynamic loudnessEnhancer;
+  final double loudnessEnhancer;
   final bool equalizerEnabled;
   final ParametricEqualizer equalizer;
   final EqualizerPreset? preset;
@@ -175,7 +176,7 @@ class PlayerConfig {
   const PlayerConfig({
     this.skipSilence = false,
     this.loudnessEnhancerEnabled = false,
-    this.loudnessEnhancer,
+    this.loudnessEnhancer = 0.0,
     this.equalizerEnabled = false,
     this.equalizer = ParametricEqualizer.flat,
     this.preset,
@@ -188,7 +189,7 @@ class PlayerConfig {
   static const bool isEqualizerSupported = false;
   static const bool isLoudnessEnhancerSupported = false;
 
-  factory PlayerConfig.fromMap(dynamic _) => _compileOnlyFailure('PlayerConfig.fromMap');
+  factory PlayerConfig.fromMap(Map<Object?, Object?> _) => _compileOnlyFailure('PlayerConfig.fromMap');
   Map<String, dynamic> toMap() => _compileOnlyFailure('PlayerConfig.toMap');
 
   PlayerConfigModificationScale getModificationScale() => _compileOnlyFailure('PlayerConfig.getModificationScale');
@@ -196,7 +197,7 @@ class PlayerConfig {
   PlayerConfig copyWith({
     bool? skipSilence,
     bool? loudnessEnhancerEnabled,
-    dynamic loudnessEnhancer,
+    double? loudnessEnhancer,
     bool? equalizerEnabled,
     ParametricEqualizer? equalizer,
     EqualizerPreset? preset,
@@ -232,7 +233,7 @@ class PlayerConfigOverrides {
   static const none = PlayerConfigOverrides();
   bool get isEmpty => _compileOnlyFailure('PlayerConfigOverrides.isEmpty');
 
-  static PlayerConfigOverrides fromMap(Map<String, dynamic> _) => _compileOnlyFailure('PlayerConfigOverrides.fromMap');
+  static PlayerConfigOverrides fromMap(Map<Object?, Object?> _) => _compileOnlyFailure('PlayerConfigOverrides.fromMap');
   Map<String, dynamic> toMap() => _compileOnlyFailure('PlayerConfigOverrides.toMap');
   PlayerConfig resolve(PlayerConfig _) => _compileOnlyFailure('PlayerConfigOverrides.resolve');
   PlayerConfigOverrides copyWith({
@@ -251,20 +252,20 @@ class PlayerConfigOverrides {
 }
 
 class EqualizerExtended {
-  dynamic get androidAudioEffect => _compileOnlyFailure('EqualizerExtended.androidAudioEffect');
+  AndroidAudioEffect? get androidAudioEffect => _compileOnlyFailure('EqualizerExtended.androidAudioEffect');
   Future<void> apply(bool _, ParametricEqualizer? _) => _compileOnlyFailure('EqualizerExtended.apply');
 }
 
 class LoudnessEnhancerExtended {
-  dynamic get androidAudioEffect => _compileOnlyFailure('LoudnessEnhancerExtended.androidAudioEffect');
+  AndroidAudioEffect? get androidAudioEffect => _compileOnlyFailure('LoudnessEnhancerExtended.androidAudioEffect');
   static const double kMinGain = -20;
   static const double kMaxGain = 20;
   Future<void> setTargetGainUser(double _) => _compileOnlyFailure('LoudnessEnhancerExtended.setTargetGainUser');
   Future<void> setTargetGainTrack(double _) => _compileOnlyFailure('LoudnessEnhancerExtended.setTargetGainTrack');
   Future<void> setEnabledUser(bool _) => _compileOnlyFailure('LoudnessEnhancerExtended.setEnabledUser');
-  dynamic get targetGainTrack => _compileOnlyFailure('LoudnessEnhancerExtended.targetGainTrack');
-  dynamic refreshEnabled() => _compileOnlyFailure('LoudnessEnhancerExtended.refreshEnabled');
-  dynamic getActualGainFromUser(bool _, double _) => _compileOnlyFailure('LoudnessEnhancerExtended.getActualGainFromUser');
+  Rx<double>? get targetGainTrack => _compileOnlyFailure('LoudnessEnhancerExtended.targetGainTrack');
+  void refreshEnabled() => _compileOnlyFailure('LoudnessEnhancerExtended.refreshEnabled');
+  double getActualGainFromUser(bool _, double _) => _compileOnlyFailure('LoudnessEnhancerExtended.getActualGainFromUser');
 }
 
 class SleepTimerConfig {
@@ -309,11 +310,11 @@ class DefaultCrossfadeTransition<Q> extends CrossfadeTransition<Q> {
 }
 
 class SmartCrossfadeTransition<Q> extends CrossfadeTransition<Q> {
-  const SmartCrossfadeTransition({required dynamic timingOf});
+  const SmartCrossfadeTransition({required ItemTiming? Function(Q item) timingOf});
 }
 
 class BeatMatchedCrossfadeTransition<Q> extends CrossfadeTransition<Q> {
-  const BeatMatchedCrossfadeTransition({required dynamic timingOf, required dynamic gridOf});
+  const BeatMatchedCrossfadeTransition({required ItemTiming? Function(Q item) timingOf, required BeatGrid? Function(Q item) gridOf});
 }
 
 class ItemPrepareConfig<T, S> {
@@ -321,7 +322,7 @@ class ItemPrepareConfig<T, S> {
   final int index;
   final Duration? initialPosition;
   final String? audioTrackId;
-  final dynamic videoOptions;
+  final VideoSourceOptions? videoOptions;
   final bool keepOldVideoSource;
   final T? item;
   final bool? itemExists;
@@ -456,7 +457,7 @@ class BasicAudioHandler<Q> extends BaseAudioHandler {
   void onVolumeChangeAddListener(String key, void Function(double) callback) => _compileOnlyFailure('BasicAudioHandler.onVolumeChangeAddListener');
   void onVolumeChangeRemoveListener(String key) => _compileOnlyFailure('BasicAudioHandler.onVolumeChangeRemoveListener');
   Future<void> executeWithPausedOutput(Future<void> Function() callback) => _compileOnlyFailure('BasicAudioHandler.executeWithPausedOutput');
-  Future<void> executeOnPlayers(Future<void> Function(dynamic player) callback) => _compileOnlyFailure('BasicAudioHandler.executeOnPlayers');
+  Future<void> executeOnPlayers(Future<void> Function(AVPlayer player) callback) => _compileOnlyFailure('BasicAudioHandler.executeOnPlayers');
   Future<void> refreshCurrentItemPlayerConfig() => _compileOnlyFailure('BasicAudioHandler.refreshCurrentItemPlayerConfig');
   void refreshRxVariables() => _compileOnlyFailure('BasicAudioHandler.refreshRxVariables');
   Future<void> setVolumeWithMultiplier(double value) => _compileOnlyFailure('BasicAudioHandler.setVolumeWithMultiplier');
@@ -492,7 +493,7 @@ class BasicAudioHandler<Q> extends BaseAudioHandler {
   Future<void> setTextTrack(String? trackId) => _compileOnlyFailure('BasicAudioHandler.setTextTrack');
   Future<bool> setExternalSubtitle(String? uri) => _compileOnlyFailure('BasicAudioHandler.setExternalSubtitle');
 
-  dynamic get currentPlayer => _compileOnlyFailure('BasicAudioHandler.currentPlayer');
+  AVPlayer get currentPlayer => _compileOnlyFailure('BasicAudioHandler.currentPlayer');
 
   QueueShuffler<Q> get queueShuffler => _compileOnlyFailure('BasicAudioHandler.queueShuffler');
   bool get isQueueShuffled => _compileOnlyFailure('BasicAudioHandler.isQueueShuffled');
@@ -515,7 +516,7 @@ class BasicAudioHandler<Q> extends BaseAudioHandler {
 
   Future<Duration?> setAudioSource<T, S>(ItemPrepareConfig<T, S> config) => _compileOnlyFailure('BasicAudioHandler.setAudioSource');
 
-  Future<void> setVideo(dynamic options) => _compileOnlyFailure('BasicAudioHandler.setVideo');
+  Future<void> setVideo(VideoSourceOptions? options) => _compileOnlyFailure('BasicAudioHandler.setVideo');
 
   Future<void> setQueueShuffled(bool shuffled) => _compileOnlyFailure('BasicAudioHandler.setQueueShuffled');
 
@@ -539,7 +540,7 @@ class BasicAudioHandler<Q> extends BaseAudioHandler {
   Future<void> seekToLiveEdge() => _compileOnlyFailure('BasicAudioHandler.seekToLiveEdge');
 
   @override
-  Future<dynamic> customAction(String name, [Map<String, dynamic>? extras]) => _compileOnlyFailure('BasicAudioHandler.customAction');
+  Future<Object?> customAction(String name, [Map<String, dynamic>? extras]) => _compileOnlyFailure('BasicAudioHandler.customAction');
 
   PlaybackState transformEvent(PlaybackEvent event, int itemIndex, List<MediaControl> controls, List<int> compactIndices) =>
       _compileOnlyFailure('BasicAudioHandler.transformEvent');
