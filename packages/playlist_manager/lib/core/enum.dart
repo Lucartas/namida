@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart' show IconData;
+
 enum PlaylistAddDuplicateAction {
   justAddEverything,
   addAllAndRemoveOldOnes,
@@ -14,7 +16,7 @@ enum PlaylistTagFilterState { none, included, excluded }
 sealed class PlaylistTagKey {
   const PlaylistTagKey();
   String toVirtualText() => throw UnsupportedError('Playlist tags are unavailable in Milestone 1.');
-  dynamic toIcon() => throw UnsupportedError('Playlist tags are unavailable in Milestone 1.');
+  IconData toIcon() => throw UnsupportedError('Playlist tags are unavailable in Milestone 1.');
 }
 
 enum PlaylistVirtualTag implements PlaylistTagKey {
@@ -26,7 +28,7 @@ enum PlaylistVirtualTag implements PlaylistTagKey {
   @override
   String toVirtualText() => throw UnsupportedError('Playlist tags are unavailable in Milestone 1.');
   @override
-  dynamic toIcon() => throw UnsupportedError('Playlist tags are unavailable in Milestone 1.');
+  IconData toIcon() => throw UnsupportedError('Playlist tags are unavailable in Milestone 1.');
 }
 
 final class PlaylistUserTag extends PlaylistTagKey {
@@ -64,8 +66,8 @@ class PlaylistTagSection {
 
 class PlaylistTagsSelection {
   final String tag;
-  final dynamic included;
-  final dynamic excluded;
+  final List<PlaylistTagKey> included;
+  final List<PlaylistTagKey> excluded;
   const PlaylistTagsSelection({this.tag = '', this.included = const [], this.excluded = const []});
   String toText() => _unavailable('PlaylistTagsSelection.toText');
 }

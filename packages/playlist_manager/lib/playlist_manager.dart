@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -6,6 +7,7 @@ import 'package:nampack/reactive/types/rxmap/rx_map.dart';
 
 import 'class/favourite_playlist.dart';
 import 'core/enum.dart';
+import 'module/playlist_id.dart';
 
 export 'class/favourite_playlist.dart';
 export 'core/enum.dart';
@@ -16,6 +18,9 @@ Never _offlinePlaylistUnavailable(String operation) => throw UnsupportedError(
 );
 
 mixin PlaylistItemWithDate {
+  // The item is supplied by the app (for example a local watch-history row).
+  // playlist_manager cannot name that app-specific model without a dependency cycle.
+  // The mixin is shared by app models with different item types, so consumers narrow at runtime.
   dynamic get item => _offlinePlaylistUnavailable('PlaylistItemWithDate.item');
 }
 
@@ -29,7 +34,7 @@ class GeneralPlaylist<T, S> {
   List<String> tags;
   bool isPinned;
   bool isFav;
-  dynamic remoteSource;
+  PlaylistRemoteSource? remoteSource;
   String? m3uPath;
   List<S>? sortsType;
   bool sortReverse;
@@ -53,7 +58,7 @@ class GeneralPlaylist<T, S> {
   });
 
   bool get isReadOnly => _offlinePlaylistUnavailable('GeneralPlaylist.isReadOnly');
-  dynamic get playlistID => _offlinePlaylistUnavailable('GeneralPlaylist.playlistID');
+  PlaylistID? get playlistID => _offlinePlaylistUnavailable('GeneralPlaylist.playlistID');
 
   GeneralPlaylist<T, S> copyWith({
     String? name,
@@ -68,21 +73,21 @@ class GeneralPlaylist<T, S> {
     String? m3uPath,
     List<S>? sortsType,
     bool? sortReverse,
-    dynamic remoteSource,
+    PlaylistRemoteSource? remoteSource,
     List<T>? customOrder,
   }) => _offlinePlaylistUnavailable('GeneralPlaylist.copyWith');
 
   GeneralPlaylist<E, S> copyWithConvertedTracks<E>(E Function(T track) convert) => _offlinePlaylistUnavailable('GeneralPlaylist.copyWithConvertedTracks');
 
   factory GeneralPlaylist.fromJson(
-    dynamic value, [
+    Map<String, dynamic> value, [
     T Function(Map<String, dynamic>)? itemFromJson,
-    List<S> Function(dynamic)? sortFromJson,
+    List<S> Function(Object?)? sortFromJson,
   ]) => _offlinePlaylistUnavailable('GeneralPlaylist.fromJson');
 
   Map<String, dynamic> toJson(
-    dynamic Function(T)? itemToJson,
-    dynamic Function(List<S>)? sortToJson, {
+    Object? Function(T)? itemToJson,
+    Object? Function(List<S>)? sortToJson, {
     bool includeTracks = true,
   }) => _offlinePlaylistUnavailable('GeneralPlaylist.toJson');
 
@@ -105,62 +110,63 @@ class PlaylistManager<T, I, S> {
 
   RegExp get cleanupFilenameRegex => _offlinePlaylistUnavailable('PlaylistManager.cleanupFilenameRegex');
   I identifyBy(T item) => _offlinePlaylistUnavailable('Playlist item lookup');
-  dynamic getMetadataEditDate(GeneralPlaylist<T, S> playlist) => _offlinePlaylistUnavailable('Playlist metadata');
+  int? getMetadataEditDate(GeneralPlaylist<T, S> playlist) => _offlinePlaylistUnavailable('Playlist metadata');
   GeneralPlaylist<T, S>? getPlaylist(String name) => _offlinePlaylistUnavailable('PlaylistManager.getPlaylist');
   File getArtworkFileForPlaylist(String name) => _offlinePlaylistUnavailable('Playlist artwork');
   bool isOneOfDefaultPlaylists(String name) => _offlinePlaylistUnavailable('Default playlist lookup');
   String? validatePlaylistName(String? name) => _offlinePlaylistUnavailable('Playlist name validation');
-  dynamic resetCanReorder() => _offlinePlaylistUnavailable('Playlist reordering');
-  dynamic updatePropertyInPlaylist(
+  void resetCanReorder() => _offlinePlaylistUnavailable('Playlist reordering');
+  Future<void> updatePropertyInPlaylist(
     String playlist, {
-    dynamic tracks,
-    dynamic tracksRaw,
-    dynamic convertItem,
-    dynamic tracksFromNewSource,
-    dynamic modifiedDate,
-    dynamic creationDate,
-    dynamic itemsSortReverse,
-    dynamic itemsSortType,
-    dynamic restoreCustomOrder,
-    dynamic comment,
-    dynamic tags,
-    dynamic moods,
-    dynamic isPinned,
-    dynamic isFav,
-    dynamic m3uPath,
-    dynamic remoteSource,
-    dynamic sortsType,
-    dynamic sortReverse,
+    List<T>? tracks,
+    List<I>? tracksRaw,
+    T Function(I item, int dateAdded)? convertItem,
+    bool? tracksFromNewSource,
+    int? modifiedDate,
+    int? creationDate,
+    bool? itemsSortReverse,
+    List<S>? itemsSortType,
+    bool? restoreCustomOrder,
+    String? comment,
+    List<String>? tags,
+    List<String>? moods,
+    bool? isPinned,
+    bool? isFav,
+    String? m3uPath,
+    PlaylistRemoteSource? remoteSource,
+    List<S>? sortsType,
+    bool? sortReverse,
   }) => _offlinePlaylistUnavailable('Playlist metadata');
-  dynamic importTracksToPlaylist(dynamic playlist, dynamic tracks, {dynamic index, dynamic source}) => _offlinePlaylistUnavailable('Import tracks to playlist');
-  dynamic removeTracksFromPlaylist(dynamic playlist, dynamic indices) => _offlinePlaylistUnavailable('Remove tracks from playlist');
-  dynamic reorderTrack(dynamic playlist, int oldIndex, int newIndex) => _offlinePlaylistUnavailable('Reorder playlist tracks');
-  dynamic replaceTheseTracksInPlaylists(dynamic replace, dynamic after) => _offlinePlaylistUnavailable('Update playlist tracks');
-  dynamic replaceTheseTracksInPlaylistsBulk(dynamic replacements) => _offlinePlaylistUnavailable('Update playlist tracks');
-  dynamic computeCustomOrder(dynamic playlist) => _offlinePlaylistUnavailable('Playlist order');
-  dynamic importPlaylistsIfNewer(dynamic playlists) => _offlinePlaylistUnavailable('Import playlists');
-  dynamic importPlaylistForce(dynamic playlist, {bool sortPlaylists = true, bool tracksFromNewSource = false}) => _offlinePlaylistUnavailable('Import playlist');
-  dynamic ensureNewSourceItemsSorted(dynamic playlist) => _offlinePlaylistUnavailable('Playlist order');
-  dynamic reAddPlaylist(dynamic playlist, dynamic modifiedDate, {dynamic artworkBytes}) => _offlinePlaylistUnavailable('Restore playlist');
-  dynamic updatePlaylistMetadata(String playlist, {bool? isPinned, String? comment, List<String>? tags, List<String>? moods, int? modifiedDate, bool? isFav}) =>
+  Future<int> importTracksToPlaylist(GeneralPlaylist<T, S> playlist, Iterable<T> tracks, {int? index, Object? source}) => _offlinePlaylistUnavailable('Import tracks to playlist');
+  Future<void> removeTracksFromPlaylist(GeneralPlaylist<T, S> playlist, List<int> indices) => _offlinePlaylistUnavailable('Remove tracks from playlist');
+  void reorderTrack(GeneralPlaylist<T, S> playlist, int oldIndex, int newIndex) => _offlinePlaylistUnavailable('Reorder playlist tracks');
+  Future<void> replaceTheseTracksInPlaylists(bool Function(T item) test, T Function(T oldItem) replace) => _offlinePlaylistUnavailable('Update playlist tracks');
+  Future<void> replaceTheseTracksInPlaylistsBulk(List<MapEntry<bool Function(T item), T Function(T oldItem)>> replacements) =>
+      _offlinePlaylistUnavailable('Update playlist tracks');
+  List<T>? computeCustomOrder(GeneralPlaylist<T, S> playlist) => _offlinePlaylistUnavailable('Playlist order');
+  Future<int> importPlaylistsIfNewer(Iterable<GeneralPlaylist<T, S>> playlists) => _offlinePlaylistUnavailable('Import playlists');
+  Future<void> importPlaylistForce(GeneralPlaylist<T, S> playlist, {bool sortPlaylists = true, bool tracksFromNewSource = false}) => _offlinePlaylistUnavailable('Import playlist');
+  GeneralPlaylist<T, S> ensureNewSourceItemsSorted(GeneralPlaylist<T, S> playlist) => _offlinePlaylistUnavailable('Playlist order');
+  Future<void> reAddPlaylist(GeneralPlaylist<T, S> playlist, int modifiedDate, {Uint8List? artworkBytes}) => _offlinePlaylistUnavailable('Restore playlist');
+  Future<void> updatePlaylistMetadata(String playlist, {bool? isPinned, String? comment, List<String>? tags, List<String>? moods, int? modifiedDate, bool? isFav}) =>
       _offlinePlaylistUnavailable('Playlist metadata');
-  dynamic mergeMetadataFrom(String directoryPath) => _offlinePlaylistUnavailable('Playlist metadata');
-  dynamic renameTag(String oldPath, String newPath) => _offlinePlaylistUnavailable('Playlist tags');
-  dynamic removeTag(String path) => _offlinePlaylistUnavailable('Playlist tags');
+  Future<void> mergeMetadataFrom(String directoryPath) => _offlinePlaylistUnavailable('Playlist metadata');
+  void renameTag(String oldPath, String newPath) => _offlinePlaylistUnavailable('Playlist tags');
+  void removeTag(String path) => _offlinePlaylistUnavailable('Playlist tags');
   Map<String, int> computeTagsCounts() => _offlinePlaylistUnavailable('Playlist tag counts');
   Map<String, int> computeMoodsCounts() => _offlinePlaylistUnavailable('Playlist mood counts');
-  dynamic insertTracksInPlaylist(dynamic playlist, dynamic tracks, dynamic index) => _offlinePlaylistUnavailable('Insert playlist tracks');
-  dynamic insertTracksInPlaylistWithEachIndex(dynamic playlist, dynamic tracks) => _offlinePlaylistUnavailable('Insert playlist tracks');
+  Future<void> insertTracksInPlaylist(GeneralPlaylist<T, S> playlist, List<T> tracks, int index) => _offlinePlaylistUnavailable('Insert playlist tracks');
+  Future<void> insertTracksInPlaylistWithEachIndex(GeneralPlaylist<T, S> playlist, Map<T, int> tracksWithIndices) => _offlinePlaylistUnavailable('Insert playlist tracks');
   void ensureCustomOrderValid({bool removeNonExistent = false}) => _offlinePlaylistUnavailable('PlaylistManager.ensureCustomOrderValid');
   Rx<List<String>?> getCustomIndicesOrderListRx() => _offlinePlaylistUnavailable('PlaylistManager.getCustomIndicesOrderListRx');
-  dynamic onPlaylistReorder(int oldIndex, int newIndex) => _offlinePlaylistUnavailable('Playlist order');
+  void onPlaylistReorder(int oldIndex, int newIndex) => _offlinePlaylistUnavailable('Playlist order');
 
-  dynamic addNewPlaylistRaw(
+  Future<GeneralPlaylist<T, S>?> addNewPlaylistRaw(
     String name, {
-    dynamic tracks,
-    dynamic tracksRaw,
-    dynamic convertItem,
-    dynamic tracksFromNewSource,
+    Iterable<I>? tracks,
+    Iterable<T>? tracksRaw,
+    T Function(I item, int dateAdded, PlaylistID? playlistID)? convertItem,
+    bool tracksFromNewSource = false,
     int? creationDate,
     int? modifiedDate,
     String comment = '',
@@ -168,11 +174,16 @@ class PlaylistManager<T, I, S> {
     List<String> tags = const [],
     bool isPinned = false,
     String? m3uPath,
-    dynamic actionIfAlreadyExists,
+    FutureOr<PlaylistAddDuplicateAction?> Function()? actionIfAlreadyExists,
   }) => _offlinePlaylistUnavailable('Create playlist');
 
-  dynamic addTracksToPlaylistRaw(dynamic playlist, dynamic tracks, dynamic duplicateAction, dynamic convertItem) => _offlinePlaylistUnavailable('Add tracks to playlist');
-  dynamic toggleTrackFavourite(dynamic item) => _offlinePlaylistUnavailable('Favourites playlist');
+  Future<int?> addTracksToPlaylistRaw(
+    GeneralPlaylist<T, S> playlist,
+    Iterable<I> tracks,
+    FutureOr<PlaylistAddDuplicateAction?> Function()? duplicateAction,
+    T Function(I item, int dateAdded) convertItem,
+  ) => _offlinePlaylistUnavailable('Add tracks to playlist');
+  bool toggleTrackFavourite(T item) => _offlinePlaylistUnavailable('Favourites playlist');
   Future<bool> setArtworkForPlaylist(String name, {required File? artworkFile, required Uint8List? artworkBytes}) => _offlinePlaylistUnavailable('Playlist artwork');
   Future<bool> renamePlaylist(String playlistName, String newName) => _offlinePlaylistUnavailable('Rename playlist');
   Future<void> prepareAllPlaylistsFile() => _offlinePlaylistUnavailable('PlaylistManager.prepareAllPlaylistsFile');
