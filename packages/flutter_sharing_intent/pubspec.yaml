@@ -1,0 +1,7 @@
+name: flutter_sharing_intent
+description: Local no-op mock for Namida's out-of-scope sharing intent integration.
+version: 2.0.4
+publish_to: none
+
+environment:
+  sdk: ">=3.13.7 <4.0.0"
