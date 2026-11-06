@@ -9,7 +9,8 @@ environment:
 
 dependency_overrides:
   intl: ^0.20.2
-  # mecab_for_dart still requests code_assets 1.x; its hook also builds with 2.x.
+  # -- ffmpeg_kit_extended_flutter needs 2.x, mecab_for_dart & android_libcpp_shared still ask for 1.x.
+  # -- their hooks build fine on 2.x, which only stopped OS/Architecture working in const maps and sets.
   code_assets: ^2.1.0
 
   on_audio_query_platform_interface:
@@ -178,8 +179,13 @@ dependencies:
       path: packages/on_audio_query
 
   # ---- Video Indexing & Playback ----
+  # -- ffmpeg & ffprobe run in process through FFI on every platform, external/ffmpeg_build/README.md has why
   ffmpeg_kit_extended_flutter:
     path: packages/ffmpeg_kit_extended_flutter
+  # ffmpeg_kit_flutter:
+  #   git:
+  #     url: https://github.com/MSOB7YY/ffmpeg-kit
+  #     path: flutter/flutter
   youtipie:
     path: packages/youtipie
   namico_login_manager:
@@ -271,6 +277,11 @@ hooks:
   user_defines:
     sqlite3:
       source: sqlite3mc
+    # Prebuilt waveform library dir (windows & linux):
+    # - built by external/ffmpeg_build/build_waveform.sh with a static decode-only FFmpeg (no system deps).
+    # - if missing, builds from source against system FFmpeg (dev only, not for release).
+    # - Android, iOS & macOS: ignored, links the libffmpegkit ffmpeg_kit_extended_flutter ships.
+    # -- libffmpegkit bundles kept in external/ffmpeg_build by its fetch_ffmpegkit.sh, so nothing is downloaded while building
 
 flutter_native_splash:
   image: assets/namida_icon.png
