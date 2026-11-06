@@ -4,5 +4,5 @@ import 'package:youtipie/class/stream_info_item/stream_info_item_notification.da
 typedef NotificationResult = YoutiPieNotificationResult;
 
 class YoutiPieNotificationResult extends YoutiPieListWrapper<StreamInfoItemNotification> {
-  const YoutiPieNotificationResult({List<StreamInfoItemNotification> items = const [], dynamic continuation}) : super(items: items, continuation: continuation);
+  const YoutiPieNotificationResult({List<StreamInfoItemNotification> items = const [], String? continuation}) : super(items: items, continuation: continuation);
 }

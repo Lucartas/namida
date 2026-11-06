@@ -7,6 +7,6 @@ enum VideoPlayabiltyStatus { ok, unknown }
 class VideoPlayability extends MapSerializable {
   final String? reason;
   final List<String>? messages;
-  final dynamic status;
-  const VideoPlayability({this.reason, this.messages, this.status});
+  final VideoPlayabiltyStatus status;
+  const VideoPlayability({this.reason, this.messages, this.status = VideoPlayabiltyStatus.unknown});
 }

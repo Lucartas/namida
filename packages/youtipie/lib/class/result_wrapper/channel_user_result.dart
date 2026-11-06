@@ -6,5 +6,5 @@ typedef ChannelUserResult = YoutiPieUserChannelsResult;
 class YoutiPieUserChannelsResult extends YoutiPieListWrapper<YoutiPieChannelInfo> {
   @override
   final List<YoutiPieChannelInfo> items;
-  const YoutiPieUserChannelsResult({List<YoutiPieChannelInfo> items = const [], dynamic continuation}) : items = items, super(items: items, continuation: continuation);
+  const YoutiPieUserChannelsResult({List<YoutiPieChannelInfo> items = const [], String? continuation}) : items = items, super(items: items, continuation: continuation);
 }

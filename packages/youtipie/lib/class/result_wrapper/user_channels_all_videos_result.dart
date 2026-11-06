@@ -4,5 +4,5 @@ import 'package:youtipie/class/youtipie_feed/yt_feed_base.dart' show YoutubeFeed
 typedef UserChannelsAllVideosResult = YoutiPieUserChannelsAllVideosResult;
 
 class YoutiPieUserChannelsAllVideosResult extends YoutiPieListWrapper<YoutubeFeed> {
-  const YoutiPieUserChannelsAllVideosResult({List<YoutubeFeed> items = const [], dynamic continuation}) : super(items: items, continuation: continuation);
+  const YoutiPieUserChannelsAllVideosResult({List<YoutubeFeed> items = const [], String? continuation}) : super(items: items, continuation: continuation);
 }

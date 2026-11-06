@@ -1,7 +1,7 @@
 import 'package:youtipie/core/enum.dart' show YoutiPieMusicSearchType, YoutiPieSearchMatchMode, YoutiPieSearchSort, YoutiPieSearchType, YoutiPieSearchUploadDate;
 import 'package:youtipie/src/unavailable.dart';
 
-typedef SearchFilters = dynamic;
+typedef SearchFilters = YoutiPieSearchFilters;
 
 class YoutiPieSearchFilters {
   final YoutiPieSearchType type;
@@ -10,8 +10,8 @@ class YoutiPieSearchFilters {
   final YoutiPieMusicSearchType? musicType;
   final YoutiPieSearchMatchMode? matchMode;
   final List<String> excluded;
-  final dynamic after;
-  final dynamic before;
+  final YoutiPieSearchDate? after;
+  final YoutiPieSearchDate? before;
   final bool clearAfter;
   final bool clearBefore;
   final List<String> exclude;
@@ -40,8 +40,8 @@ class YoutiPieSearchFilters {
     YoutiPieMusicSearchType? musicType,
     YoutiPieSearchMatchMode? matchMode,
     List<String>? excluded,
-    dynamic after,
-    dynamic before,
+    YoutiPieSearchDate? after,
+    YoutiPieSearchDate? before,
     bool? clearAfter,
     bool? clearBefore,
     List<String>? exclude,
@@ -73,6 +73,6 @@ class YoutiPieSearchOperators {
   final List<String> excluded;
   final YoutiPieSearchMatchMode? matchMode;
   const YoutiPieSearchOperators({this.remainingText = '', this.phrases = const [], this.titlePhrases = const [], this.excluded = const [], this.matchMode});
-  static String buildQuery(String query, {dynamic matchMode, Iterable<String> excluded = const []}) => unavailable('YoutiPieSearchOperators.buildQuery');
+  static String buildQuery(String query, {YoutiPieSearchMatchMode? matchMode, Iterable<String> excluded = const []}) => unavailable('YoutiPieSearchOperators.buildQuery');
   static YoutiPieSearchOperators? parse(String text) => unavailable('YoutiPieSearchOperators.parse');
 }

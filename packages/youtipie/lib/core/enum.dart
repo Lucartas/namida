@@ -64,6 +64,12 @@ enum YoutiPieFetchAllResType { success, fail, alreadyDone, alreadyCanceled, inPr
 
 enum InnertubeClients { tv, web, android, ios }
 
+class InnertubeClientConfig {
+  final bool requireJSPlayer;
+
+  const InnertubeClientConfig({this.requireJSPlayer = false});
+}
+
 extension InnertubeClientConfiguration on InnertubeClients {
-  dynamic get configuration => unavailable('InnertubeClients.configuration');
+  InnertubeClientConfig get configuration => unavailable('InnertubeClients.configuration');
 }

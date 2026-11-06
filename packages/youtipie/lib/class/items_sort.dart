@@ -1,4 +1,4 @@
-typedef ItemsSort = dynamic;
+typedef ItemsSort = YoutiPieItemsSort;
 
 class YoutiPieItemsSort {
   final bool initiallySelected;

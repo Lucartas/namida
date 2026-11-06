@@ -1,30 +1,34 @@
+import 'package:youtipie/class/streams/codec_info.dart' show CodecInfo;
+import 'package:youtipie/class/streams/stream_base.dart' show StreamBase;
 import 'package:youtipie/src/unavailable.dart';
 
-class VideoStream {
-  final dynamic id;
-  final dynamic url;
+class VideoStream implements StreamBase {
+  final String? id;
+  final Uri? url;
   final Duration? duration;
   final int bitrate;
-  final dynamic codecInfo;
+  @override
+  final CodecInfo codecInfo;
   final int width;
   final int height;
-  final dynamic fps;
-  final dynamic itag;
+  final double fps;
+  final int? itag;
   final String qualityLabel;
-  final dynamic isSelected;
-  final dynamic displayName;
-  final dynamic label;
-  final dynamic mimeType;
-  final dynamic sampleRate;
-  final dynamic channelCount;
-  final dynamic isWebm;
-  final dynamic sizeInBytes;
+  final bool isSelected;
+  final String? displayName;
+  final String? label;
+  final String? mimeType;
+  final int? sampleRate;
+  final int? channelCount;
+  final bool isWebm;
+  @override
+  final int sizeInBytes;
   const VideoStream({
     this.id,
     this.url,
     this.duration,
     this.bitrate = 0,
-    this.codecInfo,
+    this.codecInfo = const CodecInfo(),
     this.width = 0,
     this.height = 0,
     this.fps = 0,
@@ -39,8 +43,8 @@ class VideoStream {
     this.isWebm = false,
     this.sizeInBytes = 0,
   });
-  static VideoStream fromMap(dynamic map) => unavailable('VideoStream.fromMap');
-  dynamic bitrateText() => unavailable('Remote video stream');
-  dynamic buildUrl() => unavailable('Remote video stream');
+  static VideoStream fromMap(Map<String, dynamic> map) => unavailable('VideoStream.fromMap');
+  String bitrateText() => unavailable('Remote video stream');
+  Uri? buildUrl() => unavailable('Remote video stream');
   Map<String, dynamic> toMap() => unavailable('VideoStream.toMap');
 }

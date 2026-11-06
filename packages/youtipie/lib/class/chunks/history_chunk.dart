@@ -1,4 +1,5 @@
 import 'package:youtipie/class/map_serializable.dart' show MapSerializable;
+import 'package:youtipie/class/map_serializable.dart' show YoutiPieFeedItem;
 
 typedef HistoryChunk = YoutiPieHistoryChunk;
 
@@ -9,7 +10,9 @@ class _MockValue<T> {
 
 class YoutiPieHistoryChunk extends MapSerializable {
   final String title;
-  final List<dynamic> items;
+  // Search and history rows are a heterogeneous feed union. The app switches
+  // on runtimeType and then uses each concrete row shape directly.
+  final List<YoutiPieFeedItem> items;
   final _MockValue<int> shortsItemsCount;
   final _MockValue<int> mixesPlaylistCount;
 

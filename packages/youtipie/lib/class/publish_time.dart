@@ -5,5 +5,6 @@ class PublishTime {
   final String? text;
   const PublishTime({this.date, this.text});
   const PublishTime.unknown() : date = null, text = null;
-  static PublishTime fromMap(dynamic map) => unavailable('PublishTime.fromMap');
+  DateTime? get accurateDate => unavailable('PublishTime.accurateDate');
+  static PublishTime fromMap(Map<String, dynamic> map) => unavailable('PublishTime.fromMap');
 }

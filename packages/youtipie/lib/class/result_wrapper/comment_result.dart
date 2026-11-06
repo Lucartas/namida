@@ -1,19 +1,20 @@
 import 'package:youtipie/class/comments/comment_info_item.dart' show YoutiPieCommentInfoItem;
 import 'package:youtipie/class/result_wrapper/list_wrapper_base.dart' show YoutiPieListWrapper;
+import 'package:youtipie/core/enum.dart' show CommentsSortType;
 import 'package:youtipie/src/unavailable.dart';
 
 typedef CommentResult = YoutiPieCommentResult;
 
 class YoutiPieCommentResult extends YoutiPieListWrapper<YoutiPieCommentInfoItem> {
-  final dynamic sorters;
-  final dynamic commentsCount;
-  final dynamic pausedMessage;
-  final dynamic videoId;
+  final Map<CommentsSortType, String> sorters;
+  final int? commentsCount;
+  final String? pausedMessage;
+  final String? videoId;
 
   const YoutiPieCommentResult({
     List<YoutiPieCommentInfoItem> items = const [],
-    dynamic continuation,
-    this.sorters,
+    String? continuation,
+    this.sorters = const {},
     this.commentsCount,
     this.pausedMessage,
     this.videoId,
@@ -21,6 +22,6 @@ class YoutiPieCommentResult extends YoutiPieListWrapper<YoutiPieCommentInfoItem>
 
   bool get isEmpty => unavailable('YoutiPieCommentResult.isEmpty');
   YoutiPieCommentInfoItem operator [](int index) => unavailable('YoutiPieCommentResult.[]');
-  dynamic get createParams => unavailable('YoutiPieCommentResult.createParams');
-  dynamic transferLocalItemsTo(dynamic other) => unavailable('Remote comment pagination');
+  Object? get createParams => unavailable('YoutiPieCommentResult.createParams');
+  void transferLocalItemsTo(YoutiPieCommentResult other) => unavailable('Remote comment pagination');
 }

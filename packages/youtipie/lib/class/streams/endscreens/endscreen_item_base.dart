@@ -1,29 +1,36 @@
 import 'package:youtipie/class/youtipie_feed/playlist_basic_info.dart' show PlaylistBasicInfo;
+import 'package:youtipie/class/thumbnail.dart' show YoutiPieThumbnail;
 
 enum VideoEndScreenItemType { video, playlist, channel, unknown }
 
 class EndScreenDisplay {
   final double aspectRatio;
-  final dynamic left;
-  final dynamic top;
-  final dynamic width;
+  final double left;
+  final double top;
+  final double width;
   const EndScreenDisplay({this.aspectRatio = 1, this.left = 0, this.top = 0, this.width = 0});
 }
 
 sealed class EndScreenItemBase {
   final VideoEndScreenItemType type;
   final EndScreenDisplay display;
-  final dynamic startMs;
-  final dynamic endMs;
-  final dynamic thumbnails;
-  const EndScreenItemBase({this.type = VideoEndScreenItemType.unknown, this.display = const EndScreenDisplay(), this.startMs, this.endMs, this.thumbnails});
+  final int startMs;
+  final int endMs;
+  final List<YoutiPieThumbnail> thumbnails;
+  const EndScreenItemBase({
+    this.type = VideoEndScreenItemType.unknown,
+    this.display = const EndScreenDisplay(),
+    this.startMs = 0,
+    this.endMs = 0,
+    this.thumbnails = const [],
+  });
 }
 
 final class EndScreenItemVideo extends EndScreenItemBase {
-  final dynamic videoId;
-  final dynamic title;
-  final dynamic viewsCount;
-  final dynamic viewsCountText;
+  final String? videoId;
+  final String? title;
+  final int? viewsCount;
+  final String? viewsCountText;
   const EndScreenItemVideo({
     this.videoId,
     this.title,
@@ -38,8 +45,8 @@ final class EndScreenItemVideo extends EndScreenItemBase {
 }
 
 final class EndScreenItemChannel extends EndScreenItemBase {
-  final dynamic channelId;
-  final dynamic title;
+  final String? channelId;
+  final String? title;
   const EndScreenItemChannel({this.channelId, this.title, super.type = VideoEndScreenItemType.channel, super.display});
 }
 

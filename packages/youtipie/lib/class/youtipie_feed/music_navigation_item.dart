@@ -1,8 +1,11 @@
+import 'package:flutter/material.dart' show Color;
+import 'package:youtipie/class/music/music_browse_endpoint.dart' show YoutiPieMusicBrowseEndpoint;
+
 class MusicNavigationItem {
-  final dynamic id;
-  final dynamic title;
-  final dynamic subtitle;
-  final dynamic color;
-  final dynamic endpoint;
-  const MusicNavigationItem({this.id, this.title, this.subtitle, this.color, this.endpoint});
+  final String id;
+  final String title;
+  final String? subtitle;
+  final Color? color;
+  final YoutiPieMusicBrowseEndpoint endpoint;
+  const MusicNavigationItem({this.id = '', this.title = '', this.subtitle, this.color, required this.endpoint});
 }

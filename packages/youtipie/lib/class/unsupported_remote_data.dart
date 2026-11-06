@@ -1,1 +1,1 @@
-typedef UnsupportedRemoteData = dynamic;
+typedef UnsupportedRemoteData = Object?;

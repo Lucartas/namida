@@ -4,11 +4,11 @@ import 'package:youtipie/src/unavailable.dart';
 typedef Thumbnail = YoutiPieThumbnail;
 
 class YoutiPieThumbnail extends MapSerializable {
-  final dynamic url;
-  final dynamic width;
-  final dynamic height;
+  final String url;
+  final int width;
+  final int height;
 
-  const YoutiPieThumbnail({this.url, this.width, this.height});
+  const YoutiPieThumbnail({this.url = '', this.width = 0, this.height = 0});
 }
 
 abstract final class YoutiPieVideoThumbnail {

@@ -1,22 +1,25 @@
-import 'package:youtipie/class/map_serializable.dart' show MapSerializable;
+import 'package:youtipie/class/map_serializable.dart' show MapSerializable, YoutiPieFeedItem;
 import 'package:youtipie/class/thumbnail.dart' show YoutiPieThumbnail;
+import 'package:youtipie/core/enum.dart' show ChannelNotifications;
+import 'package:youtipie/src/unavailable.dart';
 
-class ChannelInfoItem extends MapSerializable {
-  final dynamic id;
+class ChannelInfoItem extends MapSerializable implements YoutiPieFeedItem {
+  final String id;
   final String handler;
-  final dynamic title;
+  final String? title;
   final List<YoutiPieThumbnail> thumbnails;
-  final dynamic subscribersCount;
-  final dynamic subscribersCountText;
-  final dynamic subscribed;
-  final dynamic notifications;
-  final dynamic notificationParameters;
-  final dynamic channelEngagement;
-  final dynamic banners;
-  final dynamic tvbanners;
-  final dynamic mobileBanners;
+  final int? subscribersCount;
+  final String? subscribersCountText;
+  final bool? subscribed;
+  final ChannelNotifications? notifications;
+  final Object? notificationParameters;
+  final Object? channelEngagement;
+  final List<YoutiPieThumbnail> banners;
+  final List<YoutiPieThumbnail> tvbanners;
+  final List<YoutiPieThumbnail> mobileBanners;
+  final bool? isVerified;
   const ChannelInfoItem({
-    this.id,
+    this.id = '',
     this.handler = '',
     this.title,
     this.thumbnails = const [],
@@ -26,9 +29,10 @@ class ChannelInfoItem extends MapSerializable {
     this.notifications,
     this.notificationParameters,
     this.channelEngagement,
-    this.banners,
-    this.tvbanners,
-    this.mobileBanners,
+    this.banners = const [],
+    this.tvbanners = const [],
+    this.mobileBanners = const [],
+    this.isVerified,
   });
   const ChannelInfoItem.anonymous()
     : id = '',
@@ -41,7 +45,11 @@ class ChannelInfoItem extends MapSerializable {
       notifications = null,
       notificationParameters = null,
       channelEngagement = null,
-      banners = null,
-      tvbanners = null,
-      mobileBanners = null;
+      banners = const [],
+      tvbanners = const [],
+      mobileBanners = const [],
+      isVerified = null;
+
+  @override
+  bool get isShortContent => unavailable('ChannelInfoItem.isShortContent');
 }

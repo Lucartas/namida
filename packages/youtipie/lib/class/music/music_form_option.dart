@@ -1,3 +1,9 @@
-typedef MusicFormOption = dynamic;
+typedef MusicFormOption = YoutiPieMusicFormOption;
 
-typedef YoutiPieMusicFormOption = dynamic;
+class YoutiPieMusicFormOption {
+  final String title;
+  final String value;
+  final bool isSelected;
+
+  const YoutiPieMusicFormOption({this.title = '', this.value = '', this.isSelected = false});
+}

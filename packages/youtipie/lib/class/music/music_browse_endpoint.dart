@@ -1,6 +1,6 @@
 import 'package:youtipie/src/unavailable.dart';
 
-typedef MusicBrowseEndpoint = dynamic;
+typedef MusicBrowseEndpoint = YoutiPieMusicBrowseEndpoint;
 
 class YoutiPieMusicBrowseEndpoint {
   final String browseId;
@@ -11,5 +11,5 @@ class YoutiPieMusicBrowseEndpoint {
   static const moodsAndGenres = YoutiPieMusicBrowseEndpoint('moodsAndGenres');
   static const newReleases = YoutiPieMusicBrowseEndpoint('newReleases');
   String? extractPlaylistId() => unavailable('YoutiPieMusicBrowseEndpoint.extractPlaylistId');
-  YoutiPieMusicBrowseEndpoint withFormValues(dynamic values) => unavailable('YoutiPieMusicBrowseEndpoint.withFormValues');
+  YoutiPieMusicBrowseEndpoint withFormValues(List<String> values) => unavailable('YoutiPieMusicBrowseEndpoint.withFormValues');
 }

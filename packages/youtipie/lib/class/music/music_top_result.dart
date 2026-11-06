@@ -1,12 +1,12 @@
 import 'package:youtipie/class/map_serializable.dart' show MapSerializable;
 import 'package:youtipie/class/youtipie_feed/yt_feed_base.dart' show YoutubeFeed;
 
-typedef MusicTopResult = dynamic;
+typedef MusicTopResult = YoutiPieMusicTopResult;
 
 class YoutiPieMusicTopResult extends MapSerializable {
   final YoutubeFeed item;
   final List<YoutubeFeed> items;
-  final dynamic subtitle;
+  final String subtitle;
 
-  const YoutiPieMusicTopResult({required this.item, this.items = const [], this.subtitle});
+  const YoutiPieMusicTopResult({required this.item, this.items = const [], this.subtitle = ''});
 }

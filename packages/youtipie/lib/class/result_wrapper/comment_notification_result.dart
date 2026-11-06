@@ -5,7 +5,7 @@ typedef CommentNotificationResult = YoutiPieNotificationCommentResult;
 
 class YoutiPieNotificationCommentResult extends YoutiPieCommentResult {
   final YoutiPieCommentInfoItem? linkedReply;
-  final dynamic linkedMainCommentId;
+  final String? linkedMainCommentId;
   const YoutiPieNotificationCommentResult({
     super.items = const [],
     super.continuation,

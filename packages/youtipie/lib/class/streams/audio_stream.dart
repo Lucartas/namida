@@ -1,23 +1,28 @@
+import 'package:youtipie/class/streams/audio_track.dart' show AudioTrack;
+import 'package:youtipie/class/streams/codec_info.dart' show CodecInfo;
+import 'package:youtipie/class/streams/stream_base.dart' show StreamBase;
 import 'package:youtipie/src/unavailable.dart';
 
-class AudioStream {
-  final dynamic id;
-  final dynamic url;
+class AudioStream implements StreamBase {
+  final String? id;
+  final Uri? url;
   final Duration? duration;
   final int bitrate;
-  final dynamic codecInfo;
-  final dynamic audioTrack;
-  final dynamic itag;
-  final dynamic isWebm;
-  final dynamic sizeInBytes;
-  final dynamic sampleRate;
-  final dynamic channelCount;
+  @override
+  final CodecInfo codecInfo;
+  final AudioTrack? audioTrack;
+  final int? itag;
+  final bool isWebm;
+  @override
+  final int sizeInBytes;
+  final int? sampleRate;
+  final int? channelCount;
   const AudioStream({
     this.id,
     this.url,
     this.duration,
     this.bitrate = 0,
-    this.codecInfo,
+    this.codecInfo = const CodecInfo(),
     this.audioTrack,
     this.itag,
     this.isWebm = false,
@@ -25,8 +30,8 @@ class AudioStream {
     this.sampleRate,
     this.channelCount,
   });
-  static AudioStream fromMap(dynamic map) => unavailable('AudioStream.fromMap');
-  dynamic bitrateText() => unavailable('Remote audio stream');
-  dynamic buildUrl() => unavailable('Remote audio stream');
+  static AudioStream fromMap(Map<String, dynamic> map) => unavailable('AudioStream.fromMap');
+  String bitrateText() => unavailable('Remote audio stream');
+  Uri? buildUrl() => unavailable('Remote audio stream');
   Map<String, dynamic> toMap() => unavailable('AudioStream.toMap');
 }

@@ -1,3 +1,12 @@
-typedef MusicSearchChip = dynamic;
+import 'package:youtipie/core/enum.dart' show YoutiPieMusicSearchType;
 
-typedef YoutiPieMusicSearchChip = dynamic;
+typedef MusicSearchChip = YoutiPieMusicSearchChip;
+
+class YoutiPieMusicSearchChip {
+  final String title;
+  final bool isSelected;
+  final YoutiPieMusicSearchType? type;
+  final String? params;
+
+  const YoutiPieMusicSearchChip({this.title = '', this.isSelected = false, this.type, this.params});
+}
