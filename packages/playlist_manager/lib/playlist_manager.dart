@@ -186,7 +186,7 @@ List<String> _stringList(Object? value) => value is List ? value.whereType<Strin
 class PlaylistManager<T, I, S> {
   PlaylistManager() {
     playlistsMap = RxMap<String, GeneralPlaylist<T, S>>(<String, GeneralPlaylist<T, S>>{});
-    favouritesPlaylist = FavouritePlaylist<T, I, S>(PLAYLIST_NAME_FAV);
+    favouritesPlaylist = FavouritePlaylist<T, I, S>(PLAYLIST_NAME_FAV, identifyBy: identifyBy);
     tagsFilter = PlaylistTagsFilter(() => playlistsMap.value.values);
     customIndicesOrderRx = Rx<List<String>?>(null);
     canReorderItems = Rx<bool>(false);
