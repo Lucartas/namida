@@ -15,7 +15,7 @@ enum PlaylistTagFilterState { none, included, excluded }
 
 sealed class PlaylistTagKey {
   const PlaylistTagKey();
-  String toVirtualText() => this is PlaylistUserTag ? (this as PlaylistUserTag).path : '';
+  String toVirtualText();
   IconData toIcon() => Icons.label;
 }
 
@@ -44,6 +44,9 @@ enum PlaylistVirtualTag implements PlaylistTagKey {
 final class PlaylistUserTag extends PlaylistTagKey {
   final String path;
   const PlaylistUserTag(this.path);
+
+  @override
+  String toVirtualText() => path;
 }
 
 class PlaylistTagInfo {
