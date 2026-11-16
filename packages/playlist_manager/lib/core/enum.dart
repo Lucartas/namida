@@ -15,7 +15,7 @@ enum PlaylistTagFilterState { none, included, excluded }
 
 sealed class PlaylistTagKey {
   const PlaylistTagKey();
-  String toVirtualText() => throw UnsupportedError('Playlist tags are unavailable in Milestone 1.');
+  String toVirtualText();
   IconData toIcon() => throw UnsupportedError('Playlist tags are unavailable in Milestone 1.');
 }
 
@@ -34,6 +34,9 @@ enum PlaylistVirtualTag implements PlaylistTagKey {
 final class PlaylistUserTag extends PlaylistTagKey {
   final String path;
   const PlaylistUserTag(this.path);
+
+  @override
+  String toVirtualText() => path;
 }
 
 class PlaylistTagInfo {

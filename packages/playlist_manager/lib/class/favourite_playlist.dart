@@ -3,12 +3,22 @@ import 'package:nampack/reactive/class/rx.dart';
 import '../playlist_manager.dart' show GeneralPlaylist;
 
 class FavouritePlaylist<T, I, S> extends Rx<GeneralPlaylist<T, S>> {
-  FavouritePlaylist(String name) : super(_unavailable('FavouritePlaylist'));
+  FavouritePlaylist(String name, {required this.identifyBy}) : super(GeneralPlaylist<T, S>(name: name, tracks: <T>[], isFav: true));
 
-  List<T> get tracks => _unavailable('FavouritePlaylist.tracks');
-  bool isSubItemFavourite(I item) => _unavailable('FavouritePlaylist.isSubItemFavourite');
-  bool isItemFavourite(T item) => _unavailable('FavouritePlaylist.isItemFavourite');
-  T? firstItemForSubItem(I item) => _unavailable('FavouritePlaylist.firstItemForSubItem');
+  final I Function(T) identifyBy;
+
+  List<T> get tracks => value.tracks;
+
+  bool isSubItemFavourite(I item) => tracks.any((track) => _matchesSubItem(track, item));
+
+  bool isItemFavourite(T item) => tracks.contains(item);
+
+  T? firstItemForSubItem(I item) {
+    for (final track in tracks) {
+      if (_matchesSubItem(track, item)) return track;
+    }
+    return null;
+  }
+
+  bool _matchesSubItem(T track, I item) => identifyBy(track) == item;
 }
-
-Never _unavailable(String api) => throw UnsupportedError('$api is unavailable in this build.');

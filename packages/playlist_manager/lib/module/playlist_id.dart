@@ -3,7 +3,10 @@ class PlaylistID {
   final String? playlistId;
   const PlaylistID({required this.id, this.playlistId});
 
-  factory PlaylistID.fromJson(Map<String, dynamic> json) => _unavailable('PlaylistID.fromJson');
+  factory PlaylistID.fromJson(Map<String, dynamic> json) => PlaylistID(
+    id: json['id']?.toString() ?? '',
+    playlistId: json['playlistId']?.toString(),
+  );
 
   Map<String, dynamic> toJson() => _unavailable('PlaylistID.toJson');
 }

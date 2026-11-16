@@ -287,7 +287,7 @@ abstract final class YoutiPie {
   static const YoutiPieCipher cipher = YoutiPieCipher();
   static final YoutiPieCookies cookies = YoutiPieCookies();
 
-  static Rxn<UserChannelInfo> get activeAccountDetails => unavailable('YoutiPie.activeAccountDetails');
+  static Rxn<UserChannelInfo> get activeAccountDetails => cookies.activeAccountDetails;
   static String get countryCode => unavailable('YoutiPie.countryCode');
   static String get languageCode => unavailable('YoutiPie.languageCode');
   static YoutiPieSessionFailureReport? get lastSessionFailureReport => unavailable('YoutiPie.lastSessionFailureReport');
@@ -308,10 +308,18 @@ abstract final class YoutiPie {
     bool Function()? checkHasConnectionCallback,
     Completer<void>? syncItemsCompleter,
     Completer<void>? accountCompleter,
-  }) => unavailable('YoutiPie.initialize');
+  }) async {
+    if (syncItemsCompleter != null && !syncItemsCompleter.isCompleted) {
+      syncItemsCompleter.complete();
+    }
+    if (accountCompleter != null && !accountCompleter.isCompleted) {
+      accountCompleter.complete();
+    }
+  }
+
   static Future<void> dispose() => unavailable('YoutiPie.dispose');
   static Future<void> resetSession() => unavailable('YoutiPie.resetSession');
   static void setDefaultClients(List<InnertubeClients> clients) => unavailable('YoutiPie.setDefaultClients');
-  static void setLogs(Object? logs) => unavailable('YoutiPie.setLogs');
+  static void setLogs(Object? logs) {}
   static Future<UserChannelInfo?> getActiveAccountChannelIsolate(String sensitiveDataDirectory, {String? encryptionKey}) => unavailable('YoutiPie.getActiveAccountChannelIsolate');
 }
