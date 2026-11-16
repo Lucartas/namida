@@ -3,9 +3,19 @@ class PlaylistID {
   final String? playlistId;
   const PlaylistID({required this.id, this.playlistId});
 
-  factory PlaylistID.fromJson(Map<String, dynamic> json) => _unavailable('PlaylistID.fromJson');
+  factory PlaylistID.fromJson(Map<String, dynamic> json) => PlaylistID(
+    id: json['id']?.toString() ?? '',
+    playlistId: json['playlistId']?.toString(),
+  );
 
-  Map<String, dynamic> toJson() => _unavailable('PlaylistID.toJson');
+  Map<String, dynamic> toJson() => {'id': id, if (playlistId != null) 'playlistId': playlistId};
+
+  @override
+  bool operator ==(Object other) => other is PlaylistID && other.id == id && other.playlistId == playlistId;
+
+  @override
+  int get hashCode => Object.hash(id, playlistId);
+
+  @override
+  String toString() => playlistId == null ? id : '$id:$playlistId';
 }
-
-Never _unavailable(String api) => throw UnsupportedError('$api is unavailable in this build.');
