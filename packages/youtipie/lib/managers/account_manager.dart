@@ -41,31 +41,8 @@ class YoutiPieCookies {
 
   void addOnAccountChanged(void Function() callback) => _accountChangedListeners.add(callback);
   void removeOnAccountChanged(void Function() callback) => _accountChangedListeners.remove(callback);
-  bool isSessionExpired(UserChannelInfo account) => false;
-
-  void signOut(UserChannelInfo userChannel) {
-    _signedInAccounts.value = {..._signedInAccounts.value}..removeWhere((account) => account.id == userChannel.id);
-    if (activeAccountDetails.value?.id == userChannel.id) {
-      setAnonymous();
-    }
-  }
-
-  void setAccount(UserChannelInfo userChannel) {
-    _signedInAccounts.value = {..._signedInAccounts.value, userChannel};
-    activeAccountDetails.value = userChannel;
-    _activeAccountChannel.value = userChannel;
-    _notifyAccountChanged();
-  }
-
-  void setAnonymous() {
-    activeAccountDetails.value = null;
-    _activeAccountChannel.value = null;
-    _notifyAccountChanged();
-  }
-
-  void _notifyAccountChanged() {
-    for (final callback in List<void Function()>.from(_accountChangedListeners)) {
-      callback();
-    }
-  }
+  bool isSessionExpired(UserChannelInfo account) => unavailable('YoutiPieCookies.isSessionExpired');
+  void signOut(UserChannelInfo userChannel) => unavailable('YoutiPieCookies.signOut');
+  void setAccount(UserChannelInfo userChannel) => unavailable('YoutiPieCookies.setAccount');
+  void setAnonymous() => unavailable('YoutiPieCookies.setAnonymous');
 }
