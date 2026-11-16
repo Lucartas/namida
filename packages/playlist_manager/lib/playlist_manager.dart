@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -58,19 +57,9 @@ class GeneralPlaylist<T, S> {
     this.customOrder,
   });
 
-  bool get isReadOnly => remoteSource != null && remoteSource != PlaylistRemoteSource.none;
+  bool get isReadOnly => remoteSource != null && remoteSource!.sourceKey.isNotEmpty;
 
-  PlaylistID? get playlistID {
-    for (final track in tracks) {
-      try {
-        final id = (track as dynamic).playlistID;
-        if (id is PlaylistID) return id;
-      } on NoSuchMethodError {
-        // Most playlist item types do not carry a source playlist ID.
-      }
-    }
-    return null;
-  }
+  PlaylistID? get playlistID => _offlinePlaylistUnavailable('GeneralPlaylist.playlistID');
 
   GeneralPlaylist<T, S> copyWith({
     String? name,
@@ -87,39 +76,9 @@ class GeneralPlaylist<T, S> {
     bool? sortReverse,
     PlaylistRemoteSource? remoteSource,
     List<T>? customOrder,
-  }) => GeneralPlaylist<T, S>(
-    name: name ?? this.name,
-    tracks: tracks ?? this.tracks,
-    creationDate: creationDate ?? this.creationDate,
-    modifiedDate: modifiedDate ?? this.modifiedDate,
-    comment: comment ?? this.comment,
-    moods: moods ?? this.moods,
-    tags: tags ?? this.tags,
-    isPinned: isPinned ?? this.isPinned,
-    isFav: isFav ?? this.isFav,
-    remoteSource: remoteSource ?? this.remoteSource,
-    m3uPath: m3uPath ?? this.m3uPath,
-    sortsType: sortsType ?? this.sortsType,
-    sortReverse: sortReverse ?? this.sortReverse,
-    customOrder: customOrder ?? this.customOrder,
-  );
+  }) => _offlinePlaylistUnavailable('GeneralPlaylist.copyWith');
 
-  GeneralPlaylist<E, S> copyWithConvertedTracks<E>(E Function(T track) convert) => GeneralPlaylist<E, S>(
-    name: name,
-    tracks: tracks.map(convert).toList(),
-    creationDate: creationDate,
-    modifiedDate: modifiedDate,
-    comment: comment,
-    moods: moods,
-    tags: tags,
-    isPinned: isPinned,
-    isFav: isFav,
-    remoteSource: remoteSource,
-    m3uPath: m3uPath,
-    sortsType: sortsType,
-    sortReverse: sortReverse,
-    customOrder: customOrder?.map(convert).toList(),
-  );
+  GeneralPlaylist<E, S> copyWithConvertedTracks<E>(E Function(T track) convert) => _offlinePlaylistUnavailable('GeneralPlaylist.copyWithConvertedTracks');
 
   factory GeneralPlaylist.fromJson(
     Map<String, dynamic> value, [
@@ -127,7 +86,7 @@ class GeneralPlaylist<T, S> {
     List<S> Function(Object?)? sortFromJson,
   ]) {
     final remoteSourceJson = value['remoteSource'];
-    final remoteSource = remoteSourceJson is Map
+    final remoteSource = remoteSourceJson is Map && (remoteSourceJson['sourceKey']?.toString() ?? '').isNotEmpty
         ? PlaylistRemoteSource(
             sourceKey: remoteSourceJson['sourceKey']?.toString() ?? '',
             remoteId: remoteSourceJson['remoteId']?.toString() ?? '',
@@ -161,24 +120,9 @@ class GeneralPlaylist<T, S> {
     Object? Function(T)? itemToJson,
     Object? Function(List<S>)? sortToJson, {
     bool includeTracks = true,
-  }) => {
-    'name': name,
-    if (includeTracks) 'tracks': tracks.map((item) => itemToJson?.call(item) ?? item).toList(),
-    'creationDate': creationDate,
-    'modifiedDate': modifiedDate,
-    'comment': comment,
-    'moods': moods,
-    'tags': tags,
-    'isPinned': isPinned,
-    'isFav': isFav,
-    if (remoteSource != null) 'remoteSource': {'sourceKey': remoteSource!.sourceKey, 'remoteId': remoteSource!.remoteId},
-    if (m3uPath != null) 'm3uPath': m3uPath,
-    if (sortsType != null) 'sortsType': sortToJson?.call(sortsType!),
-    'sortReverse': sortReverse,
-    if (customOrder != null) 'customOrder': customOrder!.map((item) => itemToJson?.call(item) ?? item).toList(),
-  };
+  }) => _offlinePlaylistUnavailable('GeneralPlaylist.toJson');
 
-  String toTagsAndMoodsText() => [...tags, ...moods].join(', ');
+  String toTagsAndMoodsText() => _offlinePlaylistUnavailable('GeneralPlaylist.toTagsAndMoodsText');
 }
 
 List<String> _stringList(Object? value) => value is List ? value.whereType<String>().toList() : <String>[];
@@ -187,7 +131,7 @@ class PlaylistManager<T, I, S> {
   PlaylistManager() {
     playlistsMap = RxMap<String, GeneralPlaylist<T, S>>(<String, GeneralPlaylist<T, S>>{});
     favouritesPlaylist = FavouritePlaylist<T, I, S>(PLAYLIST_NAME_FAV, identifyBy: identifyBy);
-    tagsFilter = PlaylistTagsFilter(() => playlistsMap.value.values);
+    tagsFilter = PlaylistTagsFilter();
     customIndicesOrderRx = Rx<List<String>?>(null);
     canReorderItems = Rx<bool>(false);
   }
@@ -200,50 +144,33 @@ class PlaylistManager<T, I, S> {
 
   Future<void>? _playlistsLoadFuture;
   Future<void>? _favouritesLoadFuture;
-  Future<void>? _defaultPlaylistsFuture;
+  bool _loadingPlaylists = false;
+  bool _loadingFavourites = false;
 
   int get currentTimeMS => DateTime.now().millisecondsSinceEpoch;
-  Future<void> get waitForPlaylistsLoad => _playlistsLoadFuture ?? Future<void>.value();
-  Future<void> get waitForFavouritePlaylistLoad => _favouritesLoadFuture ?? Future<void>.value();
+  Future<void> get waitForPlaylistsLoad => _playlistsLoadFuture ?? prepareAllPlaylistsFile();
+  Future<void> get waitForFavouritePlaylistLoad => _favouritesLoadFuture ?? _loadFavouritePlaylist();
 
   String get PLAYLIST_NAME_FAV => '_FAVOURITES_';
   String get PLAYLIST_NAME_HISTORY => '_HISTORY_';
   String get PLAYLIST_NAME_MOST_PLAYED => '_MOST_PLAYED_';
 
-  String get playlistsDirectory => '';
   String get playlistsArtworksDirectory => '';
-  String get playlistsMetadataDirectory => '';
-  String get favouritePlaylistPath => '';
   bool get sortAfterPreparing => false;
-  bool get addTracksAtBeginning => false;
 
   Future<Map<String, GeneralPlaylist<T, S>>> prepareAllPlaylistsFunction() async => <String, GeneralPlaylist<T, S>>{};
   Future<GeneralPlaylist<T, S>?> prepareFavouritePlaylistFunction() async => null;
-  FutureOr<void> onPlaylistTracksChanged(GeneralPlaylist<T, S> playlist) {}
-  FutureOr<bool> canRemovePlaylist(GeneralPlaylist<T, S> playlist) => true;
-  void onPlaylistRemovedFromMap(List<String> names) {}
   void onFavouritesChanged(Iterable<I>? items) {}
-  void onTagsFilterChanged() {}
-  void onPlaylistItemsSort(List<S> sorts, bool reverse, List<T> items) {}
-  void sortPlaylists() {}
-  Map<String, dynamic> itemToJson(T item) => <String, dynamic>{'item': item};
-  dynamic sortToJson(List<S> items) => items;
+  FutureOr<void> onPlaylistItemsSort(List<S> sorts, bool reverse, List<T> items) {}
 
-  RegExp get cleanupFilenameRegex => RegExp(r'[\\/:*?"<>|]');
-  I identifyBy(T item) => item as I;
-  int? getMetadataEditDate(GeneralPlaylist<T, S> playlist) => currentTimeMS;
+  RegExp get cleanupFilenameRegex => _offlinePlaylistUnavailable('PlaylistManager.cleanupFilenameRegex');
+  I identifyBy(T item) => _offlinePlaylistUnavailable('Playlist item lookup');
+  int? getMetadataEditDate(GeneralPlaylist<T, S> playlist) => _offlinePlaylistUnavailable('Playlist metadata');
   GeneralPlaylist<T, S>? getPlaylist(String name) => playlistsMap.value[name];
   File getArtworkFileForPlaylist(String name) => File(_joinPath(playlistsArtworksDirectory, '${_cleanFilename(name)}.png'));
   bool isOneOfDefaultPlaylists(String name) => name == PLAYLIST_NAME_FAV || name == PLAYLIST_NAME_HISTORY || name == PLAYLIST_NAME_MOST_PLAYED;
-  String? validatePlaylistName(String? name) {
-    if (name == null || name.trim().isEmpty) return 'empty';
-    if (cleanupFilenameRegex.hasMatch(name)) return 'invalid';
-    if (isOneOfDefaultPlaylists(name)) return 'reserved';
-    if (playlistsMap.value.containsKey(name)) return 'exists';
-    return null;
-  }
-
-  void resetCanReorder() => canReorderItems.value = false;
+  String? validatePlaylistName(String? name) => _offlinePlaylistUnavailable('Playlist name validation');
+  void resetCanReorder() => _offlinePlaylistUnavailable('Playlist reordering');
   Future<void> updatePropertyInPlaylist(
     String playlist, {
     List<T>? tracks,
@@ -314,23 +241,21 @@ class PlaylistManager<T, I, S> {
   bool toggleTrackFavourite(T item) => _offlinePlaylistUnavailable('Favourites playlist');
   Future<bool> setArtworkForPlaylist(String name, {required File? artworkFile, required Uint8List? artworkBytes}) => _offlinePlaylistUnavailable('Playlist artwork');
   Future<bool> renamePlaylist(String playlistName, String newName) => _offlinePlaylistUnavailable('Rename playlist');
-  Future<void> prepareAllPlaylistsFile() => _playlistsLoadFuture ??= _prepareAllPlaylistsFile();
-  Future<void> removePlaylists(List<String> names) => _offlinePlaylistUnavailable('Remove playlists');
-  Future<void> updatePlaylistsMetadata(Map<String, PlaylistMetadataEdit> edits) => _offlinePlaylistUnavailable('Playlist metadata');
-  Future<bool> writePlaylistToStorage(GeneralPlaylist<T, S> playlist) async {
-    final file = File(_playlistFilePath(playlist.name));
-    await file.parent.create(recursive: true);
-    await file.writeAsString(jsonEncode(playlist.toJson(itemToJson, sortToJson)));
-    return true;
+  Future<void> prepareAllPlaylistsFile() {
+    // Share an active read, but allow explicit reloads after success or failure.
+    if (_loadingPlaylists) return _playlistsLoadFuture!;
+    _loadingPlaylists = true;
+    return _playlistsLoadFuture = _prepareAllPlaylistsFile().whenComplete(() => _loadingPlaylists = false);
   }
 
+  Future<void> removePlaylists(List<String> names) => _offlinePlaylistUnavailable('Remove playlists');
+  Future<void> updatePlaylistsMetadata(Map<String, PlaylistMetadataEdit> edits) => _offlinePlaylistUnavailable('Playlist metadata');
+  Future<bool> writePlaylistToStorage(GeneralPlaylist<T, S> playlist) => _offlinePlaylistUnavailable('Playlist storage');
   Future<void> removePlaylist(GeneralPlaylist<T, S> playlist) => _offlinePlaylistUnavailable('Remove playlist');
-  Future<void> prepareDefaultPlaylistsFileAsync() => _defaultPlaylistsFuture ??= _prepareDefaultPlaylistsFileAsync();
-
-  Future<void> _prepareDefaultPlaylistsFileAsync() async {
+  Future<void> prepareDefaultPlaylistsFileAsync() async {
     await Future.wait([
       prepareAllPlaylistsFile(),
-      _favouritesLoadFuture ??= _prepareFavouritePlaylist(),
+      _loadFavouritePlaylist(),
     ]);
   }
 
@@ -341,11 +266,17 @@ class PlaylistManager<T, I, S> {
       if (entry.key.isEmpty || isOneOfDefaultPlaylists(entry.key)) continue;
       final playlist = entry.value;
       if (sortAfterPreparing && playlist.sortsType?.isNotEmpty == true) {
-        onPlaylistItemsSort(playlist.sortsType!, playlist.sortReverse, playlist.tracks);
+        await onPlaylistItemsSort(playlist.sortsType!, playlist.sortReverse, playlist.tracks);
       }
       playlists[entry.key] = playlist;
     }
     playlistsMap.value = playlists;
+  }
+
+  Future<void> _loadFavouritePlaylist() {
+    if (_loadingFavourites) return _favouritesLoadFuture!;
+    _loadingFavourites = true;
+    return _favouritesLoadFuture = _prepareFavouritePlaylist().whenComplete(() => _loadingFavourites = false);
   }
 
   Future<void> _prepareFavouritePlaylist() async {
@@ -353,13 +284,13 @@ class PlaylistManager<T, I, S> {
     if (loaded != null) {
       loaded.isFav = true;
       favouritesPlaylist.value = loaded;
-      if (loaded.tracks.isNotEmpty) onFavouritesChanged(loaded.tracks.map(identifyBy));
+      // Reloading can remove favorites too, so refresh all favorite-based sorting.
+      onFavouritesChanged(null);
       return;
     }
     favouritesPlaylist.value = GeneralPlaylist<T, S>(name: PLAYLIST_NAME_FAV, tracks: <T>[], isFav: true);
+    onFavouritesChanged(null);
   }
-
-  String _playlistFilePath(String name) => _joinPath(playlistsDirectory, '${_cleanFilename(name)}.json');
 }
 
 extension PinnedPlaylistEntries<T, S> on List<MapEntry<String, GeneralPlaylist<T, S>>> {
@@ -383,134 +314,31 @@ String _joinPath(String directory, String filename) {
 
 class PlaylistTagsFilter {
   static const String separator = '/';
+  final Rx<int> revision = Rx<int>(0);
+  PlaylistTagsSelection get selection => _offlinePlaylistUnavailable('PlaylistTagsFilter.selection');
+  set selection(PlaylistTagsSelection value) => _offlinePlaylistUnavailable('PlaylistTagsFilter.selection');
+  List<String> get allPaths => _offlinePlaylistUnavailable('PlaylistTagsFilter.allPaths');
+  Set<int> get usedColors => _offlinePlaylistUnavailable('PlaylistTagsFilter.usedColors');
+  static List<String> normalizeTags(Iterable<String> tags) => _offlinePlaylistUnavailable('PlaylistTagsFilter.normalizeTags');
+  static List<String> expandTags(Iterable<String> tags) => _offlinePlaylistUnavailable('PlaylistTagsFilter.expandTags');
 
-  PlaylistTagsFilter([Iterable<dynamic> Function()? playlists]) : _playlists = playlists;
-
-  final Iterable<dynamic> Function()? _playlists;
-  final Rx<int> _revision = Rx<int>(0);
-  PlaylistTagsSelection _selection = const PlaylistTagsSelection();
-  final List<PlaylistTagsSelection> _savedSelections = [];
-  final Map<String, int> _colors = {};
-  final List<String> _topLevelOrder = [];
-
-  Rx<int> get revision => _revision;
-  PlaylistTagsSelection get selection => _selection;
-  set selection(PlaylistTagsSelection value) {
-    _selection = value;
-    _revision.value++;
-  }
-
-  List<String> get allPaths => expandTags((_playlists?.call() ?? const <dynamic>[]).expand((playlist) => _tagsOf(playlist)));
-  Set<int> get usedColors => _colors.values.toSet();
-  static List<String> normalizeTags(Iterable<String> tags) {
-    final result = <String>[];
-    final seen = <String>{};
-    for (final tag in tags) {
-      final normalized = tag.replaceAll('\\', separator).split(separator).map((part) => part.trim()).where((part) => part.isNotEmpty).join(separator);
-      if (normalized.isNotEmpty && seen.add(normalized)) result.add(normalized);
-    }
-    return result;
-  }
-
-  static List<String> expandTags(Iterable<String> tags) {
-    final result = <String>[];
-    final seen = <String>{};
-    for (final tag in normalizeTags(tags)) {
-      final parts = tag.split(separator);
-      for (var i = 1; i <= parts.length; i++) {
-        final path = parts.take(i).join(separator);
-        if (seen.add(path)) result.add(path);
-      }
-    }
-    return result;
-  }
-
-  List<PlaylistTagsSelection> get savedSelections => List.unmodifiable(_savedSelections);
-  bool get isActive => _selection.tag.isNotEmpty || _selection.included.isNotEmpty || _selection.excluded.isNotEmpty;
-  List<int> colorsOf(Iterable<String> tags) => tags.map(colorOf).whereType<int>().toList();
-  int? colorOf(String path) => _colors[path];
-  int playlistsCountOf(String path) => (_playlists?.call() ?? const <dynamic>[]).where((playlist) => _matchesUserTag(playlist, path)).length;
+  PlaylistTagsFilter();
+  List<PlaylistTagsSelection> get savedSelections => _offlinePlaylistUnavailable('PlaylistTagsFilter.savedSelections');
+  bool get isActive => _offlinePlaylistUnavailable('PlaylistTagsFilter.isActive');
+  List<int> colorsOf(Iterable<String> tags) => _offlinePlaylistUnavailable('PlaylistTagsFilter.colorsOf');
+  int? colorOf(String path) => _offlinePlaylistUnavailable('PlaylistTagsFilter.colorOf');
+  int playlistsCountOf(String path) => _offlinePlaylistUnavailable('PlaylistTagsFilter.playlistsCountOf');
   List<PlaylistTagChip> computeChips() => _offlinePlaylistUnavailable('PlaylistTagsFilter.computeChips');
   List<PlaylistTagSection> groupByTopLevelTag(List<String> names) => _offlinePlaylistUnavailable('PlaylistTagsFilter.groupByTopLevelTag');
   List<PlaylistTagInfo> listTopLevelTags() => _offlinePlaylistUnavailable('PlaylistTagsFilter.listTopLevelTags');
-  List<String> apply(List<String> playlists) {
-    if (!isActive) return List<String>.from(playlists);
-    final byName = {for (final playlist in _playlists?.call() ?? const <dynamic>[]) playlist.name as String: playlist};
-    return playlists.where((name) {
-      final playlist = byName[name];
-      if (playlist == null) return false;
-      if (_selection.tag.isNotEmpty && !_matchesUserTag(playlist, _selection.tag)) return false;
-      if (_selection.included.any((key) => !_matchesKey(playlist, key))) return false;
-      if (_selection.excluded.any((key) => _matchesKey(playlist, key))) return false;
-      return true;
-    }).toList();
-  }
-
-  void setColor(String path, int? color) {
-    if (color == null) {
-      _colors.remove(path);
-    } else {
-      _colors[path] = color;
-    }
-    _revision.value++;
-  }
-
-  void reorderTopLevelTag(int oldIndex, int newIndex) {
-    final paths = allPaths.where((path) => !path.contains(separator)).toList();
-    _topLevelOrder
-      ..removeWhere((path) => !paths.contains(path))
-      ..addAll(paths.where((path) => !_topLevelOrder.contains(path)));
-    if (oldIndex < 0 || oldIndex >= _topLevelOrder.length || newIndex < 0 || newIndex >= _topLevelOrder.length) return;
-    final path = _topLevelOrder.removeAt(oldIndex);
-    _topLevelOrder.insert(newIndex, path);
-    _revision.value++;
-  }
-
-  void saveCurrentSelection() {
-    if (_selection.tag.isEmpty && _selection.included.isEmpty && _selection.excluded.isEmpty) return;
-    _savedSelections.add(_selection);
-    _revision.value++;
-  }
-
-  void applySelection(PlaylistTagsSelection saved) => selection = saved;
-  void removeSavedSelection(PlaylistTagsSelection saved) {
-    _savedSelections.remove(saved);
-    _revision.value++;
-  }
-
-  void toggleIncluded(PlaylistTagKey key) {
-    final included = List<PlaylistTagKey>.from(_selection.included);
-    final excluded = List<PlaylistTagKey>.from(_selection.excluded)..remove(key);
-    if (!included.remove(key)) included.add(key);
-    selection = PlaylistTagsSelection(tag: _selection.tag, included: included, excluded: excluded);
-  }
-
-  void toggleExcluded(PlaylistTagKey key) {
-    final included = List<PlaylistTagKey>.from(_selection.included)..remove(key);
-    final excluded = List<PlaylistTagKey>.from(_selection.excluded);
-    if (!excluded.remove(key)) excluded.add(key);
-    selection = PlaylistTagsSelection(tag: _selection.tag, included: included, excluded: excluded);
-  }
-
-  void clear() => selection = const PlaylistTagsSelection();
-
-  bool _matchesKey(dynamic playlist, PlaylistTagKey key) {
-    if (key case PlaylistUserTag(:final path)) return _matchesUserTag(playlist, path);
-    if (key case PlaylistVirtualTag.pinned) return playlist.isPinned == true;
-    if (key case PlaylistVirtualTag.untagged) return _tagsOf(playlist).isEmpty;
-    if (key case PlaylistVirtualTag.m3u) return (playlist.m3uPath as String?)?.isNotEmpty == true;
-    if (key case PlaylistVirtualTag.remote) return playlist.remoteSource != null;
-    return false;
-  }
-
-  bool _matchesUserTag(dynamic playlist, String path) => _tagsOf(playlist).any((tag) => tag == path || tag.startsWith('$path$separator'));
-
-  static List<String> _tagsOf(dynamic playlist) {
-    try {
-      final tags = playlist.tags;
-      return tags is Iterable<String> ? tags.toList() : <String>[];
-    } on NoSuchMethodError {
-      return <String>[];
-    }
-  }
+  // Filter editing is unsupported; startup displays the unfiltered collection.
+  List<String> apply(List<String> playlists) => List<String>.from(playlists);
+  void setColor(String path, int? color) => _offlinePlaylistUnavailable('PlaylistTagsFilter.setColor');
+  void reorderTopLevelTag(int oldIndex, int newIndex) => _offlinePlaylistUnavailable('PlaylistTagsFilter.reorderTopLevelTag');
+  void saveCurrentSelection() => _offlinePlaylistUnavailable('PlaylistTagsFilter.saveCurrentSelection');
+  void applySelection(PlaylistTagsSelection saved) => _offlinePlaylistUnavailable('PlaylistTagsFilter.applySelection');
+  void removeSavedSelection(PlaylistTagsSelection saved) => _offlinePlaylistUnavailable('PlaylistTagsFilter.removeSavedSelection');
+  void toggleIncluded(PlaylistTagKey key) => _offlinePlaylistUnavailable('PlaylistTagsFilter.toggleIncluded');
+  void toggleExcluded(PlaylistTagKey key) => _offlinePlaylistUnavailable('PlaylistTagsFilter.toggleExcluded');
+  void clear() => _offlinePlaylistUnavailable('PlaylistTagsFilter.clear');
 }

@@ -8,14 +8,7 @@ class PlaylistID {
     playlistId: json['playlistId']?.toString(),
   );
 
-  Map<String, dynamic> toJson() => {'id': id, if (playlistId != null) 'playlistId': playlistId};
-
-  @override
-  bool operator ==(Object other) => other is PlaylistID && other.id == id && other.playlistId == playlistId;
-
-  @override
-  int get hashCode => Object.hash(id, playlistId);
-
-  @override
-  String toString() => playlistId == null ? id : '$id:$playlistId';
+  Map<String, dynamic> toJson() => _unavailable('PlaylistID.toJson');
 }
+
+Never _unavailable(String api) => throw UnsupportedError('$api is unavailable in this build.');

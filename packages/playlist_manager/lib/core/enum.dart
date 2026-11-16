@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' show IconData, Icons;
+import 'package:flutter/material.dart' show IconData;
 
 enum PlaylistAddDuplicateAction {
   justAddEverything,
@@ -16,7 +16,7 @@ enum PlaylistTagFilterState { none, included, excluded }
 sealed class PlaylistTagKey {
   const PlaylistTagKey();
   String toVirtualText();
-  IconData toIcon() => Icons.label;
+  IconData toIcon() => throw UnsupportedError('Playlist tags are unavailable in Milestone 1.');
 }
 
 enum PlaylistVirtualTag implements PlaylistTagKey {
@@ -26,19 +26,9 @@ enum PlaylistVirtualTag implements PlaylistTagKey {
   remote;
 
   @override
-  String toVirtualText() => switch (this) {
-    PlaylistVirtualTag.pinned => 'Pinned',
-    PlaylistVirtualTag.untagged => 'Untagged',
-    PlaylistVirtualTag.m3u => 'M3U',
-    PlaylistVirtualTag.remote => 'Remote',
-  };
+  String toVirtualText() => throw UnsupportedError('Playlist tags are unavailable in Milestone 1.');
   @override
-  IconData toIcon() => switch (this) {
-    PlaylistVirtualTag.pinned => Icons.push_pin,
-    PlaylistVirtualTag.untagged => Icons.label_off,
-    PlaylistVirtualTag.m3u => Icons.music_note,
-    PlaylistVirtualTag.remote => Icons.cloud,
-  };
+  IconData toIcon() => throw UnsupportedError('Playlist tags are unavailable in Milestone 1.');
 }
 
 final class PlaylistUserTag extends PlaylistTagKey {
@@ -82,13 +72,7 @@ class PlaylistTagsSelection {
   final List<PlaylistTagKey> included;
   final List<PlaylistTagKey> excluded;
   const PlaylistTagsSelection({this.tag = '', this.included = const [], this.excluded = const []});
-  String toText() {
-    final values = <String>[];
-    if (tag.isNotEmpty) values.add(tag);
-    if (included.isNotEmpty) values.add(included.map((key) => key.toVirtualText()).join(' + '));
-    if (excluded.isNotEmpty) values.add(excluded.map((key) => '-${key.toVirtualText()}').join(' '));
-    return values.join(' · ');
-  }
+  String toText() => _unavailable('PlaylistTagsSelection.toText');
 }
 
 class PlaylistMetadataEdit {
@@ -101,14 +85,8 @@ class PlaylistMetadataEdit {
 
   const PlaylistMetadataEdit({this.isPinned, this.comment, this.tags, this.moods, this.modifiedDate, this.isFav});
 
-  PlaylistMetadataEdit copyWith({bool? isPinned, String? comment, List<String>? tags, List<String>? moods, int? modifiedDate, bool? isFav}) => PlaylistMetadataEdit(
-    isPinned: isPinned ?? this.isPinned,
-    comment: comment ?? this.comment,
-    tags: tags ?? this.tags,
-    moods: moods ?? this.moods,
-    modifiedDate: modifiedDate ?? this.modifiedDate,
-    isFav: isFav ?? this.isFav,
-  );
+  PlaylistMetadataEdit copyWith({bool? isPinned, String? comment, List<String>? tags, List<String>? moods, int? modifiedDate, bool? isFav}) =>
+      _unavailable('PlaylistMetadataEdit.copyWith');
 }
 
 class PlaylistRemoteSource {
@@ -118,3 +96,5 @@ class PlaylistRemoteSource {
   const PlaylistRemoteSource({required this.sourceKey, required this.remoteId});
   static const none = PlaylistRemoteSource._none();
 }
+
+Never _unavailable(String api) => throw UnsupportedError('$api is unavailable in this build.');
