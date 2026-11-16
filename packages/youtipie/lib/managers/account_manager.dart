@@ -27,16 +27,45 @@ class YoutiAccountManager {
 }
 
 class YoutiPieCookies {
-  Rxn<YoutiPieChannelInfo> get activeAccountChannel => unavailable('YoutiPieCookies.activeAccountChannel');
-  Rx<Set<UserChannelInfo>> get signedInAccounts => unavailable('YoutiPieCookies.signedInAccounts');
-  bool? get canAddMultiAccounts => unavailable('YoutiPieCookies.canAddMultiAccounts');
-  set canAddMultiAccounts(bool? value) => unavailable('YoutiPieCookies.canAddMultiAccounts');
-  bool get canAuthorizeRequests => unavailable('YoutiPieCookies.canAuthorizeRequests');
+  final Rxn<YoutiPieChannelInfo> _activeAccountChannel = Rxn<YoutiPieChannelInfo>();
+  final Rxn<UserChannelInfo> activeAccountDetails = Rxn<UserChannelInfo>();
+  final Rx<Set<UserChannelInfo>> _signedInAccounts = Rx<Set<UserChannelInfo>>(<UserChannelInfo>{});
+  final Set<void Function()> _accountChangedListeners = {};
+  bool? _canAddMultiAccounts;
 
-  void addOnAccountChanged(void Function() callback) => unavailable('YoutiPieCookies.addOnAccountChanged');
-  void removeOnAccountChanged(void Function() callback) => unavailable('YoutiPieCookies.removeOnAccountChanged');
-  bool isSessionExpired(UserChannelInfo account) => unavailable('YoutiPieCookies.isSessionExpired');
-  void signOut(UserChannelInfo userChannel) => unavailable('YoutiPieCookies.signOut');
-  void setAccount(UserChannelInfo userChannel) => unavailable('YoutiPieCookies.setAccount');
-  void setAnonymous() => unavailable('YoutiPieCookies.setAnonymous');
+  Rxn<YoutiPieChannelInfo> get activeAccountChannel => _activeAccountChannel;
+  Rx<Set<UserChannelInfo>> get signedInAccounts => _signedInAccounts;
+  bool? get canAddMultiAccounts => _canAddMultiAccounts;
+  set canAddMultiAccounts(bool? value) => _canAddMultiAccounts = value;
+  bool get canAuthorizeRequests => false;
+
+  void addOnAccountChanged(void Function() callback) => _accountChangedListeners.add(callback);
+  void removeOnAccountChanged(void Function() callback) => _accountChangedListeners.remove(callback);
+  bool isSessionExpired(UserChannelInfo account) => false;
+
+  void signOut(UserChannelInfo userChannel) {
+    _signedInAccounts.value = {..._signedInAccounts.value}..removeWhere((account) => account.id == userChannel.id);
+    if (activeAccountDetails.value?.id == userChannel.id) {
+      setAnonymous();
+    }
+  }
+
+  void setAccount(UserChannelInfo userChannel) {
+    _signedInAccounts.value = {..._signedInAccounts.value, userChannel};
+    activeAccountDetails.value = userChannel;
+    _activeAccountChannel.value = userChannel;
+    _notifyAccountChanged();
+  }
+
+  void setAnonymous() {
+    activeAccountDetails.value = null;
+    _activeAccountChannel.value = null;
+    _notifyAccountChanged();
+  }
+
+  void _notifyAccountChanged() {
+    for (final callback in List<void Function()>.from(_accountChangedListeners)) {
+      callback();
+    }
+  }
 }
