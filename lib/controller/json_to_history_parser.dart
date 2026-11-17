@@ -26,6 +26,7 @@ import 'package:namida/controller/navigator_controller.dart';
 import 'package:namida/controller/notification_controller.dart';
 import 'package:namida/controller/platform/zip_manager/zip_manager.dart';
 import 'package:namida/controller/playlist_controller.dart';
+import 'package:namida/controller/settings_controller.dart';
 import 'package:namida/core/constants.dart';
 import 'package:namida/core/enums.dart';
 import 'package:namida/core/extensions.dart';
@@ -42,6 +43,8 @@ import 'package:namida/youtube/controller/youtube_history_controller.dart';
 import 'package:namida/youtube/controller/youtube_import_controller.dart';
 import 'package:namida/youtube/controller/youtube_info_controller.dart';
 import 'package:namida/youtube/controller/youtube_playlist_controller.dart';
+
+part 'json_to_history_parser.apple_music.dart';
 
 class JsonToHistoryParser {
   static JsonToHistoryParser get inst => _instance;
@@ -558,6 +561,7 @@ class JsonToHistoryParser {
         final res = await _addGeneralSource(
           files: historyFiles,
           favouriteFiles: favouriteFiles,
+          lookupFiles: sourceFiles.lookups,
           addHistory: importHistory,
           matchAll: matchAll,
           oldestDate: oldestDate,
@@ -615,6 +619,9 @@ class JsonToHistoryParser {
 
         case TrackSource.listenbrainz:
           await addGeneralSource(_addListenBrainzSourceIsolate);
+
+        case TrackSource.appleMusic:
+          await addGeneralSource(_addAppleMusicSourceIsolate);
 
         case TrackSource.local:
           break;
@@ -714,23 +721,26 @@ class JsonToHistoryParser {
   ) async {
     final files = <File>[];
     final favouriteFiles = <File>[];
+    final lookupFiles = <File>[];
     final playlistsDirectories = <String>{};
     final subscriptionsFiles = <File>[];
-    final sourceFiles = (history: files, favourites: favouriteFiles, playlistsDirectories: playlistsDirectories, subscriptions: subscriptionsFiles);
+    final sourceFiles = (history: files, favourites: favouriteFiles, lookups: lookupFiles, playlistsDirectories: playlistsDirectories, subscriptions: subscriptionsFiles);
 
     late final zipManager = ZipManager.platform();
 
     Stream<FileSystemEntity> listDir(Directory dir) => dir.list(recursive: true, followLinks: false);
     FutureOr<void> executeFileEnsureZipExtracted(File file, void Function(File file) onMatch) async {
       if (NamidaFileExtensionsWrapper.zip.isPathValid(file.path)) {
-        final tempDir = (await tempZipMainDestination()).path;
-        final destinationDir = Directory(FileParts.joinPath(tempDir, file.path.getFilenameWOExt));
+        final tempDir = await tempZipMainDestination();
         try {
+          // -- unique dir cuz zips inside zips can share names
+          final zipName = file.path.getFilenameWOExt;
+          final destinationDir = await tempDir.createTemp(zipName);
           await zipManager.extractZip(zipFile: file, destinationDir: destinationDir);
           final zipContents = listDir(destinationDir);
           await for (final file in zipContents) {
             if (file is File) {
-              onMatch(file);
+              await executeFileEnsureZipExtracted(file, onMatch);
             }
           }
         } catch (_) {
@@ -833,6 +843,29 @@ class JsonToHistoryParser {
                   } else if (name != 'pinned_recording.jsonl') {
                     files.add(file);
                   }
+                }
+              },
+            );
+          }
+        }
+      case TrackSource.appleMusic:
+        for (final file in contents) {
+          progress++;
+          onProgress(progress, total);
+          if (file is File) {
+            await executeFileEnsureZipExtracted(
+              file,
+              (file) {
+                final nameLC = file.path.getFilename.toLowerCase();
+                if (NamidaFileExtensionsWrapper.csv.isPathValid(file.path)) {
+                  if (nameLC.contains('play activity')) {
+                    files.add(file);
+                  } else if (nameLC.contains('daily tracks')) {
+                    lookupFiles.add(file);
+                  }
+                } else if (NamidaFileExtensionsWrapper.json.isPathValid(file.path) && nameLC.contains('library tracks')) {
+                  favouriteFiles.add(file);
+                  lookupFiles.add(file);
                 }
               },
             );
@@ -1172,11 +1205,7 @@ class JsonToHistoryParser {
         matchAll: matchAll,
         tracksIdsMap: historyTracksIdsMap,
         matchByTitleAndArtistIfNotFoundInMap: isMatchingTypeTitleAndArtist,
-        onMissingEntries: (entries) {
-          for (final e in entries) {
-            missingEntries.addForce(e, e.dateMSSE);
-          }
-        },
+        onMissingWatch: (missingEntry, dateMS) => missingEntries.addForce(missingEntry, dateMS),
         reverseTitleMatcher: reverseTitleMatcher,
       );
       historyMatched += tracks.length;
@@ -1386,7 +1415,7 @@ class JsonToHistoryParser {
     required bool matchAll,
     required Map<String, List<Track>>? tracksIdsMap,
     required bool matchByTitleAndArtistIfNotFoundInMap,
-    required void Function(Iterable<_MissingListenEntry> missingEntries) onMissingEntries,
+    required void Function(_MissingListenEntry missingEntry, int dateMS) onMissingWatch,
     required ReverseSearchMatcher<_YTHistoryMatchEntry> reverseTitleMatcher,
   }) {
     if (vh.id == _kRemovedVideoId) return const [];
@@ -1419,7 +1448,7 @@ class JsonToHistoryParser {
           SearchMatcher.isContainedIn(e.artistTokens, channelTokens);
 
       if (matchAll) {
-        final matched = reverseTitleMatcher.matchContainedIn(titleTokens).where(isMatching);
+        final matched = reverseTitleMatcher.matchMostSpecificAll(titleTokens, isMatching);
         tracks = matched.map((e) => Track.decide(e.track.path, e.track.isVideo)).toFixedList();
       } else {
         final mostSpecific = reverseTitleMatcher.matchMostSpecific(titleTokens, isMatching)?.track;
@@ -1450,18 +1479,16 @@ class JsonToHistoryParser {
         }
       }
     } else {
-      onMissingEntries(
-        vh.watches.map(
-          (e) => _MissingListenEntry(
-            youtubeID: vh.id,
-            dateMSSE: e.dateMS,
-            source: e.isYTMusic ? TrackSource.youtubeMusic : TrackSource.youtube,
-            artistOrChannel: vh.channel,
-            title: vh.title,
-            isFavourite: false,
-          ),
-        ),
-      );
+      for (final w in vh.watches) {
+        final missingEntry = _MissingListenEntry(
+          youtubeID: vh.id,
+          source: w.isYTMusic ? TrackSource.youtubeMusic : TrackSource.youtube,
+          artistOrChannel: vh.channel,
+          title: vh.title,
+          isFavourite: false,
+        );
+        onMissingWatch(missingEntry, w.dateMS);
+      }
     }
     return tracksToAdd;
   }
@@ -1470,6 +1497,7 @@ class JsonToHistoryParser {
   Future<({List<int> historyDays, int addedHistoryCount, Map<_MissingListenEntry, List<int>> missingEntriesSorted, List<TrackWithDate> favourites})?> _addGeneralSource({
     required List<File> files,
     required List<File> favouriteFiles,
+    required List<File> lookupFiles,
     required bool addHistory,
     required bool matchAll,
     required DateTime? oldestDate,
@@ -1500,9 +1528,17 @@ class JsonToHistoryParser {
       newestDay: newestDate?.toDaysSince1970(),
       files: files,
       favouriteFiles: favouriteFiles,
+      lookupFiles: lookupFiles,
       addHistory: addHistory,
       matchAll: matchAll,
       artistsSplitConfig: ArtistsSplitConfig.settings(),
+      listenCountRule: (
+        minListenSeconds: settings.isTrackPlayedSecondsCount.value,
+        minListenPercentage: settings.isTrackPlayedPercentageCount.value,
+        seekSeconds: settings.player.seekDurationInSeconds.value,
+        seekPercentage: settings.player.seekDurationInPercentage.value,
+        isSeekPercentage: settings.player.isSeekDurationPercentage.value,
+      ),
       portProgressParsed: portProgressParsed.sendPort,
       portProgressMatched: portProgressMatched.sendPort,
       portLoadingProgress: portLoadingProgress.sendPort,
@@ -1524,7 +1560,7 @@ class JsonToHistoryParser {
     if (addHistory) HistoryController.inst.setIdleStatus(true);
 
     try {
-      final res = await Isolate.run(() => parser(params));
+      final res = await parser.thready(params);
       if (res == null) return null;
 
       if (addHistory) HistoryController.inst.historyMap.value = res.localHistory;
@@ -1770,6 +1806,30 @@ class JsonToHistoryParser {
     );
   }
 
+  @visibleForTesting
+  // ignore: library_private_types_in_public_api
+  static Future<_GeneralSourceResult?> debugAddAppleMusicSource(_GeneralSourceParserParams params) => _addAppleMusicSourceIsolate(params);
+
+  /// Returns [daysToSave] to be used by [sortHistoryTracks] && [saveHistoryToStorage].
+  static Future<_GeneralSourceResult?> _addAppleMusicSourceIsolate(_GeneralSourceParserParams params) async {
+    final importTimeMS = currentTimeMS;
+    final lookup = _AppleMusicLookup.fromFiles(params.lookupFiles, importTimeMS: importTimeMS);
+    // -- counting needs the merged listens, kept for the parsing after it
+    final listensByPath = <String, List<_AppleMusicListen>>{};
+    List<_AppleMusicListen> listensOf(File file) => listensByPath[file.path] ??= _AppleMusicPlayActivityParser.parse(file, params.listenCountRule);
+    return _addGeneralSourceIsolate<_AppleMusicListen, _GeneralSourceItemInfo>(
+      params,
+      trackSource: TrackSource.appleMusic,
+      favouritesParser: (
+        fileToItems: lookup.favouritesOf,
+        itemToInfo: (info) => info,
+      ),
+      loadingProgressCounterFn: (file) async => listensOf(file).length,
+      fileToItemsFn: listensOf,
+      itemToInfoFn: lookup.infoOf,
+    );
+  }
+
   /// Returns [daysToSave] to be used by [sortHistoryTracks] && [saveHistoryToStorage].
   static Future<_GeneralSourceResult?> _addGeneralSourceIsolate<E, F>(
     _GeneralSourceParserParams params, {
@@ -1814,6 +1874,7 @@ class JsonToHistoryParser {
     final tracksLookupMbidsMap = <String, List<_HistoryParserTrackParams>>{};
 
     final reverseTitleMatcher = ReverseSearchMatcher<_GeneralSourceMatchEntry>();
+    final reverseTitleWithoutExtrasMatcher = ReverseSearchMatcher<_GeneralSourceMatchEntry>();
 
     for (final trMap in allTracks) {
       final title = trMap.title;
@@ -1839,9 +1900,11 @@ class JsonToHistoryParser {
         }
       }
       if (artistsList.isNotEmpty) {
-        final artistTokens = SearchMatcher.tokenize(artistsList.first);
+        final artistsTokens = artistsList.map(SearchMatcher.tokenize).toFixedList();
+        final matchEntry = (track: trMap, artistsTokens: artistsTokens);
+        reverseTitleMatcher.addItem(matchEntry, title);
         final titleWithoutExtras = title.splitFirst('(').splitFirst('[');
-        reverseTitleMatcher.addItem((track: trMap, artistTokens: artistTokens), titleWithoutExtras);
+        if (titleWithoutExtras.length != title.length) reverseTitleWithoutExtrasMatcher.addItem(matchEntry, titleWithoutExtras);
       }
     }
 
@@ -1850,6 +1913,9 @@ class JsonToHistoryParser {
     final daysToSaveLocal = <int>[];
     final favourites = <TrackWithDate>[];
     const chunkSize = 20;
+
+    // -- a whole title (with its remix, vip..) goes before every other version of the same base title
+    final reverseTitleMatchersByPriority = [reverseTitleMatcher, reverseTitleWithoutExtrasMatcher];
 
     List<_HistoryParserTrackParams> matchItem(_GeneralSourceItemInfo info) {
       final mbidMatching = tracksLookupMbidsMap[info.mbid];
@@ -1874,17 +1940,20 @@ class JsonToHistoryParser {
 
       if (tracks.isEmpty) {
         /// matching has to meet 2 conditons:
-        /// [item artist] contains [track.artistsList.first]
-        /// [item title] contains [track.title], anything after ( or [ is ignored.
+        /// [item artist] contains one of [track.artistsList], sources order collab artists differently
+        /// [item title] contains [track.title], then anything after ( or [ is ignored.
         final itemTitleTokens = SearchMatcher.tokenizeHaystack(info.itemTitle);
         late final itemArtistTokens = SearchMatcher.tokenizeHaystack(info.itemArtist);
-        bool isMatching(_GeneralSourceMatchEntry e) => SearchMatcher.isContainedIn(e.artistTokens, itemArtistTokens);
-        if (matchAll) {
-          final matchedTracks = reverseTitleMatcher.matchContainedIn(itemTitleTokens).where(isMatching).map((e) => e.track);
-          tracks.addAll(matchedTracks);
-        } else {
-          final mostSpecific = reverseTitleMatcher.matchMostSpecific(itemTitleTokens, isMatching);
-          if (mostSpecific != null) tracks.add(mostSpecific.track);
+        bool isMatching(_GeneralSourceMatchEntry e) => e.artistsTokens.any((artistTokens) => SearchMatcher.isContainedIn(artistTokens, itemArtistTokens));
+        for (final matcher in reverseTitleMatchersByPriority) {
+          if (matchAll) {
+            final matchedTracks = matcher.matchMostSpecificAll(itemTitleTokens, isMatching).map((e) => e.track);
+            tracks.addAll(matchedTracks);
+          } else {
+            final mostSpecific = matcher.matchMostSpecific(itemTitleTokens, isMatching);
+            if (mostSpecific != null) tracks.add(mostSpecific.track);
+          }
+          if (tracks.isNotEmpty) break;
         }
       }
       return tracks;
@@ -1893,13 +1962,12 @@ class JsonToHistoryParser {
     void addMissingEntry(_GeneralSourceItemInfo info, {required bool isFavourite}) {
       final me = _MissingListenEntry(
         youtubeID: null,
-        dateMSSE: info.dateMSSE,
         source: trackSource,
         artistOrChannel: info.itemArtist,
         title: info.itemTitle,
         isFavourite: isFavourite,
       );
-      missingEntries.addForce(me, me.dateMSSE);
+      missingEntries.addForce(me, info.dateMSSE);
     }
 
     int historyMatched = 0;
@@ -2099,15 +2167,7 @@ class JsonToHistoryParser {
         updatedIds.add(id);
       }
       final bucketVideos = videosMapInStorage.values.toFixedList();
-      final tempFile = File('${file.path}.tmp');
-      final writtenFile = tempFile.writeAsJsonSync(bucketVideos);
-      try {
-        writtenFile?.renameSync(file.path);
-      } catch (_) {
-        // -- windows: rename fails while the bucket is locked
-        file.writeAsJsonSync(bucketVideos);
-        tempFile.deleteIfExistsSync();
-      }
+      file.writeAsJsonAtomicSync(bucketVideos);
       progressPort?.send(updatedIds.length);
     }
   }
@@ -2205,8 +2265,8 @@ enum DataImportType {
   };
 }
 
+/// one per track, its listens dates are the map values.
 class _MissingListenEntry {
-  final int dateMSSE;
   final TrackSource source;
   final String? youtubeID;
   final String title;
@@ -2214,7 +2274,6 @@ class _MissingListenEntry {
   final bool isFavourite;
 
   const _MissingListenEntry({
-    required this.dateMSSE,
     required this.source,
     required this.title,
     required this.youtubeID,
@@ -2226,17 +2285,12 @@ class _MissingListenEntry {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     if (other is! _MissingListenEntry) return false;
-    return other.dateMSSE == dateMSSE &&
-        other.source == source &&
-        other.youtubeID == youtubeID &&
-        other.title == title &&
-        other.artistOrChannel == artistOrChannel &&
-        other.isFavourite == isFavourite;
+    return other.source == source && other.youtubeID == youtubeID && other.title == title && other.artistOrChannel == artistOrChannel && other.isFavourite == isFavourite;
   }
 
   @override
   int get hashCode {
-    return Object.hash(dateMSSE, source, youtubeID, title, artistOrChannel, isFavourite);
+    return Object.hash(source, youtubeID, title, artistOrChannel, isFavourite);
   }
 }
 
@@ -2482,7 +2536,8 @@ class _GeneralSourceResult {
   });
 }
 
-typedef _SourceFiles = ({List<File> history, List<File> favourites, Set<String> playlistsDirectories, List<File> subscriptions});
+/// [lookups] only help matching the history/favourites files (ex: apple music library for the artists).
+typedef _SourceFiles = ({List<File> history, List<File> favourites, List<File> lookups, Set<String> playlistsDirectories, List<File> subscriptions});
 
 typedef _TakeoutLikedVideo = ({String id, int dateMS});
 
@@ -2497,7 +2552,7 @@ typedef _HistoryParserTrackParams = ({
   bool isVideo,
 });
 
-typedef _GeneralSourceMatchEntry = ({_HistoryParserTrackParams track, Set<String> artistTokens});
+typedef _GeneralSourceMatchEntry = ({_HistoryParserTrackParams track, List<Set<String>> artistsTokens});
 
 typedef _YTHistoryParserTrackParams = ({
   String title,
@@ -2548,9 +2603,11 @@ typedef _GeneralSourceParserParams = ({
   int? newestDay,
   List<File> files,
   List<File> favouriteFiles,
+  List<File> lookupFiles,
   bool addHistory,
   bool matchAll,
   ArtistsSplitConfig artistsSplitConfig,
+  _ListenCountRule listenCountRule,
   SendPort portProgressParsed,
   SendPort portProgressMatched,
   SendPort portLoadingProgress,

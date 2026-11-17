@@ -45,12 +45,15 @@ from compose import FLATHUB_SHOTS
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPTS = Path(__file__).resolve().parent
-DEFAULT_WORK = ROOT / 'build' / 'screenshots'
+DEFAULT_WORK = ROOT / '.screenshots'
 DEFAULT_SCENES = SCRIPTS / 'scenes.json'
-RUN_TIMEOUT_SECONDS = 60 * 60
+RUN_TIMEOUT_SECONDS = 2 * 60 * 60
 
 DART_DEFINES = ['--dart-define=NAMIDA_SCREENSHOTS=true']
 WINDOWS_BUILD_DIR = ROOT / 'build' / 'windows' / 'x64' / 'runner' / 'Profile'
+# -- the youtube sign in's webview2 outlives the app for a moment and deletes this once it lets go of its profile
+WINDOWS_WEBVIEW_LOCK_PATH = Path('Youtube', 'Youtipie', 'webview2', 'EBWebView', 'lockfile')
+WINDOWS_WEBVIEW_EXIT_TIMEOUT_SECONDS = 30
 LINUX_BUILD_DIR = ROOT / 'build' / 'linux' / 'x64' / 'profile' / 'bundle'
 LINUX_APP_ID = 'com.msob7y.namida'
 # -- pixels, roomy for the biggest window at the smallest scale plus its shadow. flathub allows 2000x1400 for hidpi, the
@@ -190,12 +193,11 @@ def resolve_player_roles(scenes: dict, library: dict) -> dict:
 
 
 def harvest_videos(work: Path, data_dir: Path):
-    # -- videos fetched online during the run are reused by the next ones, a .metadata companion means unfinished
+    # -- videos fetched online during the run are reused by the next ones, an unfinished one is a .mp4.part
     videos_dir = work / 'videos'
     for video in (data_dir / 'Videos').glob('*.mp4'):
-        is_complete = not video.with_name(f'{video.name}.metadata').exists()
         dest = videos_dir / video.name
-        if is_complete and not dest.exists():
+        if not dest.exists():
             shutil.copy2(video, dest)
 
 
@@ -255,12 +257,21 @@ def shoot_windows(args, work: Path):
     if args.interactive:
         environment = {**os.environ, 'NAMIDA_SCREENSHOTS_INTERACTIVE': '1'}
         subprocess.run([exe], env=environment)
+        wait_for_webview_exit(data_dir)
         copy_paths(data_dir, work / 'windows' / 'keep', KEEP_PATHS)
         harvest_videos(work, data_dir)
         return None, out_dir
     done = launch_and_wait([exe], out_dir)
+    wait_for_webview_exit(data_dir)
     harvest_videos(work, data_dir)
     return done, out_dir
+
+
+def wait_for_webview_exit(data_dir: Path):
+    webview_lock = data_dir / WINDOWS_WEBVIEW_LOCK_PATH
+    deadline = time.time() + WINDOWS_WEBVIEW_EXIT_TIMEOUT_SECONDS
+    while webview_lock.exists() and time.time() < deadline:
+        time.sleep(CAPTURE_POLL_SECONDS)
 
 
 def local_music_dir(work: Path, override: str | None) -> str:
@@ -397,6 +408,8 @@ def push_tree(device: str, local_dir: Path, remote_dir: str):
     remote_dirs = [remote_dir + '/' + d.relative_to(local_dir).as_posix() if d != local_dir else remote_dir for d in local_dirs]
     quoted_dirs = ' '.join(shell_quote(d) for d in remote_dirs)
     adb(device, 'shell', f'mkdir -p {quoted_dirs}')
+    # -- the shell owns these folders, the app can't even list them otherwise and its startup hangs
+    adb(device, 'shell', f'find {shell_quote(remote_dir)} -user shell -type d -exec chmod a+rwx {{}} +')
     for directory, remote in zip(local_dirs, remote_dirs):
         files = [str(f) for f in directory.iterdir() if f.is_file()]
         for start in range(0, len(files), ADB_PUSH_BATCH):
@@ -409,7 +422,7 @@ def push_android_session(device: str, session_dir: Path):
         return
     adb(device, 'shell', 'rm', '-rf', ANDROID_KEEP_TMP_DIR)
     push_tree(device, session_dir, ANDROID_KEEP_TMP_DIR)
-    copy_command = f'rm -rf files/{KEEP_SESSION_PATH} && cp -r {ANDROID_KEEP_TMP_DIR} files/{KEEP_SESSION_PATH}'
+    copy_command = f'mkdir -p files && rm -rf files/{KEEP_SESSION_PATH} && cp -r {ANDROID_KEEP_TMP_DIR} files/{KEEP_SESSION_PATH}'
     adb(device, 'shell', f'run-as {ANDROID_PACKAGE} sh -c {shell_quote(copy_command)}')
     adb(device, 'shell', 'rm', '-rf', ANDROID_KEEP_TMP_DIR)
 

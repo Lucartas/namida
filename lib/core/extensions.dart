@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +19,7 @@ import 'package:namida/controller/history_controller.dart';
 import 'package:namida/controller/indexer_controller.dart';
 import 'package:namida/controller/logs_controller.dart';
 import 'package:namida/controller/navigator_controller.dart';
+import 'package:namida/controller/platform/namida_storage/namida_storage.dart';
 import 'package:namida/controller/playlist_controller.dart';
 import 'package:namida/controller/search_sort_controller.dart';
 import 'package:namida/controller/settings_controller.dart';
@@ -182,28 +184,33 @@ extension TracksUtils on List<Track> {
   }
 
   int get yearOldest {
-    int oldest = 0;
+    final oldestIndex = _indexOfOldestYear();
+    if (oldestIndex == -1) return 0;
+    return this[oldestIndex].year;
+  }
+
+  int yearOldestPreferyyyyMMdd() {
+    final oldestIndex = _indexOfOldestYear();
+    if (oldestIndex == -1) return 0;
+    return _yearAsyyyyMMdd(this[oldestIndex].year);
+  }
+
+  int _indexOfOldestYear() {
+    int oldestIndex = -1;
     int oldestAsyyyyMMdd = 0;
     for (int i = 0; i < length; i++) {
       final y = this[i].year;
       if (y == 0) continue;
-      final asyyyyMMdd = y < 10000 ? y * 10000 + 101 : y;
-      if (oldest == 0 || asyyyyMMdd < oldestAsyyyyMMdd) {
-        oldest = y;
+      final asyyyyMMdd = _yearAsyyyyMMdd(y);
+      if (oldestIndex == -1 || asyyyyMMdd < oldestAsyyyyMMdd) {
+        oldestIndex = i;
         oldestAsyyyyMMdd = asyyyyMMdd;
       }
     }
-    return oldest;
+    return oldestIndex;
   }
 
-  String get yearPreferyyyyMMdd {
-    if (isEmpty) return '';
-    for (int i = length - 1; i >= 0; i--) {
-      final y = this[i].yearPreferyyyyMMdd;
-      if (y != '') return y;
-    }
-    return '';
-  }
+  static int _yearAsyyyyMMdd(int year) => year < 10000 ? year * 10000 + 101 : year;
 
   /// should be upgraded to check if image file exist, but performance...
   String get pathToImage {
@@ -282,6 +289,7 @@ extension TracksUtils on List<Track> {
 
   String get originalArtist => _firstNonEmpty((e) => e.originalArtist);
   String get originalGenre => _firstNonEmpty((e) => e.originalGenre);
+  String get originalStyle => _firstNonEmpty((e) => e.originalStyle);
   String get composer => _firstNonEmpty((e) => e.composer);
   String get recordLabel => _firstNonEmpty((e) => e.label);
   String get releaseType => _firstNonEmpty((e) => e.releaseType);
@@ -348,22 +356,18 @@ extension ListieListieUtils<T> on List<T> {
       return copy;
     }
 
-    final selectedIndices = <int>{};
+    // -- partial fisher-yates over the indices, each item is tested once at most and any of them can be picked
+    final indices = Uint32List(totalLength);
+    for (int i = 0; i < totalLength; i++) {
+      indices[i] = i;
+    }
     final selectedItems = <T>[];
-
-    int attempts = 0;
-    final maxAttempts = totalLength;
-
-    for (var i = totalLength - sampleCount; i < totalLength && attempts < maxAttempts;) {
-      final t = random.nextInt(i + 1);
-      final indexToSelect = selectedIndices.contains(t) ? i : t;
-      final item = list[indexToSelect];
-      attempts++;
-      if (test(item)) {
-        selectedIndices.add(indexToSelect);
-        selectedItems.add(item);
-        i++;
-      }
+    for (int i = 0; i < totalLength && selectedItems.length < sampleCount; i++) {
+      final swapIndex = i + random.nextInt(totalLength - i);
+      final index = indices[swapIndex];
+      indices[swapIndex] = indices[i];
+      final item = list[index];
+      if (test(item)) selectedItems.add(item);
     }
 
     return selectedItems;
@@ -386,7 +390,7 @@ extension ListieListieUtils<T> on List<T> {
 ///
 /// [sortBy] & friends from `dart_extensions` evaluate the key extractor on *every* comparison,
 /// i.e `2 * n * log(n)` times. these evaluate it exactly `n` times, which matters a lot when
-/// the key costs an allocation (`toLowerCase()`, `join()`, `ignoreCommonPrefixes()`) or a lookup
+/// the key costs an allocation (`toLowerCase()`, `join()`, `ignorePrefixes()`) or a lookup
 /// over a sublist (`getTotalListenCount()`, `getDateAddedEffective()`).
 ///
 /// by claude
@@ -402,7 +406,8 @@ extension ListiePrecomputedSortUtils<E> on List<E> {
       return;
     }
     final keys = List<Comparable>.generate(length, (i) => key(this[i]), growable: false);
-    _applySortedOrder(_sortedIndicesOf(length, (a, b) => keys[a].compareTo(keys[b]), reverse));
+    final sortedIndices = _sortedIndicesOf(length, (a, b) => keys[a].compareTo(keys[b]), reverse);
+    if (sortedIndices != null) _applySortedOrder(sortedIndices);
   }
 
   /// [alternativesReverse] flips each alternative on its own, [reverse] flips the whole order on top.
@@ -438,16 +443,17 @@ extension ListiePrecomputedSortUtils<E> on List<E> {
       growable: false,
     );
 
-    _applySortedOrder(
-      _sortedIndicesOf(length, (a, b) {
-        for (int i = 0; i < alternativesLength; i++) {
-          final key = keys[i];
-          final compare = key[a].compareTo(key[b]);
-          if (compare != 0) return alternativesReverse != null && alternativesReverse[i] ? -compare : compare;
-        }
-        return 0;
-      }, reverse),
-    );
+    int compareIndices(int a, int b) {
+      for (int i = 0; i < alternativesLength; i++) {
+        final key = keys[i];
+        final compare = key[a].compareTo(key[b]);
+        if (compare != 0) return alternativesReverse != null && alternativesReverse[i] ? -compare : compare;
+      }
+      return 0;
+    }
+
+    final sortedIndices = _sortedIndicesOf(length, compareIndices, reverse);
+    if (sortedIndices != null) _applySortedOrder(sortedIndices);
   }
 
   /// Returns a new sorted list, keeping items that compare equal in their original order.
@@ -538,9 +544,53 @@ extension ListiePrecomputedSortUtils<E> on List<E> {
     }
   }
 
-  static List<int> _sortedIndicesOf(int length, int Function(int a, int b) compare, bool reverse) {
-    final indices = List<int>.generate(length, (i) => i, growable: false);
-    indices.sort(reverse ? (a, b) => compare(b, a) : compare);
+  /// unsorted tails longer than `length / this` get the whole list sorted instead.
+  static const _maxMergedTailDivisor = 8;
+
+  /// null when already sorted. a short unsorted tail (ex. newly added tracks) is sorted alone then merged in,
+  /// since sorting the whole list again shuffles items with equal keys.
+  static List<int>? _sortedIndicesOf(int length, int Function(int a, int b) compare, bool reverse) {
+    final effectiveCompare = reverse ? (int a, int b) => compare(b, a) : compare;
+
+    int sortedEnd = 1;
+    while (sortedEnd < length && effectiveCompare(sortedEnd - 1, sortedEnd) <= 0) {
+      sortedEnd++;
+    }
+    if (sortedEnd == length) return null;
+
+    final tailLength = length - sortedEnd;
+    if (tailLength * _maxMergedTailDivisor > length) {
+      final indices = List<int>.generate(length, (i) => i, growable: false);
+      indices.sort(effectiveCompare);
+      return indices;
+    }
+
+    final tail = List<int>.generate(tailLength, (i) => sortedEnd + i, growable: false);
+    tail.sort(effectiveCompare);
+
+    final indices = List<int>.filled(length, 0);
+    int sortedIndex = 0;
+    int resultIndex = 0;
+    for (final item in tail) {
+      // -- after the sorted items equal to it
+      int low = sortedIndex;
+      int high = sortedEnd;
+      while (low < high) {
+        final mid = (low + high) >> 1;
+        if (effectiveCompare(mid, item) > 0) {
+          high = mid;
+        } else {
+          low = mid + 1;
+        }
+      }
+      while (sortedIndex < low) {
+        indices[resultIndex++] = sortedIndex++;
+      }
+      indices[resultIndex++] = item;
+    }
+    while (sortedIndex < sortedEnd) {
+      indices[resultIndex++] = sortedIndex++;
+    }
     return indices;
   }
 
@@ -1101,6 +1151,14 @@ extension DEWidgetsSeparator on Iterable<Widget> {
   }
 }
 
+extension LocalPathDisplay on String {
+  /// see [NamidaStorage.displayPath].
+  String toDisplayPath() => NamidaStorage.inst.displayPath(this);
+
+  /// for tiles & headers. ex: `/storage/emulated/0/Music` is `main/Music`.
+  String toShortDisplayPath() => toDisplayPath().formatPath();
+}
+
 extension DirectoryUtils on Directory {
   List<FileSystemEntity> listSyncSafe({bool recursive = false, bool followLinks = true}) {
     try {
@@ -1398,29 +1456,6 @@ extension StringPathUtils on String {
     return this;
   }
 
-  /// walks an offset instead of re-slicing: this is called once per item while sorting the
-  /// whole library, and the overwhelmingly common case is "no prefix", which now allocates nothing.
-  String ignoreCommonPrefixes() {
-    final prefixes = settings.commonPrefixes.value;
-    final prefixesLength = prefixes.length;
-    if (prefixesLength == 0) return this;
-
-    int start = 0;
-    bool stripped = true;
-    while (stripped) {
-      stripped = false;
-      for (int i = 0; i < prefixesLength; i++) {
-        final prefix = prefixes[i];
-        // -- an empty prefix would always match & never advance.
-        if (prefix.isNotEmpty && startsWith(prefix, start)) {
-          start += prefix.length;
-          stripped = true;
-        }
-      }
-    }
-    return start == 0 ? this : substring(start);
-  }
-
   String toFastHashKey() {
     final s = this;
     int hash = 0;
@@ -1468,6 +1503,17 @@ extension ClamperExtDouble on double {
     if (x.isNaN) return max;
     return x;
   }
+}
+
+/// log scaled ratio of a count to a [reference] count (max, average..), so few huge counts don't push the rest to ~0.
+class LogScaledRatio {
+  final double _inverseLogReference;
+
+  LogScaledRatio(num reference) : _inverseLogReference = 1 / logScaleOf(reference);
+
+  double of(num value) => logScaleOf(value) * _inverseLogReference;
+
+  static double logScaleOf(num value) => math.log(1 + value);
 }
 
 extension ThemeModeExtensions on ThemeMode {

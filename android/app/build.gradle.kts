@@ -112,10 +112,10 @@ android {
             applicationIdSuffix = ".debug"
         }
 
-        // named("profile") {
-        //     signingConfig = signingConfigs.getByName("profile")
-        //     applicationIdSuffix = ".profile"
-        // }
+        named("profile") {
+            signingConfig = signingConfigs.getByName("debug")
+            applicationIdSuffix = ".profile"
+        }
 
         named("release") {
             signingConfig = signingConfigs.getByName("release")
@@ -123,6 +123,11 @@ android {
             isMinifyEnabled = true
             setProguardFiles(listOf(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"))
         }
+    }
+
+    // -- badged launcher icons for the snapshot clone, debug has its own by source set name
+    if (project.hasProperty("namidaSnapshot")) {
+        sourceSets.getByName("release").res.srcDir("src/snapshot/res")
     }
 }
 
@@ -153,4 +158,6 @@ dependencies {
     implementation("com.android.support:support-v4:28.0.0")
 
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.4")
+
+    testImplementation("junit:junit:4.13.2")
 }

@@ -40,7 +40,7 @@ import 'package:namida/packages/scroll_physics_modified.dart';
 import 'package:namida/packages/three_arched_circle.dart';
 import 'package:namida/ui/widgets/animated_widgets.dart';
 import 'package:namida/ui/widgets/custom_widgets.dart';
-import 'package:namida/ui/widgets/jellyfish.dart';
+import 'package:namida/ui/widgets/mascots/mascots.dart';
 import 'package:namida/ui/widgets/seekbar_chapters.dart';
 import 'package:namida/ui/widgets/settings/extra_settings.dart';
 import 'package:namida/youtube/class/download_task_base.dart';
@@ -94,6 +94,11 @@ class YoutubeMiniPlayerState extends State<YoutubeMiniPlayer> {
 
   void _updateCanScrollQueue(bool can) {
     _canScrollQueue.value = can;
+  }
+
+  void _onDismiss() {
+    MiniPlayerController.inst.snapToMini(haptic: false);
+    Player.inst.clearQueue();
   }
 
   final _scrollController = NamidaScrollController.create();
@@ -325,6 +330,7 @@ class YoutubeMiniPlayerState extends State<YoutubeMiniPlayer> {
                                   blurColorMaskOpacity: 0.75,
                                   useSafeArea: false,
                                   isFullScreenView: true,
+                                  fadesWithMiniplayer: true,
                                   canShowToggleFullscreenButton: false,
                                   verticalPadding: 64.0,
                                   bottomPadding: const SizedBox(height: kYTQueueSheetMinHeight),
@@ -478,11 +484,11 @@ class YoutubeMiniPlayerState extends State<YoutubeMiniPlayer> {
                   maxHeight: context.height,
                   bgColor: miniplayerBGColor,
                   displayBottomBGLayer: !enableBottomNavBar,
-                  onDismiss: dismissibleMiniplayer ? Player.inst.clearQueue : null,
+                  onDismiss: dismissibleMiniplayer ? _onDismiss : null,
                   onDismissing: (dismissPercentage) {
                     if (Player.inst.isPlaying.value) {
                       final maxVolume = Player.inst.userPlayerVolumeForItem;
-                      Player.inst.setVolume((dismissPercentage * maxVolume).clampDouble(0.0, maxVolume));
+                      Player.inst.setTemporaryVolume((dismissPercentage * maxVolume).clampDouble(0.0, maxVolume));
                     }
                   },
                   onHeightChange: (percentage) {
@@ -1458,8 +1464,13 @@ class _YTPlayerInnerPage extends StatelessWidget {
                               //         identity: currentId,
                               //       )
                               //     : null,
-                              onLongPress: () async =>
-                                  await showDownloadVideoBottomSheet(videoId: currentId, originalIndex: null, totalLength: null, playlistId: null, streamInfoItem: null),
+                              onLongPress: () async => await showDownloadVideoBottomSheet(
+                                videoId: currentId,
+                                originalIndex: null,
+                                totalLength: null,
+                                playlistId: null,
+                                streamInfoItem: null,
+                              ),
                               onPressed: () async {
                                 if (isDownloading) {
                                   YoutubeController.inst.pauseDownloadTask(
@@ -1473,7 +1484,13 @@ class _YTPlayerInnerPage extends StatelessWidget {
                                     groupName: const DownloadTaskGroupName.defaulty(),
                                   );
                                 } else {
-                                  await showDownloadVideoBottomSheet(videoId: currentId, originalIndex: null, totalLength: null, playlistId: null, streamInfoItem: null);
+                                  await showDownloadVideoBottomSheet(
+                                    videoId: currentId,
+                                    originalIndex: null,
+                                    totalLength: null,
+                                    playlistId: null,
+                                    streamInfoItem: null,
+                                  );
                                 }
                               },
                             );
@@ -1939,17 +1956,9 @@ class _YTPlayerInnerPage extends StatelessWidget {
           return Stack(
             key: keys.bodyStack,
             children: [
-              if (NamidaJellys.enabled)
-                const Positioned.fill(
-                  child: NamidaJellyBackground(
-                    count: 4,
-                    opacity: 0.25,
-                    minHeight: 100.0,
-                    maxHeight: 280.0,
-                    reactToPlayback: true,
-                    seed: 17,
-                  ),
-                ),
+              const Positioned.fill(
+                child: NamidaMascotBackground.youtubePlayer(),
+              ),
               // -- swapping physics mid-gesture is what hands the drag over to the sheet, the slivers
               // -- themselves are reused as-is.
               ObxO(
@@ -2047,7 +2056,10 @@ class _VideoFeather extends StatelessWidget {
     return IgnorePointer(
       child: DecoratedBox(
         decoration: _decorationFor(color),
-        child: SizedBox(height: height, width: double.infinity),
+        child: SizedBox(
+          height: height,
+          width: double.infinity,
+        ),
       ),
     );
   }

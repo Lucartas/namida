@@ -25,6 +25,7 @@ enum SortType {
   year,
   artistsList,
   genresList,
+  stylesList,
   dateAdded,
   dateModified,
   bitrate,
@@ -61,6 +62,7 @@ enum SortType {
     SortType.albumArtist,
     SortType.composer,
     SortType.genresList,
+    SortType.stylesList,
     SortType.year,
     SortType.dateAdded,
     SortType.dateModified,
@@ -96,10 +98,11 @@ enum SortType {
 enum GroupSortType {
   title,
   album,
-  albumArtist,
+  albumArtist(isArtistLevel: true),
   year,
-  artistsList,
+  artistsList(isArtistLevel: true),
   genresList,
+  stylesList,
   dateAdded,
   dateModified,
   composer,
@@ -116,13 +119,17 @@ enum GroupSortType {
   creationDate,
   modifiedDate,
   albumSort,
-  albumArtistSort,
-  artistSort,
+  albumArtistSort(isArtistLevel: true),
+  artistSort(isArtistLevel: true),
   composerSort,
   shuffle,
   shuffleDaily,
   custom,
   ;
+
+  final bool isArtistLevel;
+
+  const GroupSortType({this.isArtistLevel = false});
 
   bool get requiresHistory => this == GroupSortType.playCount || this == GroupSortType.latestPlayed || this == GroupSortType.firstListen;
 
@@ -141,6 +148,8 @@ enum GroupSortType {
     GroupSortType.dateModified,
     GroupSortType.artistsList,
     GroupSortType.composer,
+    GroupSortType.genresList,
+    GroupSortType.stylesList,
     GroupSortType.label,
     GroupSortType.releaseType,
     GroupSortType.bpm,
@@ -167,6 +176,7 @@ enum GroupSortType {
     GroupSortType.firstListen,
     GroupSortType.latestPlayed,
     GroupSortType.genresList,
+    GroupSortType.stylesList,
     GroupSortType.album,
     GroupSortType.year,
     GroupSortType.dateAdded,
@@ -176,8 +186,11 @@ enum GroupSortType {
     GroupSortType.shuffleDaily,
   ];
 
-  static List<GroupSortType> forGenres() => [
-    GroupSortType.genresList,
+  /// the name sort of the genres page, which shows genres or styles.
+  static GroupSortType genresNameOf(MediaType genreType) => genreType == MediaType.style ? GroupSortType.stylesList : GroupSortType.genresList;
+
+  static List<GroupSortType> forGenres(MediaType genreType) => [
+    genresNameOf(genreType),
     GroupSortType.duration,
     GroupSortType.numberOfTracks,
     GroupSortType.lastPlayed,
@@ -725,6 +738,7 @@ enum TagField {
   musicalKey(TagFieldMultiEdit.whenHasValues),
   rating(TagFieldMultiEdit.hidden, isNumeric: true), // -- edited by TrackStatsEditSections
   tags(TagFieldMultiEdit.hidden), // -- edited by TrackStatsEditSections
+  explicit(TagFieldMultiEdit.whenHasValues, isNumeric: true),
 
   titleSort(TagFieldMultiEdit.hidden),
   albumSort(TagFieldMultiEdit.whenHasValues),
@@ -743,6 +757,37 @@ enum TagFieldMultiEdit {
   always,
   whenHasValues,
   hidden,
+}
+
+/// the `ITUNESADVISORY` tag, `rtng` atom in mp4.
+enum ExplicitStatus {
+  explicit,
+  clean,
+  ;
+
+  bool isExplicit() => switch (this) {
+    ExplicitStatus.explicit => true,
+    ExplicitStatus.clean => false,
+  };
+
+  /// `4` is an old explicit value some taggers still write.
+  static ExplicitStatus? fromTagValue(String? value) => switch (value?.trim()) {
+    '1' || '4' => ExplicitStatus.explicit,
+    '2' => ExplicitStatus.clean,
+    _ => null,
+  };
+
+  /// OpenSubsonic `explicitStatus`.
+  static ExplicitStatus? fromOpenSubsonic(String? value) => switch (value) {
+    'explicit' => ExplicitStatus.explicit,
+    'clean' => ExplicitStatus.clean,
+    _ => null,
+  };
+
+  String toTagValue() => switch (this) {
+    ExplicitStatus.explicit => '1',
+    ExplicitStatus.clean => '2',
+  };
 }
 
 enum WakelockMode {
@@ -805,6 +850,9 @@ enum RouteType {
   SUBPAGE_mostPlayedTracks,
   SUBPAGE_queueTracks,
   SUBPAGE_INDEXER_UPDATE_MISSING_TRACKS(isOpenableFromSettings: true),
+  SUBPAGE_INDEXER_DUPLICATE_TRACKS(isOpenableFromSettings: true),
+  SUBPAGE_INDEXER_FILTERED_TRACKS(isOpenableFromSettings: true),
+  SUBPAGE_INDEXER_NOMEDIA_FOLDERS(isOpenableFromSettings: true),
 
   // ----- Subpages -----
   SETTINGS_page(isOpenableFromSettings: true),
@@ -1014,7 +1062,18 @@ enum HomePageItems {
   recentArtists,
   topRecentAlbums,
   topRecentArtists,
-  pinnedPlaylists,
+  pinned,
+  ;
+
+  static const _legacyNames = {'pinnedPlaylists': pinned};
+
+  /// names saved before a value was renamed are read too.
+  static HomePageItems? fromName(String name) => values.getEnum(name) ?? _legacyNames[name];
+}
+
+enum PinnedItemType {
+  playlist,
+  smartPlaylist,
 }
 
 enum MixesItems {
@@ -1206,9 +1265,26 @@ enum SettingSubpageEnum {
 
 enum FABType {
   none,
+  play(quickPlayMode: QuickPlayMode.play),
+  shuffle(quickPlayMode: QuickPlayMode.shuffle),
+  playNext(quickPlayMode: QuickPlayMode.playNext),
+  playLast(quickPlayMode: QuickPlayMode.playLast),
+  search,
+  ;
+
+  final QuickPlayMode? quickPlayMode;
+
+  bool get isPlayback => quickPlayMode != null;
+
+  const FABType({this.quickPlayMode});
+}
+
+enum QuickPlayMode {
   play,
   shuffle,
-  search,
+  playNext,
+  // playAfter, // icon looks goofy in ui
+  playLast,
 }
 
 enum YTHomeSource {
@@ -1223,18 +1299,19 @@ enum YTHomeSource {
 }
 
 enum YTHomePages {
-  home([YTHomeSource.local, YTHomeSource.youtube]),
-  music([YTHomeSource.youtubeMusic], showsSource: false),
-  notifications([YTHomeSource.youtube]),
-  channels([YTHomeSource.local, YTHomeSource.youtube]),
-  playlists([YTHomeSource.local, YTHomeSource.youtube]),
-  downloads([YTHomeSource.local], showsSource: false),
+  home([YTHomeSource.local, YTHomeSource.youtube], libraryTab: LibraryTab.ytHome),
+  music([YTHomeSource.youtubeMusic], libraryTab: LibraryTab.ytMusic, showsSource: false),
+  notifications([YTHomeSource.youtube], libraryTab: LibraryTab.ytNotifications),
+  channels([YTHomeSource.local, YTHomeSource.youtube], libraryTab: LibraryTab.ytChannels),
+  playlists([YTHomeSource.local, YTHomeSource.youtube], libraryTab: LibraryTab.ytPlaylists),
+  downloads([YTHomeSource.local], libraryTab: LibraryTab.ytDownloads, showsSource: false),
   ;
 
   final List<YTHomeSource> sources;
+  final LibraryTab libraryTab;
   final bool showsSource;
 
-  const YTHomePages(this.sources, {this.showsSource = true});
+  const YTHomePages(this.sources, {required this.libraryTab, this.showsSource = true});
 
   bool get hasSourceChoice => sources.length > 1;
 }
@@ -1541,6 +1618,7 @@ enum WebhookEvent {
   trackChanged,
   play,
   pause,
+  favouriteChanged,
 }
 
 enum DiscordPresenceStatus {
@@ -1550,12 +1628,19 @@ enum DiscordPresenceStatus {
   unreachable,
 }
 
+enum PipContent {
+  video,
+  lyrics,
+  artwork,
+}
+
 enum LyricsIntegration {
   lyricInfo(availability: NamidaFeaturesAvailablity.android),
   superLyric(availability: NamidaFeaturesAvailablity.android, sendsPerLine: true),
   flymeTicker(availability: NamidaFeaturesAvailablity.android, sendsPerLine: true),
   menuBar(availability: NamidaFeaturesAvailablity.macos, sendsPerLine: true),
   liveActivity(availability: NamidaFeaturesAvailablity.ios16_2and_plus, sendsPerLine: true),
+  mpris(availability: NamidaFeaturesAvailablity.linux),
   ;
 
   final NamidaFeaturesAvailablity availability;

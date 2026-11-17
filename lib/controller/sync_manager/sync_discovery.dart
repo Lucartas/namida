@@ -123,7 +123,12 @@ class _ServerSide extends RxNotifier {
   /// every open client socket, trusted or still in its handshake.
   final _sessions = <_PairingSession>{};
 
-  Future<void> startServer() async {
+  Future<void>? _startingServer;
+
+  /// joins a start in progress, binding the port twice fails.
+  Future<void> startServer() => _startingServer ??= _startServer().whenComplete(() => _startingServer = null);
+
+  Future<void> _startServer() async {
     await stopServer(andRefresh: false);
 
     final serverSocket = await ServerSocket.bind(InternetAddress.anyIPv4, SyncUtils.kDefaultNamidaPort);
@@ -139,6 +144,7 @@ class _ServerSide extends RxNotifier {
       rethrow;
     }
     _serverWrapper = serverWrapper;
+    serverWrapper.broadcast?.error.addListener(_refresh);
     SyncDiscovery.serverRunning.value = true;
     SyncDiscovery._updateMulticastLock();
 
@@ -147,6 +153,21 @@ class _ServerSide extends RxNotifier {
     }
 
     _refresh();
+    if (Platform.isWindows) _refreshFirewallState();
+  }
+
+  /// windows only, no firewall rule lets other devices connect. null until checked.
+  bool? get isBlockedByFirewall => _isBlockedByFirewall;
+  bool? _isBlockedByFirewall;
+
+  Future<void> _refreshFirewallState() async {
+    _isBlockedByFirewall = await _SyncWindowsFirewall.isBlocking();
+    _refresh();
+  }
+
+  Future<void> allowThroughFirewall() async {
+    await _SyncWindowsFirewall.allow();
+    await _refreshFirewallState();
   }
 
   _PairingSession _onClientSocket(Socket socket) {
@@ -183,6 +204,7 @@ class _ServerSide extends RxNotifier {
     }
     final sw = _serverWrapper;
     _serverWrapper = null;
+    sw?.broadcast?.error.removeListener(_refresh);
     SyncDiscovery.serverRunning.value = false;
     SyncDiscovery._updateMulticastLock();
     if (andRefresh) _refresh();
@@ -794,10 +816,10 @@ class _FrameDispatcher {
 
   void _execute(BaseMessage msg, String errorMessage) {
     final Future<int> applying;
-    if (msg.carriesSenderPaths && !SyncPathResolver.hasFingerprintsFor(msg.messageInfo.senderDeviceId)) {
+    if (msg.carriesSenderPaths && !SyncPathResolver.isReadyFor(msg.messageInfo.senderDeviceId)) {
       // -- we can't translate their paths yet (ex: we restarted while they
       // -- still think we have their fingerprints), request & defer execution
-      applying = SyncPathResolver.stashUntilFingerprints(msg);
+      applying = SyncPathResolver.stashUntilReady(msg);
     } else {
       applying = msg.executeOnReceivedWithQueue().catchError((e, st) {
         logger.error(errorMessage, e: e, st: st);

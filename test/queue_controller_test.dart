@@ -45,7 +45,12 @@ void main() {
   Track track(String name) => Track.explicit('/music/$name.mp3');
 
   Future<void> addQueue(QueueSourceBase source, int date, List<Track> tracks) {
-    return QueueController.inst.addNewQueue(source: source, homePageItem: null, date: date, tracks: tracks);
+    return QueueController.inst.addNewQueue(
+      source: source,
+      homePageItem: null,
+      date: date,
+      tracks: tracks,
+    );
   }
 
   List<int> u32(int value) => [value & 0xFF, value >> 8 & 0xFF, value >> 16 & 0xFF, value >> 24 & 0xFF];
@@ -125,6 +130,19 @@ void main() {
       expect(queue.isFav, isTrue);
       expect(queue.tracks, [track('a'), Video.explicit('/music/b.mp4')]);
       expect(queue.tracks[1], isA<Video>());
+    });
+
+    test('a home item saved under an old name still loads', () async {
+      final legacyQueue = {
+        'source': 'allTracks',
+        'homePageItem': 'pinnedPlaylists',
+        'date': 2001,
+        'isFav': false,
+        'tracks': ['/music/a.mp3'],
+      };
+      File(queuePath(2001)).writeAsStringSync(jsonEncode(legacyQueue));
+      await QueueController.inst.prepareAllQueuesFile();
+      expect(queues()[2001]!.homePageItem, HomePageItems.pinned);
     });
 
     test('the latest queue file keeps the shuffled order with the original indices', () async {
@@ -329,7 +347,13 @@ void main() {
         originalAlbum: album,
         albumsList: [album],
         albumArtist: albumArtist,
-        albumsIdentifiersWrappers: AlbumIdentifierWrapper.fromAlbums(albums: [album], albumArtist: albumArtist, year: '1992', mbAlbumId: '', mbAlbumArtistId: ''),
+        albumsIdentifiersWrappers: AlbumIdentifierWrapper.fromAlbums(
+          albums: [album],
+          albumArtist: albumArtist,
+          year: '1992',
+          mbAlbumId: '',
+          mbAlbumArtistId: '',
+        ),
         generatePathHash: false,
       );
       return Track.explicit(path);

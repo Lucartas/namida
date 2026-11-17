@@ -4,7 +4,6 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
-import 'package:namida/controller/current_color.dart';
 import 'package:namida/controller/navigator_controller.dart';
 import 'package:namida/core/constants.dart';
 import 'package:namida/core/extensions.dart';
@@ -71,6 +70,8 @@ class NamidaPopupWrapper extends StatelessWidget {
     return childrenDefault.map(
       (e) {
         final titleStyle = NText.medium.of(context).copyWith(color: e.enabled ? null : NText.medium.of(context).color?.withOpacityExt(0.4));
+        // -- only shows when the title wraps, a single line stays under the item min height
+        final textPadding = e.subtitle == '' ? const EdgeInsets.symmetric(vertical: 7.0) : EdgeInsets.zero;
         final plainIcon = Icon(
           e.icon,
           size: 20.0,
@@ -103,22 +104,25 @@ class NamidaPopupWrapper extends StatelessWidget {
                     ),
               const SizedBox(width: 6.0),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    e.titleBuilder?.call(titleStyle) ??
-                        Text(
-                          e.title,
-                          style: titleStyle,
+                child: Padding(
+                  padding: textPadding,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      e.titleBuilder?.call(titleStyle) ??
+                          Text(
+                            e.title,
+                            style: titleStyle,
+                          ),
+                      if (e.subtitle != '')
+                        NamidaText(
+                          e.subtitle,
+                          style: NText.small,
+                          maxLines: e.oneLinedSub ? 1 : null,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                    if (e.subtitle != '')
-                      NamidaText(
-                        e.subtitle,
-                        style: NText.small,
-                        maxLines: e.oneLinedSub ? 1 : null,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               if (e.trailing != null) const SizedBox(width: 12.0),
@@ -134,7 +138,7 @@ class NamidaPopupWrapper extends StatelessWidget {
             enableSecondaryTap: true,
             bgColor: NColors.fixed(e.selected ? context.theme.colorScheme.secondary.withOpacityExt(0.1) : null),
             onTap: () {
-              popMenu();
+              if (e.popOnTap) popMenu();
               e.onTap();
             },
             onLongPress: e.onLongPress != null
@@ -184,7 +188,7 @@ class NamidaPopupWrapper extends StatelessWidget {
 
       if (children != null && childrenAfterChildrenDefault) ..._mapChildren(await children!()),
     ];
-    return ConstrainedBox(
+    final menu = ConstrainedBox(
       constraints: BoxConstraints(
         maxWidth: maxWidth,
         maxHeight: maxHeight,
@@ -203,6 +207,8 @@ class NamidaPopupWrapper extends StatelessWidget {
         ),
       ),
     );
+    // ignore: use_build_context_synchronously
+    return NamidaNavigator.inst.captureDialogTheme(context, menu);
   }
 
   void showPopupMenu(BuildContext context) async {
@@ -210,7 +216,7 @@ class NamidaPopupWrapper extends StatelessWidget {
   }
 
   CustomPopup _toCustomPopup(BuildContext context) {
-    final colorScheme = CurrentColor.inst.color /* ?? context.theme.colorScheme.surface */;
+    final colorScheme = NamidaNavigator.inheritedColorOf(context);
     final scaffoldBgColor = Color.alphaBlend(context.theme.scaffoldBackgroundColor.withOpacityExt(0.5), context.isDarkMode ? Colors.black : Colors.white);
     return CustomPopup(
       controller: controller,
@@ -260,6 +266,7 @@ class NamidaPopupItem {
   final Widget Function(TextStyle? style)? titleBuilder;
   final String subtitle;
   final void Function() onTap;
+  final bool popOnTap;
   final void Function()? onLongPress;
   final bool enabled;
   final bool selected;
@@ -275,6 +282,7 @@ class NamidaPopupItem {
     this.titleBuilder,
     this.subtitle = '',
     required this.onTap,
+    this.popOnTap = true,
     this.onLongPress,
     this.enabled = true,
     this.selected = false,

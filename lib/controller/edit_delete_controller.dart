@@ -3,19 +3,17 @@ import 'dart:isolate';
 
 import 'package:namida/class/file_parts.dart';
 import 'package:namida/class/track.dart';
-import 'package:namida/controller/audio_cache_controller.dart';
 import 'package:namida/controller/directory_index.dart';
 import 'package:namida/controller/history_controller.dart';
 import 'package:namida/controller/indexer_controller.dart';
 import 'package:namida/controller/lyrics_search_utils/lrc_search_utils_selectable.dart';
-import 'package:namida/controller/music_web_server/music_web_server_base.dart';
+import 'package:namida/controller/platform/namida_channel/namida_channel.dart';
 import 'package:namida/controller/platform/tags_extractor/tags_extractor.dart';
 import 'package:namida/controller/player_controller.dart';
 import 'package:namida/controller/playlist_controller.dart';
 import 'package:namida/controller/queue_controller.dart';
 import 'package:namida/controller/selected_tracks_controller.dart';
 import 'package:namida/controller/settings_controller.dart';
-import 'package:namida/controller/video_controller.dart';
 import 'package:namida/core/constants.dart';
 import 'package:namida/core/extensions.dart';
 import 'package:namida/core/functions.dart';
@@ -39,38 +37,6 @@ class EditDeleteController {
     }
   }
 
-  Future<void> deleteCachedVideos(List<Selectable> tracks) async {
-    await tracks.loopConcurrent((e) => VideoController.inst.deleteAllVideosForVideoId(e.track.youtubeID));
-  }
-
-  Future<void> deleteCachedAudios(List<Selectable> tracks) async {
-    await tracks.loopConcurrent((e) => AudioCacheController.inst.deleteAudioCache(e.track.youtubeID));
-  }
-
-  Future<void> deleteTXTLyrics(List<Selectable> tracks) async {
-    await _deleteAll(AppDirs.LYRICS, 'txt', tracks, EditDeleteController._cacheKeyBuilder);
-  }
-
-  Future<void> deleteLRCLyrics(List<Selectable> tracks) async {
-    await _deleteAll(AppDirs.LYRICS, 'lrc', tracks, EditDeleteController._cacheKeyBuilder);
-  }
-
-  Future<void> deleteArtwork(List<Selectable> tracks) async {
-    final files = tracks.map((e) => e.track.pathToImage).toFixedList();
-    final details = await Isolate.run(() => _deleteAllWithDetailsIsolate(files));
-    Indexer.inst.updateImageSizesInStorage(removedCount: details.deletedCount, removedSize: details.sizeOfDeleted);
-    await deleteExtractedColor(tracks);
-  }
-
-  Future<void> deleteExtractedColor(List<Selectable> tracks) async {
-    await _deleteAll(AppDirs.PALETTES, 'palette', tracks, EditDeleteController._cacheKeyForImageBuilder);
-  }
-
-  Future<void> _deleteAll(String dir, String extension, List<Selectable> tracks, String Function(String directory, Selectable e) cacheKeyBuilder) async {
-    final files = tracks.map((e) => FileParts.joinPath(dir, "${cacheKeyBuilder(dir, e)}.$extension")).toFixedList();
-    await Isolate.run(() => _deleteAllIsolate(files));
-  }
-
   /// returns failed deletes.
   static int _deleteAllIsolate(List<String> files) {
     int failed = 0;
@@ -82,25 +48,6 @@ class EditDeleteController {
       }
     }
     return failed;
-  }
-
-  /// returns size & count of deleted file.
-  static ({int deletedCount, int sizeOfDeleted}) _deleteAllWithDetailsIsolate(List<String> files) {
-    int deleted = 0;
-    int size = 0;
-    for (var e in files) {
-      final file = File(e);
-      int s = 0;
-      try {
-        s = file.lengthSync();
-      } catch (_) {}
-      try {
-        file.deleteSync();
-        deleted++;
-        size += s;
-      } catch (_) {}
-    }
-    return (deletedCount: deleted, sizeOfDeleted: size);
   }
 
   /// returns save file if saved successfully
@@ -126,11 +73,13 @@ class EditDeleteController {
       final newImgFilePath = FileParts.joinPath(saveDirPath, filename);
       if (fileToCopy != null) {
         await fileToCopy.copy(newImgFilePath);
+        NamidaChannel.inst.scanMediaFilesTry([newImgFilePath]);
         return newImgFilePath;
       } else if (bytesToCopy != null) {
         final f = File(newImgFilePath);
         await f.create(recursive: true);
         await f.writeAsBytes(bytesToCopy);
+        NamidaChannel.inst.scanMediaFilesTry([newImgFilePath]);
         return newImgFilePath;
       }
     }
@@ -147,6 +96,7 @@ class EditDeleteController {
     final newPath = FileParts.joinPath(saveDirPath, "${imageFile.path.getFilenameWOExt}.png");
     try {
       await imageFile.copy(newPath);
+      NamidaChannel.inst.scanMediaFilesTry([newPath]);
       return newPath;
     } catch (e) {
       printy(e, isError: true);
@@ -172,6 +122,7 @@ class EditDeleteController {
       Player.audioConfigs.movePaths(oldNewTrack),
       QueueController.inst.replaceTrackInAllQueues(oldNewTrack),
       Player.inst.replaceAllTracksInQueueBulk(oldNewTrack),
+      QueueController.latestPlayedForSourceManager.movePaths(oldNewTrack),
     ]);
 
     if (SelectedTracksController.inst.selectedTracks.value.isNotEmpty) {
@@ -185,9 +136,10 @@ class EditDeleteController {
     }
   }
 
-  Future<void> updateTrackPathInEveryPartOfNamida(Track oldTrack, String newPath) async {
+  /// returns the new track, null when [newPath] couldn't be read.
+  Future<Track?> updateTrackPathInEveryPartOfNamida(Track oldTrack, String newPath) async {
     final newtrlist = await Indexer.inst.convertPathsToTracksAndAddToLists([newPath]);
-    if (newtrlist.isEmpty) return;
+    if (newtrlist.isEmpty) return null;
     final newTrack = newtrlist.first;
     final oldNewMap = {oldTrack: newTrack};
 
@@ -198,11 +150,13 @@ class EditDeleteController {
       Player.audioConfigs.movePaths(oldNewMap),
       QueueController.inst.replaceTrackInAllQueues(oldNewMap),
       Player.inst.replaceAllTracksInQueueBulk(oldNewMap),
+      QueueController.latestPlayedForSourceManager.movePaths(oldNewMap),
     ]);
 
     if (SelectedTracksController.inst.selectedTracks.value.isNotEmpty) {
       SelectedTracksController.inst.replaceThisTrack(oldTrack, newTrack);
     }
+    return newTrack;
   }
 
   Future<void> updateDirectoryInEveryPartOfNamida(
@@ -231,62 +185,5 @@ class EditDeleteController {
     if (SelectedTracksController.inst.selectedTracks.value.isNotEmpty) {
       SelectedTracksController.inst.replaceTrackDirectory(normalizedOldDir, normalizedNewDir, forThesePathsOnly: forThesePathsOnly, ensureNewFileExists: ensureNewFileExists);
     }
-  }
-
-  static String _cacheKeyBuilder(String directory, Selectable e) => e.track.rawCacheKey(directory);
-  static String _cacheKeyForImageBuilder(String directory, Selectable e) => e.track.cacheKeyForImage(directory);
-}
-
-extension HasCachedFiles on List<Selectable> {
-  // we use [pathToImage] to ensure when [settings.groupArtworksByAlbum] is enabled
-  Future<bool> get hasArtworkCached => _doesAnyPathExist(AppDirs.ARTWORKS, 'png', EditDeleteController._cacheKeyForImageBuilder, fullPath: (tr) => tr.track.pathToImage);
-  Future<bool> get hasColorCached => _doesAnyPathExist(AppDirs.PALETTES, 'palette', EditDeleteController._cacheKeyForImageBuilder);
-
-  Future<bool> get hasTXTLyricsCached => _doesAnyPathExist(AppDirs.LYRICS, 'txt', EditDeleteController._cacheKeyBuilder);
-  Future<bool> get hasLRCLyricsCached => _doesAnyPathExist(AppDirs.LYRICS, 'lrc', EditDeleteController._cacheKeyBuilder);
-
-  bool get hasVideoCached {
-    for (final tr in this) {
-      if (VideoController.inst.doesVideoExistsInCache(tr.track.youtubeID)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  bool get hasAudioCached {
-    for (final tr in this) {
-      var vidId = tr.track.youtubeID;
-      if (vidId.isNotEmpty) {
-        final cachedAudios = AudioCacheController.inst.audioCacheMap[vidId];
-        if (cachedAudios != null) return true;
-      }
-    }
-    return false;
-  }
-
-  Future<bool> get hasServerCacheCached async {
-    for (final tr in this) {
-      final track = tr.track;
-      if (track.isNetwork && await ServerCacheController.cacheFileForPath(track.path).exists()) return true;
-    }
-    return false;
-  }
-
-  Future<bool> get hasAnythingCached async =>
-      await hasArtworkCached || await hasTXTLyricsCached || await hasLRCLyricsCached || await hasServerCacheCached /* || await hasColorCached */;
-
-  Future<bool> _doesAnyPathExist(
-    String directory,
-    String extension,
-    String Function(String directory, Selectable e) cacheKeyBuilder, {
-    String Function(Selectable tr)? fullPath,
-  }) async {
-    for (final track in this) {
-      if (await File(fullPath != null ? fullPath(track) : "$directory${cacheKeyBuilder(directory, track)}.$extension").exists()) {
-        return true;
-      }
-    }
-    return false;
   }
 }

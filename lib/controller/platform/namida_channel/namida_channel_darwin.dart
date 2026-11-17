@@ -23,7 +23,28 @@ abstract class _NamidaChannelDarwin extends NamidaChannel {
       case 'onOpenedUrls':
         final items = (call.arguments as List).cast<String>();
         _onOpenedUrls?.call(items);
+      case 'onSystemProxyChanged':
+        _onSystemProxyChanged?.call();
+      case 'onSystemAccentColorChanged':
+        _onSystemAccentColorChanged?.call();
     }
+  }
+
+  void Function()? _onSystemAccentColorChanged;
+
+  Future<void> Function()? _onSystemProxyChanged;
+
+  /// macos: the dynamic store reports proxy changes, ios: network path changes (an edit on the same network isn't reported).
+  @override
+  void listenSystemProxyChanges(Future<void> Function() onChanged) {
+    _onSystemProxyChanged = onChanged;
+    _kDarwinChannel.invokeMethod('listenSystemProxy');
+  }
+
+  @override
+  Future<NetworkProxy?> getSystemProxy() async {
+    final map = await _kDarwinChannel.invokeMapMethod<Object?, Object?>('getSystemProxy');
+    return NetworkProxy.fromPlatformMap(map);
   }
 
   @override
@@ -56,12 +77,12 @@ class _NamidaChannelIOS extends _NamidaChannelDarwin {
   bool get supportsAppIcons => true;
 
   @override
-  Future<bool?> isAppIconEnabled(NamidaAppIcons type) {
-    return _kDarwinChannel.invokeMethod<bool>('isAppIconEnabled', {'key': type.name});
+  Future<String?> _getEnabledAppIconKey() {
+    return _kDarwinChannel.invokeMethod<String>('getEnabledAppIcon');
   }
 
   @override
-  Future<void> changeAppIcon(NamidaAppIcons type) {
+  Future<void> _changeAppIcon(NamidaAppIcons type) {
     return _kDarwinChannel.invokeMethod('changeAppIcon', {'key': type.name});
   }
 
@@ -94,5 +115,14 @@ class _NamidaChannelMacOS extends _NamidaChannelDarwin {
   @override
   Future<void>? openFileInExplorer(String filePath, {bool isDirectory = false}) {
     return Process.start('open', isDirectory ? [filePath] : ['-R', filePath]);
+  }
+
+  @override
+  Future<Color?> getSystemAccentColor() => NamidaChannel._getSystemAccentColorFromChannel(_kDarwinChannel);
+
+  @override
+  void setSystemAccentColorListener(void Function()? onChanged) {
+    _onSystemAccentColorChanged = onChanged;
+    _kDarwinChannel.invokeMethod('setSystemAccentColorListener', {'enabled': onChanged != null});
   }
 }

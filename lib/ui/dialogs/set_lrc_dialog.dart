@@ -28,6 +28,7 @@ import 'package:namida/packages/three_arched_circle.dart';
 import 'package:namida/ui/dialogs/edit_tags_dialog.dart';
 import 'package:namida/ui/pages/lyrics_editor_page.dart';
 import 'package:namida/ui/widgets/custom_widgets.dart';
+import 'package:namida/ui/widgets/font_scale_stepper.dart';
 
 void showLRCSetDialog(Playable item, Color colorScheme) async {
   final LrcSearchUtils? lrcUtils = await LrcSearchUtils.fromPlayable(item);
@@ -36,6 +37,7 @@ void showLRCSetDialog(Playable item, Color colorScheme) async {
   final fetchingFromInternet = Rxn<bool>();
   final availableLyrics = <LyricsModel>[].obs;
   final fetchedLyrics = <LyricsModel>[].obs;
+  final failedProvidersRx = <LyricsProvider>[].obs;
   final trackDurationMSRx = Rxn<int>();
   bool requiresUpdatingLyrics = false;
 
@@ -201,13 +203,13 @@ void showLRCSetDialog(Playable item, Color colorScheme) async {
             },
           ),
         ],
-        bodyText: '${lang.delete}: "${l.file?.path}"?',
+        bodyText: '${lang.delete}: "${l.file?.path.toDisplayPath()}"?',
       ),
     );
   }
 
   void showIgnoreLyricsDialog() {
-    final cachedPaths = availableLyrics.value.where((l) => l.isInCache).map((l) => '"${l.file?.path}"').join('\n');
+    final cachedPaths = availableLyrics.value.where((l) => l.isInCache).map((l) => '"${l.file?.path.toDisplayPath()}"').join('\n');
     NamidaNavigator.inst.navigateDialog(
       colorScheme: colorScheme,
       dialogBuilder: (theme) => CustomBlurryDialog(
@@ -294,21 +296,13 @@ void showLRCSetDialog(Playable item, Color colorScheme) async {
               final tfoffset = ct == '' ? null : int.tryParse(offsetController.text);
               if (tfoffset != null) newOffset.value = tfoffset;
               if (lrc != null) {
-                final newLRC = Lrc(
-                  type: lrc.type,
-                  lyrics: lrc.lyrics,
-                  artist: lrc.artist,
-                  album: lrc.album,
-                  title: lrc.title,
-                  creator: lrc.creator,
-                  author: lrc.author,
-                  program: lrc.program,
-                  version: lrc.version,
-                  length: lrc.length,
-                  offset: newOffset.value,
-                  language: lrc.language,
-                );
-                final lyricsString = newLRC.format();
+                // -- only the tag changes, other formats have no tags and are saved as lrc
+                final offsetText = newOffset.value.toString();
+                var lyricsString = LyricsParser.setLrcTag(l.lyrics, Lrc.kOffsetTag, offsetText);
+                if (lyricsString == null) {
+                  final newTags = {...lrc.tags, Lrc.kOffsetTag: offsetText};
+                  lyricsString = lrc.withTags(newTags).format();
+                }
                 final file = await saveLyricsByUser(lyricsString, true);
                 final newLModel = LyricsModel(
                   lyrics: lyricsString,
@@ -512,15 +506,17 @@ void showLRCSetDialog(Playable item, Color colorScheme) async {
     final id = ++searchId;
     fetchingFromInternet.value = true;
     fetchedLyrics.clear();
-    final lyrics = await Lyrics.inst.searchLRCLyricsFromInternet(
+    final res = await Lyrics.inst.searchLRCLyricsFromInternet(
       lrcUtils: lrcUtils,
       customQuery: query ?? searchController.text,
       allProviders: true,
       onPartial: fetchedLyrics.addAll,
     );
     if (id != searchId) return;
+    final lyrics = res.lyrics;
     sortFetchedLyrics(lyrics, trackDurationMSRx.value);
     fetchedLyrics.value = lyrics;
+    failedProvidersRx.value = res.failedProviders;
     fetchingFromInternet.value = false;
   }
 
@@ -554,6 +550,7 @@ void showLRCSetDialog(Playable item, Color colorScheme) async {
       fetchingFromInternet.close();
       availableLyrics.close();
       fetchedLyrics.close();
+      failedProvidersRx.close();
       selectedLyrics.close();
       expandedLyrics.close();
       inUseRx.close();
@@ -695,6 +692,7 @@ void showLRCSetDialog(Playable item, Color colorScheme) async {
                   }
                   final availableLyricsValue = availableLyrics.valueR;
                   final fetchedLyricsValue = fetchedLyrics.valueR;
+                  final failedProviders = failedProvidersRx.valueR;
                   final hasEmbedded = availableLyricsValue.any((l) => l.isEmbedded);
 
                   Widget listItemBuilder(BuildContext context, LyricsModel l) {
@@ -890,6 +888,13 @@ void showLRCSetDialog(Playable item, Color colorScheme) async {
                           margin: EdgeInsets.symmetric(vertical: 4.0),
                         ),
                       ),
+                      if (failedProviders.isNotEmpty)
+                        SliverToBoxAdapter(
+                          child: _LyricsSearchFailedTile(
+                            failedProviders: failedProviders,
+                            onRetry: onSearchTrigger,
+                          ),
+                        ),
                       if (fetchedLyricsValue.isEmpty && fetchingFromInternet.valueR != null)
                         SliverToBoxAdapter(
                           child: Padding(
@@ -897,8 +902,10 @@ void showLRCSetDialog(Playable item, Color colorScheme) async {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const NoResultsWidget(),
-                                const SizedBox(height: 8.0),
+                                if (failedProviders.isEmpty) ...[
+                                  const NoResultsWidget(),
+                                  const SizedBox(height: 8.0),
+                                ],
                                 NamidaInkWell(
                                   borderRadius: 6.0,
                                   bgColor: NColors.card,
@@ -997,35 +1004,21 @@ class _LyricsFontScaleStepper extends StatelessWidget {
     required this.view,
   });
 
-  static const _kStepPercent = 5;
-
-  void _saveNextStep(int percent) {
-    final nextPercent = (percent ~/ _kStepPercent + 1) * _kStepPercent;
-    _savePercent(nextPercent);
-  }
-
-  void _savePreviousStep(int percent) {
-    final previousPercent = ((percent + _kStepPercent - 1) ~/ _kStepPercent - 1) * _kStepPercent;
-    _savePercent(previousPercent);
-  }
-
-  void _savePercent(int percent) {
-    final scale = percent / 100;
-    final clampedScale = scale.clampDouble(LyricsLRCParsedView.minFontScale, LyricsLRCParsedView.maxFontScale);
+  void _saveScale(double scale) {
     switch (view) {
       case .normal:
-        settings.fontScaleLRC.save(clampedScale);
+        settings.fontScaleLRC.save(scale);
       case .fullscreen:
-        settings.fontScaleLRCFull.save(clampedScale);
+        settings.fontScaleLRCFull.save(scale);
       case .widescreen:
-        settings.fontScaleLRCWidescreen.save(clampedScale);
+        settings.fontScaleLRCWidescreen.save(scale);
     }
   }
 
   void _resetScale() {
     switch (view) {
       case .normal || .fullscreen:
-        _savePercent(100);
+        _saveScale(1.0);
       case .widescreen:
         settings.fontScaleLRCWidescreen.reset();
     }
@@ -1054,41 +1047,12 @@ class _LyricsFontScaleStepper extends StatelessWidget {
           ),
           const SizedBox(width: 10.0),
           const Spacer(),
-          Obx(
-            (context) {
-              final scale = _getScaleR();
-              final percent = (scale * 100).round();
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  NamidaIconButton(
-                    horizontalPadding: 5.0,
-                    verticalPadding: 5.0,
-                    icon: Broken.minus_cirlce,
-                    iconSize: 20.0,
-                    onPressed: () => _savePreviousStep(percent),
-                  ),
-                  NamidaInkWell(
-                    width: 44.0,
-                    borderRadius: 6.0,
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    onTap: _resetScale,
-                    child: NamidaText(
-                      '$percent%',
-                      style: NText.medium,
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  NamidaIconButton(
-                    horizontalPadding: 5.0,
-                    verticalPadding: 5.0,
-                    icon: Broken.add_circle,
-                    iconSize: 20.0,
-                    onPressed: () => _saveNextStep(percent),
-                  ),
-                ],
-              );
-            },
+          FontScaleStepper(
+            readScaleR: _getScaleR,
+            onChanged: _saveScale,
+            onReset: _resetScale,
+            minScale: LyricsLRCParsedView.minFontScale,
+            maxScale: LyricsLRCParsedView.maxFontScale,
           ),
         ],
       ),
@@ -1158,6 +1122,31 @@ class _IgnoredLyricsTile extends StatelessWidget {
       subtitle: lang.cache,
       value: true,
       onChanged: (isTrue) => onUnignore(),
+    );
+  }
+}
+
+class _LyricsSearchFailedTile extends StatelessWidget {
+  final List<LyricsProvider> failedProviders;
+  final VoidCallback onRetry;
+
+  const _LyricsSearchFailedTile({
+    required this.failedProviders,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final providersText = failedProviders.map((e) => e.toText()).join(', ');
+    return CustomListTile(
+      icon: Broken.danger,
+      title: lang.failed,
+      subtitle: providersText,
+      trailing: const Icon(
+        Broken.refresh,
+        size: 20.0,
+      ),
+      onTap: onRetry,
     );
   }
 }

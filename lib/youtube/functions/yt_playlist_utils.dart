@@ -468,6 +468,7 @@ extension PlaylistBasicInfoExt on PlaylistBasicInfo {
     bool displayPlay = true,
     bool displayOpenPlaylist = false,
     bool isInFullScreen = false,
+    List<NamidaPopupItem>? moreMenuChildren,
   }) async {
     final playlist = this;
     final videosCount = playlist.videosCount;
@@ -706,6 +707,7 @@ extension PlaylistBasicInfoExt on PlaylistBasicInfo {
           );
         },
       ),
+      ...?moreMenuChildren,
     ];
   }
 }
@@ -733,7 +735,10 @@ class _PlaylistSettingsMenuButton extends StatelessWidget {
       },
       child: const Padding(
         padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
-        child: Icon(Broken.setting_3, size: 20.0),
+        child: Icon(
+          Broken.setting_3,
+          size: 20.0,
+        ),
       ),
     );
   }

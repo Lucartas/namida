@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:basic_audio_handler/basic_audio_handler.dart';
+import 'package:flutter_scrollbar_modified/flutter_scrollbar_modified.dart';
 import 'package:history_manager/history_manager.dart';
 import 'package:youtipie/core/http.dart';
 
@@ -14,11 +15,11 @@ import 'package:namida/base/settings_file_writer.dart';
 import 'package:namida/class/count_per_row.dart';
 import 'package:namida/class/eggs_data.dart';
 import 'package:namida/class/lang.dart';
+import 'package:namida/class/named_presets.dart';
 import 'package:namida/class/player_config_preset.dart';
 import 'package:namida/class/queue_insertion.dart';
 import 'package:namida/class/shortcut_data.dart';
 import 'package:namida/class/sort_chain.dart';
-import 'package:namida/class/named_presets.dart';
 import 'package:namida/controller/directory_index.dart';
 import 'package:namida/controller/file_browser.dart';
 import 'package:namida/controller/platform/shortcuts_manager/shortcuts_manager.dart';
@@ -127,6 +128,7 @@ class _SettingsController extends _SettingsKeysWriter {
   late final cacheArtworks = _key('cacheArtworks', true, sync: false);
   late final displayTrackNumberinAlbumPage = _key('displayTrackNumberinAlbumPage', true);
   late final albumCardTopRightDate = _key('albumCardTopRightDate', true);
+  late final albumQuickPlayMode = _keyEnum('albumQuickPlayMode', QuickPlayMode.play, QuickPlayMode.values);
   late final forceSquaredTrackThumbnail = _key('forceSquaredTrackThumbnail', false);
   late final forceSquaredAlbumThumbnail = _key('forceSquaredAlbumThumbnail', false);
   late final useAlbumStaggeredGridView = _key('useAlbumStaggeredGridView', false);
@@ -215,6 +217,7 @@ class _SettingsController extends _SettingsKeysWriter {
     NamedPresetsCodec.trackSearchFilter.decode,
     NamedPresetsCodec.trackSearchFilter.encode,
   );
+  late final trackSearchListensBoost = _key('trackSearchListensBoost', 2);
 
   /// the active preset's filters, or [trackSearchFilterDefault].
   RxBaseCore<List<TrackSearchFilter>> get trackSearchFilter => _activeTrackSearchFilter.filters;
@@ -284,7 +287,7 @@ class _SettingsController extends _SettingsKeysWriter {
   late final forceMiniplayerTrackColor = _key('forceMiniplayerTrackColor', false);
   late final isTrackPlayedSecondsCount = _key('isTrackPlayedSecondsCount', isKuru ? 25 : 40);
   late final isTrackPlayedPercentageCount = _key('isTrackPlayedPercentageCount', isKuru ? 25 : 40);
-  late final waveformTotalBars = _key('waveformTotalBars', isDesktop ? 100 : (isKuru ? 111 : 80), sync: false);
+  late final waveformTotalBars = _key('waveformTotalBars', isDesktop ? 100 : 80, sync: false);
   late final videosMaxCacheInMB = _key('videosMaxCacheInMB', isDesktop ? 24 * 1024 : (isKuru ? -1 : 8 * 1024), sync: false);
   late final audiosMaxCacheInMB = _key('audiosMaxCacheInMB', isDesktop ? 12 * 1024 : (isKuru ? -1 : 4 * 1024), sync: false);
   late final serversMaxCacheInMB = _key('serversMaxCacheInMB', isDesktop ? 12 * 1024 : (isKuru ? -1 : 4 * 1024), sync: false);
@@ -340,7 +343,8 @@ class _SettingsController extends _SettingsKeysWriter {
   late final stretchLyricsDuration = _key('stretchLyricsDuration', true);
   late final visualDelayMS = _key('visualDelayMS', 0);
   late final lyricsEditorLatencyMS = _key('lyricsEditorLatencyMS', 0, sync: false);
-  late final timeCapsuleYears = _key<int?>('timeCapsuleYears', null);
+  late final lyricsEditorFontScale = _key('lyricsEditorFontScale', 1.0, sync: false);
+  late final timeCapsuleYears = _key('timeCapsuleYears', 0);
 
   late final playlistAddTracksAtBeginning = _key('playlistAddTracksAtBeginning', false);
   late final playlistAddTracksAtBeginningYT = _key('playlistAddTracksAtBeginningYT', false);
@@ -382,15 +386,14 @@ class _SettingsController extends _SettingsKeysWriter {
   late final gradientTiles = _key('gradientTiles', true);
   late final preferredSearchType = _keyEnum('preferredSearchType', SearchType.auto, SearchType.values);
   late final resumeUIEnabled = _key('resumeUIEnabled', true);
-  late final ytStyleButtonSwitcher = _key<bool?>('ytStyleButtonSwitcher', null);
-  late final keepVideoFrameOnSwitch = _key<bool?>('keepVideoFrameOnSwitch', null, sync: false);
-  late final scrollbarThumbLabel = _key<bool?>('scrollbarThumbLabel', null, sync: false);
-  late final tapToScroll = _key<bool?>('tapToScroll', null, sync: false);
-  late final enhancedDragToScroll = _key<bool?>('enhancedDragToScroll', null, sync: false);
-  late final easyScrollbarGrab = _key<bool?>('easyScrollbarGrab', null, sync: false);
-  late final smoothScrolling = _key<bool?>('smoothScrolling', null, sync: false);
-  late final mediaWaveHaptic = _key<bool?>('mediaWaveHaptic', null, sync: false);
-  late final backgroundImages = _key<bool?>('backgroundImages', null, sync: false);
+  late final ytStyleButtonSwitcher = _key('ytStyleButtonSwitcher', false);
+  late final keepVideoFrameOnSwitch = _key('keepVideoFrameOnSwitch', false, sync: false);
+  late final scrollbarThumbLabel = _key('scrollbarThumbLabel', false, sync: false);
+  late final scrollbarTrackMode = _keyEnum('scrollbarTrackMode', ScrollbarTrackMode.dragAnywhere, ScrollbarTrackMode.values, sync: false);
+  late final instantThumbGrab = _key('instantThumbGrab', false, sync: false);
+  late final smoothScrolling = _key('smoothScrolling', true, sync: false);
+  late final mediaWaveHaptic = _key('mediaWaveHaptic', false, sync: false);
+  late final backgroundImages = _key('backgroundImages', false, sync: false);
 
   late final editTagsKeepFileDates = _key('editTagsKeepFileDates', true);
   late final downloadFilesWriteUploadDate = _key('downloadFilesWriteUploadDate', false);
@@ -399,7 +402,7 @@ class _SettingsController extends _SettingsKeysWriter {
   late final downloadAddToLocalPlaylist = _key('downloadAddToLocalPlaylist', false);
   late final downloadAudioOnly = _key('downloadAudioOnly', isKuru ? true : false);
   late final downloadOverrideOldFiles = _key('downloadOverrideOldFiles', false);
-  late final enablePip = _key('enablePip', true, sync: false);
+  late final pipContents = _keySet<PipContent>('pipContents', const {PipContent.video}, item: PipContent.values.asCodec(), sync: false);
   late final pickColorsFromDeviceWallpaper = _key('pickColorsFromDeviceWallpaper', false, sync: false);
   late final onNotificationTapAction = _keyEnum('onNotificationTapAction', NotificationTapAction.openApp, NotificationTapAction.values);
   late final performanceMode = _keyEnum('performanceMode', isDesktop ? PerformanceMode.goodLooking : PerformanceMode.balanced, PerformanceMode.values, sync: false);
@@ -452,9 +455,11 @@ class _SettingsController extends _SettingsKeysWriter {
     'homePageItems',
     const [
       HomePageItems.mixes, HomePageItems.recentListens, HomePageItems.topRecentListens, HomePageItems.lostMemories, //
-      HomePageItems.recentQueues, HomePageItems.recentlyAdded, HomePageItems.recentAlbums, HomePageItems.recentArtists, //
+      HomePageItems.recentQueues, HomePageItems.recentlyAdded, HomePageItems.recentAlbums, HomePageItems.recentArtists,
+      HomePageItems.pinned,
     ],
     HomePageItems.values,
+    item: const _EnumCodec(HomePageItems.values, fromName: HomePageItems.fromName),
   );
 
   late final activeArtistType = _keyEnum('activeArtistType', MediaType.artist, MediaType.values);
@@ -463,7 +468,7 @@ class _SettingsController extends _SettingsKeysWriter {
 
   late final activeSearchMediaTypes = _keyList(
     'activeSearchMediaTypes',
-    isKuru ? const [MediaType.track, MediaType.album, MediaType.artist, MediaType.folder] : const [MediaType.track, MediaType.album, MediaType.artist],
+    isKuru ? const [MediaType.track, MediaType.album, MediaType.artist, MediaType.folderMusic, MediaType.folderVideo] : const [MediaType.track, MediaType.album, MediaType.artist],
     item: MediaType.values.asCodec(),
   );
 
@@ -527,6 +532,7 @@ class _SettingsController extends _SettingsKeysWriter {
 
   late final ignoreCommonPrefixForTypes = _keyList('ignoreCommonPrefixForTypes', const <TrackSearchFilter>[], item: TrackSearchFilter.values.asCodec());
   late final commonPrefixes = _keyList<String>('commonPrefixes', const ['the ', 'a ', 'an ']);
+  late final ignoreLeadingSymbols = _key('ignoreLeadingSymbols', true);
 
   late final fontScaleLRC = _key('fontScaleLRC', 1.0);
   late final fontScaleLRCFull = _key<double?>('fontScaleLRCFull', null);
@@ -550,8 +556,9 @@ class _SettingsController extends _SettingsKeysWriter {
   late final webhookUrl = _key('webhookUrl', '', sync: false);
   late final webhookEvents = _keySet<WebhookEvent>('webhookEvents', _kDefaultWebhookEvents, item: WebhookEvent.values.asCodec(), sync: false);
   late final lyricsIntegrations = _keySet<LyricsIntegration>('lyricsIntegrations', const {}, item: LyricsIntegration.values.asCodec(), sync: false);
+  late final proxyUrl = _key('proxyUrl', '', sync: false);
 
-  static const _kDefaultWebhookEvents = {WebhookEvent.trackChanged, WebhookEvent.play, WebhookEvent.pause};
+  static const _kDefaultWebhookEvents = {WebhookEvent.trackChanged, WebhookEvent.play, WebhookEvent.pause, WebhookEvent.favouriteChanged};
 
   bool didSupportNamida = false;
   late final eggs = _keyObject<EggsData>('eggs', const EggsData(), EggsData.fromJson, (v) => v.toJson());
@@ -599,6 +606,7 @@ class _SettingsController extends _SettingsKeysWriter {
 
   @override
   void _migrateKeys() {
+    _migrateKey('enablePip', 'pipContents', (json) => json == false ? const <String>[] : null);
     for (final name in const ['albumSort', 'artistSort', 'genreSort', 'playlistSort']) {
       final listName = '${name}s';
       _migrateKey(name, listName, (json) => json is String && _raw[listName] == null ? [json] : null);
@@ -644,6 +652,21 @@ class _SettingsController extends _SettingsKeysWriter {
       ];
     }
 
+    _migrateLegacyFolderSearch(_raw['activeSearchMediaTypes']);
+
+    // -- scrollbar track toggles merged into one mode
+    final legacyTapToScroll = _dropKey('tapToScroll');
+    final legacyEnhancedDragToScroll = _dropKey('enhancedDragToScroll');
+    if (_raw['scrollbarTrackMode'] == null) {
+      final ScrollbarTrackMode? trackMode = legacyTapToScroll == true
+          ? ScrollbarTrackMode.jumpToTouch
+          : legacyEnhancedDragToScroll == false
+          ? ScrollbarTrackMode.thumbOnly
+          : null;
+      if (trackMode != null) _raw['scrollbarTrackMode'] = trackMode.name;
+    }
+    _migrateKey('easyScrollbarGrab', 'instantThumbGrab', (json) => _raw['instantThumbGrab'] == null ? json : null);
+
     // -- `true` was the old default, only an explicit `false` is kept
     _migrateKey('prioritizeEmbeddedLyrics', 'embeddedLyricsPriority', (json) => json == false && _raw['embeddedLyricsPriority'] == null ? EmbeddedLyricsPriority.off.name : null);
 
@@ -669,6 +692,16 @@ class _SettingsController extends _SettingsKeysWriter {
       'sorts': sortsJson,
       if (isReversed) 'reverse': isReversed,
     };
+  }
+
+  /// [MediaType.folder] used to search both music and video folders.
+  static void _migrateLegacyFolderSearch(dynamic activeSearchMediaTypesJson) {
+    if (activeSearchMediaTypesJson is! List) return;
+    final folderIndex = activeSearchMediaTypesJson.indexOf(MediaType.folder.name);
+    if (folderIndex == -1) return;
+    activeSearchMediaTypesJson.removeAt(folderIndex);
+    final splitFolderTypes = [MediaType.folderMusic.name, MediaType.folderVideo.name].where((name) => !activeSearchMediaTypesJson.contains(name)).toFixedList();
+    activeSearchMediaTypesJson.insertAll(folderIndex, splitFolderTypes);
   }
 
   /// playlists defaulted to [GroupSortType.dateModified], which only albums and artists sort by.

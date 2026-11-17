@@ -12,7 +12,6 @@ import 'package:youtipie/class/youtipie_feed/playlist_basic_info.dart';
 import 'package:youtipie/core/extensions.dart' hide ListUtils;
 
 import 'package:namida/class/file_parts.dart';
-import 'package:namida/controller/current_color.dart';
 import 'package:namida/controller/navigator_controller.dart';
 import 'package:namida/controller/platform/permission_manager/permission_manager.dart';
 import 'package:namida/controller/settings_controller.dart';
@@ -53,7 +52,7 @@ Future<void> showDownloadVideoBottomSheet({
   String? initialGroupName,
   YoutubeDownloadChapter? chapter,
 }) async {
-  colorScheme ??= CurrentColor.inst.color;
+  colorScheme ??= NamidaNavigator.inst.inheritedColor;
 
   originalIndex ??= initialItemConfig?.originalIndex;
   totalLength ??= initialItemConfig?.totalLength;
@@ -214,15 +213,24 @@ Future<void> showDownloadVideoBottomSheet({
     }
   }
 
+  void onStreamsFetched(VideoStreamsResult? streams) async {
+    if (streams == null || streams.audioStreams.isEmpty) {
+      // -- offline or removed video, old streams still match the cached files
+      final cachedStreams = await YoutubeInfoController.video.fetchVideoStreamsCache(videoId);
+      if (cachedStreams != null && cachedStreams.audioStreams.isNotEmpty) streams = cachedStreams;
+    }
+    onStreamsObtained(streams);
+  }
+
   final streamsInCache = await YoutubeInfoController.video.fetchVideoStreamsCache(videoId, infoOnly: false);
   if (streamsInCache != null) {
     if (streamsInCache.hasExpired() || streamsInCache.audioStreams.isEmpty) {
-      YoutubeInfoController.video.fetchVideoStreams(videoId).catchError((_) => null).then(onStreamsObtained);
+      YoutubeInfoController.video.fetchVideoStreams(videoId).catchError((_) => null).then(onStreamsFetched);
     } else {
       onStreamsObtained(streamsInCache);
     }
   } else {
-    YoutubeInfoController.video.fetchVideoStreams(videoId).catchError((_) => null).then(onStreamsObtained);
+    YoutubeInfoController.video.fetchVideoStreams(videoId).catchError((_) => null).then(onStreamsFetched);
   }
 
   Widget getQualityChipBase({
@@ -313,7 +321,10 @@ Future<void> showDownloadVideoBottomSheet({
             ),
           ),
           const SizedBox(width: 6.0),
-          Icon(cacheExists ? Broken.tick_circle : Broken.import, size: 18.0),
+          Icon(
+            cacheExists ? Broken.tick_circle : Broken.import,
+            size: 18.0,
+          ),
           SizedBox(width: horizontalPadding),
         ],
       ),

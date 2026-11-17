@@ -18,6 +18,7 @@ import 'package:namida/core/extensions.dart';
 import 'package:namida/core/functions.dart';
 import 'package:namida/core/translations/language.dart';
 import 'package:namida/core/utils.dart';
+import 'package:namida/ui/widgets/artwork.dart';
 import 'package:namida/youtube/class/download_task_base.dart';
 import 'package:namida/youtube/class/youtube_id.dart';
 import 'package:namida/youtube/controller/youtube_history_controller.dart';
@@ -280,6 +281,9 @@ class YoutubePlaylistController extends PlaylistManager<YoutubeID, String, SortE
   String get playlistsMetadataDirectory => AppDirs.YT_PLAYLISTS_METADATA;
 
   @override
+  void onArtworkFileChanged(String artworkPath) => ArtworkWidget.refreshImageFiles([artworkPath]);
+
+  @override
   bool get sortAfterPreparing => false;
 
   @override
@@ -316,15 +320,13 @@ class YoutubePlaylistController extends PlaylistManager<YoutubeID, String, SortE
 
   static Map<String, YoutubePlaylist> _readPlaylistFilesCompute(_ReadPlaylistFilesParams params) {
     final entries = <MapEntry<String, YoutubePlaylist>>[];
-    final files = Directory(params.path).listSyncSafe();
+    final files = Directory(params.path).listFilesWithoutAtomicTempsSync();
     for (final f in files) {
-      if (f is File) {
-        try {
-          final response = f.readAsJsonSync(ensureExists: false);
-          final pl = YoutubePlaylist.fromJson(response, YoutubeID.fromJson, YTSortType.sortListFromJsonList);
-          entries.add(MapEntry(pl.name, pl));
-        } catch (_) {}
-      }
+      try {
+        final response = f.readAsJsonSync(ensureExists: false);
+        final pl = YoutubePlaylist.fromJson(response, YoutubeID.fromJson, YTSortType.sortListFromJsonList);
+        entries.add(MapEntry(pl.name, pl));
+      } catch (_) {}
     }
 
     _performSortYTPlaylists(entries, sortBy: params.sortBy, reverse: params.reverse, customIndicesOrder: params.customIndicesOrder);
@@ -365,6 +367,7 @@ class YoutubePlaylistController extends PlaylistManager<YoutubeID, String, SortE
     GroupSortType.releaseType => null,
     GroupSortType.bpm => null,
     GroupSortType.genresList => null,
+    GroupSortType.stylesList => null,
     GroupSortType.albumsCount => null,
     GroupSortType.year => null,
     GroupSortType.dateAdded => null,

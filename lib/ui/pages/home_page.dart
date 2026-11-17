@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'dart:collection';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -21,11 +22,16 @@ import 'package:namida/controller/current_color.dart';
 import 'package:namida/controller/generators_controller.dart';
 import 'package:namida/controller/history_controller.dart';
 import 'package:namida/controller/indexer_controller.dart';
+import 'package:namida/controller/logs_controller.dart';
 import 'package:namida/controller/navigator_controller.dart';
+import 'package:namida/controller/pinned_controller.dart';
 import 'package:namida/controller/player_controller.dart';
 import 'package:namida/controller/playlist_controller.dart';
 import 'package:namida/controller/queue_controller.dart';
+import 'package:namida/controller/screenshots_driver.dart';
+import 'package:namida/controller/scroll_search_controller.dart';
 import 'package:namida/controller/settings_controller.dart';
+import 'package:namida/controller/smart_playlists/smart_playlists_controller.dart';
 import 'package:namida/controller/stats_controller.dart';
 import 'package:namida/controller/time_ago_controller.dart';
 import 'package:namida/core/constants.dart';
@@ -41,6 +47,7 @@ import 'package:namida/core/utils.dart';
 import 'package:namida/ui/dialogs/common_dialogs.dart';
 import 'package:namida/ui/dialogs/general_popup_dialog.dart';
 import 'package:namida/ui/pages/queues_page.dart';
+import 'package:namida/ui/pages/subpages/smart_playlist_tracks_subpage.dart';
 import 'package:namida/ui/pages/subpages/your_year_page.dart';
 import 'package:namida/ui/widgets/animated_widgets.dart';
 import 'package:namida/ui/widgets/artwork.dart';
@@ -94,6 +101,7 @@ class HomePageRefresher {
 
 abstract class _HomePageStateBase<T extends ItemWithDate, E, S extends StatefulWidget> extends State<S> with TickerProviderStateMixin, PullToRefreshMixin {
   bool get isStatsTypeYT;
+  LibraryTab get libraryTab;
 
   HistoryManager<T, E> get historyManager;
   NamidaGeneratorBase<T, E> get generator;
@@ -111,6 +119,7 @@ abstract class _HomePageStateBase<T extends ItemWithDate, E, S extends StatefulW
   String? getItemTitle(E item);
   int getItemDateAdded(E item);
   bool isItemFavourite(E item);
+  int getItemRating(E item);
   List<E> getFavouritesSample(int count);
 
   void removeInvalidMixesItems(List<MapEntry<String, List<E>>> mixes) {}
@@ -159,6 +168,7 @@ abstract class _HomePageStateBase<T extends ItemWithDate, E, S extends StatefulW
     _scrollController = NamidaScrollController.create();
     _lostMemoriesScrollController = NamidaScrollController.create();
     _topRecentsScrollController = NamidaScrollController.create();
+    ScrollSearchController.inst.registerPageScrollController(libraryTab, _scrollController);
     HomePageRefresher._requests.addListener(_refreshAll);
     _fillLists();
   }
@@ -167,6 +177,7 @@ abstract class _HomePageStateBase<T extends ItemWithDate, E, S extends StatefulW
   void dispose() {
     HomePageRefresher._requests.removeListener(_refreshAll);
     _emptyAll();
+    ScrollSearchController.inst.unregisterPageScrollController(libraryTab, _scrollController);
     _scrollController.dispose();
     _lostMemoriesScrollController.dispose();
     _topRecentsScrollController.dispose();
@@ -196,6 +207,19 @@ abstract class _HomePageStateBase<T extends ItemWithDate, E, S extends StatefulW
 
   void _fillLists() async {
     final generation = ++_fillGeneration;
+    try {
+      await _fillListsOrThrow(generation);
+    } catch (e, st) {
+      logger.error('Error filling home lists', e: e, st: st);
+      if (generation != _fillGeneration) return;
+      // -- all or nothing, a half filled home looks broken
+      _emptyAll();
+      _isLoading = false;
+      if (mounted) setState(() {});
+    }
+  }
+
+  Future<void> _fillListsOrThrow(int generation) async {
     final historyManager = this.historyManager;
     if (historyManager.isHistoryLoaded) {
       _isLoading = false;
@@ -247,20 +271,11 @@ abstract class _HomePageStateBase<T extends ItemWithDate, E, S extends StatefulW
       if (generation != _fillGeneration) return;
       final topTracksMapListens = historyManager.topTracksMapListens.value;
 
-      // -- Random --
-      if (_randomItems.isEmpty) _randomItems.addAll(NamidaGeneratorBase.getRandomItems(_allItemsInLibrary, min: 25, max: 26));
+      // -- each mix draws on its own, one mix's picks don't move another's
+      final newRandom = kScreenshotsMode ? ScreenshotsDriver.inst.newMixesRandom : math.Random.new;
 
-      final int mostRecentAdded7DaysMSSE = timeNow.subtract(const Duration(days: 7)).millisecondsSinceEpoch;
-      final int mostRecentListened14DaysMSSE = timeNow.subtract(const Duration(days: 14)).millisecondsSinceEpoch;
-      final underrated = _allItemsInLibrary.getRandomSampleWhere(100, (item) {
-        if (isItemFavourite(item)) return false; // alr favourited
-        final listens = topTracksMapListens[item];
-        if (listens == null || listens.isEmpty) return false; // never listened, not underrated
-        if (listens.length > 8) return false; // alr listened enough
-        if (getItemDateAdded(item) > mostRecentAdded7DaysMSSE) return false; // its very recently added
-        if (listens.last > mostRecentListened14DaysMSSE) return false; // recently listened
-        return true;
-      });
+      // -- Random --
+      if (_randomItems.isEmpty) _randomItems.addAll(NamidaGeneratorBase.getRandomItems(_allItemsInLibrary, min: 25, max: 26, random: newRandom()));
 
       // -- averaged over what actually exists (previously hardcoded 20)
       int topListensTotal = 0;
@@ -270,9 +285,11 @@ abstract class _HomePageStateBase<T extends ItemWithDate, E, S extends StatefulW
         topListensEntries++;
       }
       final avgTopListensCount = topListensEntries == 0 ? 0 : topListensTotal ~/ topListensEntries;
+      final topListensRatio = LogScaledRatio(avgTopListensCount);
+      final timeNowMSSE = timeNow.millisecondsSinceEpoch;
       final int within1MonthsDaysMSSE = timeNow.subtract(const Duration(days: 30 * 1)).millisecondsSinceEpoch;
-      final int within3MonthsDaysMSSE = timeNow.subtract(const Duration(days: 30 * 3)).millisecondsSinceEpoch;
-      final int within6MonthsDaysMSSE = timeNow.subtract(const Duration(days: 30 * 6)).millisecondsSinceEpoch;
+      // final int within3MonthsDaysMSSE = timeNow.subtract(const Duration(days: 30 * 3)).millisecondsSinceEpoch;
+      // final int within6MonthsDaysMSSE = timeNow.subtract(const Duration(days: 30 * 6)).millisecondsSinceEpoch;
       final int within12MonthsDaysMSSE = timeNow.subtract(const Duration(days: 30 * 12)).millisecondsSinceEpoch;
       await _yieldFrame();
       if (generation != _fillGeneration) return;
@@ -280,41 +297,63 @@ abstract class _HomePageStateBase<T extends ItemWithDate, E, S extends StatefulW
           ? <E>[] // -- not enough history for the percentages below to mean anything
           : _allItemsInLibrary.getRandomSampleWhere(100, (item) {
               final listens = topTracksMapListens[item];
-              if (listens != null && listens.isNotEmpty) {
-                final lastListen = listens.last;
-                final listensPercentage = listens.length / avgTopListensCount;
-                // -- if listens percentage >= p and there is no listen in the last n days
-                // -- ex: 90/100 >= 0.9 && no listens within 12 months (where 100 is avg top listens)
-                return switch (listensPercentage) {
-                  >= 0.90 when within12MonthsDaysMSSE > lastListen => true,
-                  >= 0.50 when within6MonthsDaysMSSE > lastListen => true,
-                  >= 0.20 when within3MonthsDaysMSSE > lastListen => true,
-                  >= 0.1 when within1MonthsDaysMSSE > lastListen => true,
-                  _ => false,
-                };
+              if (listens == null) return false;
+
+              // -- old tiers, each one implied the last one (>= 0.50 && 1 month) so only that one ever decided
+              // X -- if log listens ratio >= p and there is no listen in the last n days
+              // X -- ex: log(1+50)/log(1+100) = 0.85 >= 0.80 && no listens within 6 months (where 100 is avg top listens)
+              // if (listens.isNotEmpty) {
+              //   final lastListen = listens.last;
+              //   final listensRatio = topListensRatio.of(listens.length);
+              //   return switch (listensRatio) {
+              //     >= 0.95 when within12MonthsDaysMSSE > lastListen => true,
+              //     >= 0.80 when within6MonthsDaysMSSE > lastListen => true,
+              //     >= 0.65 when within3MonthsDaysMSSE > lastListen => true,
+              //     >= 0.50 when within1MonthsDaysMSSE > lastListen => true,
+              //     _ => false,
+              //   };
+              // }
+
+              final listensCount = listens.length;
+              if (listensCount < 3) return false; // too few to know its usual pace
+              if (topListensRatio.of(listensCount) < 0.50) return false; // not loved enough
+
+              // -- lost if it got at most 1 listen within its last 4 usual gaps (kept between 1 and 12 months)
+              final usualGapMS = (listens.last - listens.first) ~/ (listensCount - 1);
+              final windowStartMSSE = (timeNowMSSE - usualGapMS * 4).clampInt(within12MonthsDaysMSSE, within1MonthsDaysMSSE);
+              int listensInWindow = 0;
+              for (int i = listensCount - 1; i >= 0; i--) {
+                if (listens[i] < windowStartMSSE) break;
+                listensInWindow++;
+                if (listensInWindow > 1) return false;
               }
-              return false;
-            });
+              return true;
+            }, newRandom());
 
       await _yieldFrame();
       if (generation != _fillGeneration) return;
-      // -- items with little to no listens in the past n days
+      bool isItemLiked(E item) => isItemFavourite(item) || getItemRating(item) >= 60;
+
+      final int mostRecentAdded7DaysMSSE = timeNow.subtract(const Duration(days: 7)).millisecondsSinceEpoch;
+      final int mostRecentListened14DaysMSSE = timeNow.subtract(const Duration(days: 14)).millisecondsSinceEpoch;
+      final underrated = _allItemsInLibrary.getRandomSampleWhere(100, (item) {
+        final listens = topTracksMapListens[item];
+        if (listens == null || listens.isEmpty) return false; // never listened, not underrated
+        if (listens.last > mostRecentListened14DaysMSSE) return false; // recently listened
+        final listensCount = listens.length;
+        if (topListensRatio.of(listensCount) >= 0.50) return false; // alr listened enough
+        if (listensCount < 3 && !isItemLiked(item)) return false; // barely heard, thats discover
+        if (getItemDateAdded(item) > mostRecentAdded7DaysMSSE) return false; // its very recently added
+        return true;
+      }, newRandom());
+      underrated.sortBy((item) => topTracksMapListens[item]?.last ?? 0);
+
+      // -- never or barely listened items, liked ones go to underrated
       final discover = _allItemsInLibrary.getRandomSampleWhere(100, (item) {
         final listens = topTracksMapListens[item];
-        if (listens == null || listens.isEmpty) return true;
-        if (listens.length > 10) return false;
-        int listensCountWithinPeriod = 0;
-        for (int i = listens.length - 1; i >= 0; i--) {
-          final l = listens[i];
-          if (l > within3MonthsDaysMSSE) {
-            listensCountWithinPeriod++;
-            if (listensCountWithinPeriod > 5) break;
-          } else {
-            break;
-          }
-        }
-        return listensCountWithinPeriod <= 5;
-      });
+        if (listens != null && listens.length > 2) return false;
+        return !isItemLiked(item);
+      }, newRandom());
 
       await _yieldFrame();
       if (generation != _fillGeneration) return;
@@ -330,6 +369,11 @@ abstract class _HomePageStateBase<T extends ItemWithDate, E, S extends StatefulW
           supremacyEntry = MapEntry(currentItemTitle == null || currentItemTitle.isEmpty ? lang.supremacy : '"$currentItemTitle" ${lang.supremacy}', supremacy);
         }
       }
+
+      await _yieldFrame();
+      if (generation != _fillGeneration) return;
+      final nowAgo = NamidaGeneratorBase.getItemsAroundTimeOfDay(topTracksMapListens.entriesSortedByValue, timeNow, count: 100, random: newRandom());
+
       final favsSample = getFavouritesSample(25);
       final topRecentListenedKeys = _topRecentListened.map((e) => e.key).toList();
 
@@ -373,14 +417,16 @@ abstract class _HomePageStateBase<T extends ItemWithDate, E, S extends StatefulW
         // -- top items in the same time, a year ago
         ...sameTimeAyearAgo,
       }.toList();
-      recommendedMixItems.shuffle();
+      recommendedMixItems.shuffle(newRandom());
+      if (kScreenshotsMode) ScreenshotsDriver.inst.pinRecommendedFirst(recommendedMixItems, getItemTitle, _allItemsInLibrary);
 
       _mixes.addAll([
         MapEntry(lang.newTracksRecommended, recommendedMixItems),
         ?supremacyEntry,
         MapEntry(lang.topRecents, topRecentListenedKeys),
-        MapEntry(lang.underrated, underrated),
+        MapEntry(lang.nowAgo, nowAgo),
         MapEntry(lang.lostPartners, lostPartners),
+        MapEntry(lang.underrated, underrated),
         MapEntry(lang.discover, discover),
         MapEntry(lang.favourites, favsSample),
         MapEntry(lang.randomPicks, _randomItems),
@@ -636,7 +682,7 @@ abstract class _HomePageStateBase<T extends ItemWithDate, E, S extends StatefulW
                                   case HomePageItems.recentArtists:
                                   case HomePageItems.topRecentAlbums:
                                   case HomePageItems.topRecentArtists:
-                                  case HomePageItems.pinnedPlaylists:
+                                  case HomePageItems.pinned:
                                     return buildOtherSectionSliver(context, element);
                                 }
                               },
@@ -662,6 +708,9 @@ abstract class _HomePageStateBase<T extends ItemWithDate, E, S extends StatefulW
 class _TracksHomePageState extends _HomePageStateBase<TrackWithDate, Track, HomePageLocal> {
   @override
   bool get isStatsTypeYT => false;
+
+  @override
+  LibraryTab get libraryTab => LibraryTab.home;
 
   @override
   HistoryManager<TrackWithDate, Track> get historyManager => HistoryController.inst;
@@ -700,6 +749,9 @@ class _TracksHomePageState extends _HomePageStateBase<TrackWithDate, Track, Home
 
   @override
   bool isItemFavourite(Track item) => PlaylistController.inst.favouritesPlaylist.isSubItemFavourite(item);
+
+  @override
+  int getItemRating(Track item) => item.effectiveRating;
 
   @override
   List<Track> getFavouritesSample(int count) => PlaylistController.inst.favouritesPlaylist.value.tracks.getRandomSample(count).tracks.toList();
@@ -1023,14 +1075,9 @@ class _TracksHomePageState extends _HomePageStateBase<TrackWithDate, Track, Home
           listens: (artist) => _topRecentArtists[artist] ?? 0,
         );
 
-      case HomePageItems.pinnedPlaylists:
-        return _PinnedPlaylistsList(
+      case HomePageItems.pinned:
+        return _PinnedItemsList(
           homepageItem: element,
-          playlistsMap: PlaylistController.inst.playlistsMap,
-          cardBuilder: (playlist, homepageItem) => _LocalPlaylistCard(
-            playlist: playlist,
-            homepageItem: homepageItem,
-          ),
         );
 
       case HomePageItems.mixes:
@@ -1047,6 +1094,9 @@ class _YoutubeHomePageState extends _HomePageStateBase<YoutubeID, String, YTHome
   bool get isStatsTypeYT => true;
 
   @override
+  LibraryTab get libraryTab => LibraryTab.ytHome;
+
+  @override
   HistoryManager<YoutubeID, String> get historyManager => YoutubeHistoryController.inst;
 
   @override
@@ -1057,7 +1107,7 @@ class _YoutubeHomePageState extends _HomePageStateBase<YoutubeID, String, YTHome
     HomePageItems.recentListens,
     HomePageItems.topRecentListens,
     HomePageItems.lostMemories,
-    HomePageItems.pinnedPlaylists,
+    HomePageItems.pinned,
   ];
 
   @override
@@ -1091,6 +1141,10 @@ class _YoutubeHomePageState extends _HomePageStateBase<YoutubeID, String, YTHome
 
   @override
   bool isItemFavourite(String item) => YoutubePlaylistController.inst.favouritesPlaylist.isSubItemFavourite(item);
+
+  // -- yt ratings are in a db, too slow to read for every item here
+  @override
+  int getItemRating(String item) => 0;
 
   @override
   List<String> getFavouritesSample(int count) => YoutubePlaylistController.inst.favouritesPlaylist.value.tracks.getRandomSample(count).map((e) => e.id).toList();
@@ -1236,7 +1290,7 @@ class _YoutubeHomePageState extends _HomePageStateBase<YoutubeID, String, YTHome
 
   @override
   Widget buildOtherSectionSliver(BuildContext context, HomePageItems element) {
-    if (element == HomePageItems.pinnedPlaylists) {
+    if (element == HomePageItems.pinned) {
       return _PinnedPlaylistsList(
         homepageItem: element,
         playlistsMap: YoutubePlaylistController.inst.playlistsMap,
@@ -1486,10 +1540,8 @@ class _PinnedPlaylistsList<T extends PlaylistItemWithDate, S> extends StatelessW
       child: ObxO(
         rx: playlistsMap,
         builder: (context, playlistsMap) {
-          final pinned = <GeneralPlaylist<T, S>>[];
-          for (final playlist in playlistsMap.values) {
-            if (playlist.isPinned) pinned.add(playlist);
-          }
+          final pinnedPlaylists = playlistsMap.values.where((e) => e.isPinned);
+          final pinned = PinnedController.sortedByPinDate(pinnedPlaylists, (e) => e.pinnedDate!);
           return _HorizontalList(
             isLoading: false,
             homepageItem: homepageItem,
@@ -1505,6 +1557,157 @@ class _PinnedPlaylistsList<T extends PlaylistItemWithDate, S> extends StatelessW
           );
         },
       ),
+    );
+  }
+}
+
+class _PinnedItemsList extends StatelessWidget {
+  final HomePageItems homepageItem;
+
+  const _PinnedItemsList({
+    required this.homepageItem,
+  });
+
+  void _onTypeTap(PinnedItemType? type) {
+    settings.extra.homePinnedType.save(type);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverToBoxAdapter(
+      child: Obx(
+        (context) {
+          final allItems = PinnedController.inst.getPinnedItemsR();
+          final presentTypes = <PinnedItemType>{for (final item in allItems) item.type};
+          final savedType = settings.extra.homePinnedType.valueR;
+          final selectedType = presentTypes.contains(savedType) ? savedType : null;
+          final items = selectedType == null ? allItems : allItems.where((e) => e.type == selectedType).toFixedList();
+          final typesChips = presentTypes.length < 2
+              ? null
+              : _PinnedTypesChips(
+                  types: PinnedItemType.values.where(presentTypes.contains).toFixedList(),
+                  selectedType: selectedType,
+                  onTap: _onTypeTap,
+                );
+          return _HorizontalList(
+            isLoading: false,
+            homepageItem: homepageItem,
+            title: homepageItem.toText(),
+            leading: StackedIcon(
+              baseIcon: homepageItem.toMainIcon(),
+              secondaryIcon: homepageItem.toIcon(),
+            ),
+            thirdWidget: typesChips,
+            height: 150.0 + 12.0,
+            itemCount: items.length,
+            itemExtent: 98.0 + 8.0,
+            itemBuilder: (context, index) => switch (items[index]) {
+              PinnedItemPlaylist(:final playlist) => _LocalPlaylistCard(
+                playlist: playlist,
+                homepageItem: homepageItem,
+              ),
+              PinnedItemSmartPlaylist(:final smartPlaylistWrapper) => _SmartPlaylistCard(
+                smartPlaylistWrapper: smartPlaylistWrapper,
+                homepageItem: homepageItem,
+              ),
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PinnedTypesChips extends StatelessWidget {
+  final List<PinnedItemType> types;
+  final PinnedItemType? selectedType;
+  final void Function(PinnedItemType? type) onTap;
+
+  const _PinnedTypesChips({
+    required this.types,
+    required this.selectedType,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 32.0,
+      width: context.width,
+      child: SmoothSingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 4.0),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                child: TapDetector(
+                  onTap: () => onTap(null),
+                  child: _HomePageChip(
+                    text: lang.all,
+                    isSelected: selectedType == null,
+                  ),
+                ),
+              ),
+              ...types.map(
+                (type) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                  child: TapDetector(
+                    onTap: () => onTap(type),
+                    child: _HomePageChip(
+                      text: type.toText(),
+                      isSelected: selectedType == type,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SmartPlaylistCard extends StatelessWidget {
+  final SmartPlaylistWrapper smartPlaylistWrapper;
+  final HomePageItems homepageItem;
+
+  const _SmartPlaylistCard({
+    required this.smartPlaylistWrapper,
+    required this.homepageItem,
+  });
+
+  void _play() {
+    final tracks = smartPlaylistWrapper.resolve();
+    if (tracks.isEmpty) return;
+    final name = smartPlaylistWrapper.value.name;
+    final queueSource = QueueSource.smartPlaylist(name);
+    Player.inst.playOrPause(0, tracks, queueSource, homePageItem: homepageItem);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final smartPlaylist = smartPlaylistWrapper.value;
+    final artworkFile = SmartPlaylistsController.inst.getArtworkFileForPlaylist(smartPlaylist);
+    return _PlaylistCard(
+      title: smartPlaylist.name,
+      subtitle: lang.smartPlaylist,
+      imageBuilder: (imageSize) => ArtworkWidget(
+        key: ValueKey(artworkFile),
+        track: null,
+        thumbnailSize: imageSize,
+        path: artworkFile.path,
+        forceSquared: true,
+        icon: Broken.magicpen,
+      ),
+      onTap: () => SmartPlaylistTracksPage(smartPlaylistWrapper: smartPlaylistWrapper).navigate(),
+      onLongPress: () => NamidaDialogs.inst.showSmartPlaylistDialog(smartPlaylistWrapper),
+      onPlayTap: _play,
+      width: 106.0,
+      height: 138.0,
     );
   }
 }
@@ -1688,13 +1891,13 @@ class _PlaylistCard extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: NText.medium.of(context).copyWith(fontSize: getFontSize(0.28)),
+                        style: NText.medium.of(context).copyWith(fontSize: getFontSize(0.31)),
                         softWrap: false,
                         overflow: TextOverflow.fade,
                       ),
                       Text(
                         subtitle,
-                        style: NText.small.of(context).copyWith(fontSize: getFontSize(0.23)),
+                        style: NText.small.of(context).copyWith(fontSize: getFontSize(0.26)),
                         softWrap: false,
                         overflow: TextOverflow.fade,
                       ),
@@ -1836,7 +2039,7 @@ class _HorizontalList extends StatelessWidget {
                           HomePageItems.recentlyAdded || HomePageItems.recentQueues => lang.noTracksFound,
                           HomePageItems.recentAlbums || HomePageItems.recentArtists => "${lang.none}: ${lang.noTracksInHistory}",
                           HomePageItems.topRecentAlbums || HomePageItems.topRecentArtists => "${lang.none}: ${lang.noTracksInHistory}",
-                          HomePageItems.pinnedPlaylists => lang.none,
+                          HomePageItems.pinned => lang.none,
                         },
                         style: NText.medium,
                         softWrap: false,
@@ -2139,7 +2342,10 @@ class _MixesCardState extends State<_MixesCard> {
                 bgColor: const NColors(.card, opacity: 0.94),
                 child: Row(
                   children: [
-                    const Icon(Broken.play_cricle, size: 16.0),
+                    const Icon(
+                      Broken.play_cricle,
+                      size: 16.0,
+                    ),
                     const SizedBox(width: 4.0),
                     NamidaText(
                       "${widget.tracks.length}",
@@ -2463,7 +2669,10 @@ class _YTMixesCardState extends State<_YTMixesCard> {
                 bgColor: const NColors(.card, opacity: 0.94),
                 child: Row(
                   children: [
-                    const Icon(Broken.play_cricle, size: 16.0),
+                    const Icon(
+                      Broken.play_cricle,
+                      size: 16.0,
+                    ),
                     const SizedBox(width: 4.0),
                     NamidaText(
                       "${widget.videoIds.length}",
@@ -2843,7 +3052,10 @@ class _YourYearBanner extends StatelessWidget {
         onTap: () => YourYearPage(year: year).navigate(),
         child: Row(
           children: [
-            NIcon(Broken.magic_star, color: NColors.defaultIcon()),
+            NIcon(
+              Broken.magic_star,
+              color: NColors.defaultIcon(),
+            ),
             const SizedBox(width: 12.0),
             Expanded(
               child: Column(
@@ -2863,7 +3075,10 @@ class _YourYearBanner extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Broken.arrow_right_3, size: 18.0),
+            const Icon(
+              Broken.arrow_right_3,
+              size: 18.0,
+            ),
           ],
         ),
       ),

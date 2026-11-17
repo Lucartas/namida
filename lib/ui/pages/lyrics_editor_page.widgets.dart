@@ -226,30 +226,34 @@ class _LinesList extends StatelessWidget {
             ),
           );
         }
-        return NotificationListener<UserScrollNotification>(
-          onNotification: state._onUserScroll,
-          child: CustomScrollView(
-            controller: state._scrollController,
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.only(top: 2.0, bottom: 12.0),
-                sliver: NamidaSliverReorderableList(
-                  itemExtent: _LyricsEditorPageState._kRowExtent,
-                  itemCount: lines.length,
-                  longPressToDrag: false,
-                  onReorder: state._moveLine,
-                  itemBuilder: (context, i) {
-                    final line = lines[i];
-                    return _LineRow(
-                      key: ObjectKey(line),
-                      state: state,
-                      index: i,
-                      line: line,
-                    );
-                  },
+        final mediaQuery = MediaQuery.of(context);
+        return MediaQuery(
+          data: mediaQuery.copyWith(textScaler: state._linesTextScaler),
+          child: NotificationListener<UserScrollNotification>(
+            onNotification: state._onUserScroll,
+            child: CustomScrollView(
+              controller: state._scrollController,
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.only(top: 2.0, bottom: 12.0),
+                  sliver: NamidaSliverReorderableList(
+                    itemExtent: state._rowExtent,
+                    itemCount: lines.length,
+                    longPressToDrag: false,
+                    onReorder: state._moveLine,
+                    itemBuilder: (context, i) {
+                      final line = lines[i];
+                      return _LineRow(
+                        key: ObjectKey(line),
+                        state: state,
+                        index: i,
+                        line: line,
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -280,18 +284,34 @@ class _LineRow extends StatelessWidget {
     final hasTranslation = translation.isNotEmpty;
     final person = line.person;
 
-    final textWidget = line.text.isEmpty
-        ? const NIcon(
-            Broken.music,
-            size: 18.0,
-            color: NColors(.onSurface, opacity: 0.5),
-          )
-        : NamidaText(
-            line.text,
-            style: NText.medium,
-            maxLines: hasTranslation ? 1 : 2,
-            overflow: TextOverflow.ellipsis,
-          );
+    final isNote = line.isNote;
+    final Widget textWidget;
+    if (line.isGap) {
+      textWidget = const NamidaContainerDivider(
+        width: 42.0,
+      );
+    } else if (isNote) {
+      textWidget = NamidaText(
+        line.text,
+        style: NText.medium,
+        color: const NColors(.onSurface, opacity: 0.5),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    } else if (line.text.isEmpty) {
+      textWidget = const NIcon(
+        Broken.music,
+        size: 18.0,
+        color: NColors(.onSurface, opacity: 0.5),
+      );
+    } else {
+      textWidget = NamidaText(
+        line.text,
+        style: NText.medium,
+        maxLines: hasTranslation ? 1 : 2,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
 
     final lineContentWidget = Row(
       children: [
@@ -302,7 +322,7 @@ class _LineRow extends StatelessWidget {
                 : hasWarning
                 ? Colors.orange
                 : colors.onSurface;
-            return Text(
+            final timestampWidget = Text(
               timestampText,
               style: NText.small
                   .of(context)
@@ -312,6 +332,14 @@ class _LineRow extends StatelessWidget {
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
             );
+            // -- keeps the text aligned with the other lines
+            if (isNote) {
+              return Visibility.maintain(
+                visible: false,
+                child: timestampWidget,
+              );
+            }
+            return timestampWidget;
           },
         ),
         const SizedBox(
@@ -350,23 +378,30 @@ class _LineRow extends StatelessWidget {
       ],
     );
 
+    final VoidCallback? onLineNumberTap = startMS == null ? null : () => state._seekTo(startMS);
+
     // -- the handle stays out of the popup, its long press would race the drag
     final contentWidget = Row(
       children: [
-        SizedBox(
+        NamidaInkWell(
           width: 24.0,
-          child: NBuilder(
-            builder: (context, colors) => Text(
-              '${index + 1}',
-              style: NText.small
-                  .of(context)
-                  .copyWith(
-                    fontSize: 10.0,
-                    color: colors.onSurface.withOpacityExt(0.45),
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
+          height: double.infinity,
+          borderRadius: 6.0,
+          onTap: onLineNumberTap,
+          child: Center(
+            child: NBuilder(
+              builder: (context, colors) => Text(
+                '${index + 1}',
+                style: NText.small
+                    .of(context)
+                    .copyWith(
+                      fontSize: 10.0,
+                      color: colors.onSurface.withOpacityExt(0.45),
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+              ),
             ),
           ),
         ),

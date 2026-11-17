@@ -2,6 +2,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:namico_db_wrapper/namico_db_wrapper.dart';
 import 'package:path/path.dart' as p;
 import 'package:playlist_manager/playlist_manager.dart';
 
@@ -11,6 +12,8 @@ import 'package:namida/controller/settings_controller.dart';
 import 'package:namida/core/constants.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   final windows = p.Context(style: p.Style.windows, current: r'C:\cwd');
   final posix = p.Context(style: p.Style.posix, current: '/cwd');
   const otherAppHeader = [
@@ -120,6 +123,77 @@ void main() {
     });
   });
 
+  group('content uris', () {
+    const storageRoots = ['/storage/emulated/0', '/storage/1234-5678'];
+
+    ({String path, bool isResolved}) resolveContent(String line, Set<String> existingPaths) {
+      return M3UFiles.resolveEntryLine(line, '/storage/emulated/0/Playlists', posix, existingPaths.contains, storageRoots: storageRoots);
+    }
+
+    test('file provider uris resolve inside the storage roots', () {
+      const line = 'content://com.sec.android.app.myfiles.FileProvider/device_storage/0/Documents/WaveEditor/Exported%20Audio/test.mp3';
+      const path = '/storage/emulated/0/Documents/WaveEditor/Exported Audio/test.mp3';
+      expect(resolveContent(line, {path}), (path: path, isResolved: true));
+    });
+
+    test('document uris resolve on the primary storage and on sd cards', () {
+      const primaryLine = 'content://com.android.externalstorage.documents/document/primary%3AMusic%2Fa.mp3';
+      expect(resolveContent(primaryLine, {'/storage/emulated/0/Music/a.mp3'}), (path: '/storage/emulated/0/Music/a.mp3', isResolved: true));
+      const sdLine = 'content://com.android.externalstorage.documents/document/1234-5678%3AMusic%2Fb.mp3';
+      expect(resolveContent(sdLine, {'/storage/1234-5678/Music/b.mp3'}), (path: '/storage/1234-5678/Music/b.mp3', isResolved: true));
+      const treeLine = 'content://com.android.externalstorage.documents/tree/primary%3AMusic/document/primary%3AMusic%2Fsub%2Fc.mp3';
+      expect(resolveContent(treeLine, {'/storage/emulated/0/Music/sub/c.mp3'}), (path: '/storage/emulated/0/Music/sub/c.mp3', isResolved: true));
+    });
+
+    test('the longest existing end wins', () {
+      const line = 'content://x.provider/root/Documents/a/test.mp3';
+      final res = resolveContent(line, {'/storage/emulated/0/a/test.mp3', '/storage/emulated/0/Documents/a/test.mp3'});
+      expect(res, (path: '/storage/emulated/0/Documents/a/test.mp3', isResolved: true));
+    });
+
+    test('a filename alone is left to the library lookup', () {
+      const line = 'content://x.provider/root/Documents/test.mp3';
+      expect(resolveContent(line, {'/storage/emulated/0/test.mp3'}), (path: line, isResolved: false));
+    });
+
+    test('unknown, media store and malformed uris stay as they are', () {
+      const lines = [
+        'content://x.provider/root/Documents/gone.mp3',
+        'content://media/external/audio/media/1234',
+        'content://x.provider/root/bad%zzname.mp3',
+      ];
+      for (final line in lines) {
+        expect(resolveContent(line, {}), (path: line, isResolved: false));
+        expect(M3UFiles.findLibraryPath(line, const {}, posix), null);
+      }
+    });
+
+    test('library lookup uses the decoded uri path', () {
+      const line = 'content://com.sec.android.app.myfiles.FileProvider/device_storage/0/Documents/Exported%20Audio/My%20Song.mp3';
+      final library = {
+        'my song.mp3': ['/storage/emulated/0/Other/My Song.mp3', '/storage/emulated/0/Music/Exported Audio/My Song.mp3'],
+      };
+      expect(M3UFiles.findLibraryPath(line, library, posix), '/storage/emulated/0/Music/Exported Audio/My Song.mp3');
+      final desktopLibrary = {
+        'my song.mp3': [r'C:\Music\My Song.mp3', r'C:\Phone\Exported Audio\My Song.mp3'],
+      };
+      expect(M3UFiles.findLibraryPath(line, desktopLibrary, windows), r'C:\Phone\Exported Audio\My Song.mp3');
+    });
+
+    test('library lookup of local paths still matches by filename and the longest end', () {
+      final library = {
+        'a.mp3': ['/x/a.mp3', '/y/gone/a.mp3'],
+      };
+      expect(M3UFiles.findLibraryPath('/m/gone/a.mp3', library, posix), '/y/gone/a.mp3');
+      expect(M3UFiles.findLibraryPath('/m/gone/b.mp3', library, posix), null);
+    });
+
+    test('urls other than content ones are untouched', () {
+      const url = 'https://example.com/music/a%20b.mp3';
+      expect(resolveContent(url, {}), (path: url, isResolved: true));
+    });
+  });
+
   group('playlist names', () {
     Map<String, String> startupNames(Map<String, Map<String, dynamic>> m3uProperties, Set<String> m3uPaths, p.Context context) {
       final savedNames = M3UFiles.getSavedNamesByPath(m3uProperties, m3uPaths);
@@ -173,7 +247,15 @@ void main() {
 
   group('headers', () {
     List<String> rewrite(List<String> lines, {String name = 'n', List<String> moods = const [], List<String> tags = const [], String description = ''}) {
-      return M3UFiles.rewriteHeaderLines(lines, name: name, moods: moods, tags: tags, description: description, tracksCount: 2, computeDurationMS: () => 90500);
+      return M3UFiles.rewriteHeaderLines(
+        lines,
+        name: name,
+        moods: moods,
+        tags: tags,
+        description: description,
+        tracksCount: 2,
+        computeDurationMS: () => 90500,
+      );
     }
 
     test('parses the values of other apps', () {
@@ -228,13 +310,28 @@ void main() {
     });
 
     test('parsing a rewritten header gives back the same values', () {
-      final lines = rewrite(const [], name: 'n', moods: ['m1', 'm2'], tags: ['t/1'], description: 'd');
+      final lines = rewrite(
+        const [],
+        name: 'n',
+        moods: ['m1', 'm2'],
+        tags: ['t/1'],
+        description: 'd',
+      );
       final header = M3UFiles.parseHeaderLines(lines);
       expect(header.name, 'n');
       expect(header.moods, ['m1', 'm2']);
       expect(header.tags, ['t/1']);
       expect(header.description, 'd');
-      expect(rewrite(lines, name: 'n', moods: ['m1', 'm2'], tags: ['t/1'], description: 'd'), lines);
+      expect(
+        rewrite(
+          lines,
+          name: 'n',
+          moods: ['m1', 'm2'],
+          tags: ['t/1'],
+          description: 'd',
+        ),
+        lines,
+      );
     });
 
     group('merging', () {
@@ -398,6 +495,56 @@ void main() {
       await controller.prepareM3UPlaylists();
       await pumpEventQueue();
       expect(controller.getPlaylist('outside')?.m3uPath, m3uPath);
+    });
+
+    test('library paths resolve without being on disk, other lines still need the file', () async {
+      final musicDirectory = p.join(dir.path, 'Library');
+      final libraryPath = p.join(musicDirectory, 'gone.flac');
+      final diskPath = p.join(musicDirectory, 'disk.flac');
+      final missingPath = p.join(musicDirectory, 'missing.flac');
+      File(diskPath).createSync(recursive: true);
+      final tracksDb = DBWrapper.openFromInfoSync(
+        fileInfo: AppPaths.TRACKS_DB_INFO,
+        config: const DBConfig(createIfNotExist: true, autoDisposeTimerDuration: null),
+      );
+      tracksDb.put(libraryPath, {'title': 'gone'});
+      tracksDb.close();
+      final m3uPath = p.join(musicDirectory, 'library.m3u');
+      File(m3uPath).writeAsStringSync(['#EXTM3U', 'gone.flac', 'disk.flac', 'missing.flac', r'D:\Other\gone.flac'].join('\n'));
+
+      final controller = PlaylistController.inst;
+      addTearDown(controller.playlistsMap.value.clear);
+      await controller.prepareM3UPlaylists(forPaths: {m3uPath});
+      await pumpEventQueue();
+      final paths = controller.getPlaylist('library')!.tracks.map((e) => e.track.path);
+      expect(paths, [libraryPath, diskPath, missingPath, libraryPath]);
+    });
+
+    test('startup loads linked files only, a library folders listing imports the new ones', () async {
+      settings.enableM3USyncStartup.save(true);
+      final listedDirectory = p.join(dir.path, 'Listed');
+      File(p.join(listedDirectory, 'a.flac')).createSync(recursive: true);
+      final linkedPath = p.join(listedDirectory, 'linked.m3u');
+      final newPath = p.join(listedDirectory, 'new.m3u');
+      for (final path in [linkedPath, newPath]) {
+        File(path).writeAsStringSync(['#EXTM3U', 'a.flac'].join('\n'));
+      }
+
+      final controller = PlaylistController.inst;
+      addTearDown(controller.playlistsMap.value.clear);
+      await controller.prepareM3UPlaylists(forPaths: {linkedPath});
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      await controller.prepareAllPlaylists();
+      await pumpEventQueue();
+      expect(controller.getPlaylist('linked')?.m3uPath, linkedPath);
+      expect(controller.getPlaylist('new'), isNull);
+
+      await controller.importListedM3UFiles({linkedPath, newPath});
+      await pumpEventQueue();
+      expect(controller.getPlaylist('new')?.m3uPath, newPath);
+      expect(controller.getPlaylist('linked')?.m3uPath, linkedPath);
+      expect(controller.playlistsMap.value.values.where((pl) => pl.m3uPath == linkedPath).length, 1);
     });
   });
 

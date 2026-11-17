@@ -41,13 +41,18 @@ abstract class EggHunt {
   }
 
   static void onSettingsSearchSubmitted(String text) {
-    if (!EggsController.inst.isSecretWord(text)) return;
-    collect(NamidaEgg.secretWord);
+    final egg = EggsController.inst.eggOfSettingsSearch(text);
+    if (egg != null) collect(egg);
   }
 
   static void onAddToPlaylistDialogOpened(int openedDialogsCount) {
     if (!EggsController.inst.isDeathLoopDepth(openedDialogsCount)) return;
     collect(NamidaEgg.deathLoop);
+  }
+
+  static void onSleepTimerStarted(int sleepMinutes) {
+    if (!EggsController.inst.isSixSevenMinutes(sleepMinutes)) return;
+    collect(NamidaEgg.sixSeven);
   }
 
   static void announceFound(List<NamidaEgg> eggs) {
@@ -101,10 +106,12 @@ class _UwuDialogState extends State<UwuDialog> with TickerProviderStateMixin {
   late final _finaleController = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 2600),
+    animationBehavior: AnimationBehavior.preserve,
   );
   late final _blushController = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 700),
+    animationBehavior: AnimationBehavior.preserve,
   );
   bool _isCelebrating = false;
   int _beatsPlayed = 0;
@@ -281,6 +288,14 @@ class _EggsSectionState extends State<EggsSection> with _AfterRouteSettled {
       rx: settings.eggs,
       builder: (context, data) {
         final collectedCount = data.collectedCount();
+        final unlockedCards = EggUnlockable.values
+            .where(data.isUnlocked)
+            .map(
+              (item) => _UnlockedCard(
+                item: item,
+              ),
+            )
+            .toFixedList();
         return SettingsCard(
           icon: Broken.gift,
           title: 'Eggs',
@@ -291,11 +306,18 @@ class _EggsSectionState extends State<EggsSection> with _AfterRouteSettled {
                 padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                 child: _EggsStage(),
               ),
-              for (final item in EggUnlockable.values)
-                if (data.isUnlocked(item))
-                  _UnlockedTile(
-                    item: item,
+              if (unlockedCards.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 12.0),
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Wrap(
+                      spacing: 6.0,
+                      runSpacing: 6.0,
+                      children: unlockedCards,
+                    ),
                   ),
+                ),
             ],
           ),
         );
@@ -356,10 +378,10 @@ class _CrackEggButton extends StatelessWidget {
   }
 }
 
-class _UnlockedTile extends StatelessWidget {
+class _UnlockedCard extends StatelessWidget {
   final EggUnlockable item;
 
-  const _UnlockedTile({required this.item});
+  const _UnlockedCard({required this.item});
 
   void _confirmSelling() {
     NamidaNavigator.inst.navigateDialog(
@@ -382,15 +404,66 @@ class _UnlockedTile extends StatelessWidget {
     );
   }
 
+  static BoxDecoration _iconBadgeDecoration(NColorsData colors) => BoxDecoration(
+    color: colors.secondary.withOpacityExt(0.14),
+    borderRadius: BorderRadius.circular(7.0.multipliedRadius),
+  );
+
   @override
   Widget build(BuildContext context) {
-    return CustomListTile(
-      icon: item.toIcon(),
-      title: item.toText(),
-      trailing: NamidaIconButton(
-        icon: Broken.wallet_add,
-        tooltip: () => 'sell back for ${item.price} eggs',
-        onPressed: _confirmSelling,
+    return NBuilder(
+      builder: (context, colors) => NamidaInkWell(
+        bgColor: const NColors(.onSurface, opacity: 0.03),
+        borderRadius: 10.0,
+        padding: const EdgeInsetsDirectional.only(
+          start: 4.0,
+          end: 8.0,
+          top: 4.0,
+          bottom: 4.0,
+        ),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: colors.secondary.withOpacityExt(0.18),
+          ),
+        ),
+        onTap: _confirmSelling,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            NContainer(
+              width: 24.0,
+              height: 24.0,
+              alignment: Alignment.center,
+              decoration: _iconBadgeDecoration,
+              child: NIcon(
+                item.toIcon(),
+                size: 14.0,
+                color: NColors.secondary,
+              ),
+            ),
+            const SizedBox(width: 6.0),
+            Flexible(
+              child: NamidaText(
+                item.toText(),
+                style: const NText(.medium, size: .s13),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            const NContainer(
+              width: 1.0,
+              height: 14.0,
+              color: NColors(.onSurface, opacity: 0.12),
+            ),
+            const SizedBox(width: 6.0),
+            const NIcon(
+              Broken.wallet_add,
+              size: 13.0,
+              color: NColors(.onSurface, opacity: 0.6),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -498,6 +571,7 @@ extension _NamidaEggText on NamidaEgg {
     NamidaEgg.goodnight => 'Goodnight',
     NamidaEgg.twins => 'Twins',
     NamidaEgg.deathLoop => 'Death loop',
+    NamidaEgg.sixSeven => 'Six seven',
     NamidaEgg.colorful => 'Colorful',
   };
 
@@ -512,19 +586,20 @@ extension _NamidaEggText on NamidaEgg {
     NamidaEgg.newYear => 'spend new year\'s eve with namida, watch the top bar',
     NamidaEgg.birthday => 'namida was born on a cold january day',
     NamidaEgg.anniversary => 'namida grew up one october',
-    NamidaEgg.economy => 'buy, sell, buy, sell... five trades and the market notices',
+    NamidaEgg.economy => 'buy, sell, buy, sell... keep trading until the market notices',
     NamidaEgg.nightOwl => '3am and still listening? go to sleep',
     NamidaEgg.veteran => 'a whole year of memories in your history',
-    NamidaEgg.chipmunk => 'faster.. no, faster.. or squeakier',
-    NamidaEgg.broke => 'spend every last egg',
-    NamidaEgg.hoarder => 'save up five eggs without cracking any',
-    NamidaEgg.tears => 'namida means tears, got a song about them?',
+    NamidaEgg.chipmunk => 'what if the song inhaled helium',
+    NamidaEgg.broke => 'spend ur whole egg wealth and join the broke',
+    NamidaEgg.hoarder => 'save the eggs like there is no tomorrow',
+    NamidaEgg.tears => 'namida is tears, listen to tears',
     NamidaEgg.creep => 'staring at the eggs for a whole minute... creepy',
     NamidaEgg.lucky => 'sometimes she just feels generous',
-    NamidaEgg.goodnight => 'let the sleep timer tuck you in',
-    NamidaEgg.twins => 'sync with another device',
+    NamidaEgg.goodnight => 'fall asleep to namida, she\'ll turn the music off for u',
+    NamidaEgg.twins => 'introduce namida to her other sync twin',
     NamidaEgg.deathLoop => 'playlist in a playlist in a playlist in a pl-',
-    NamidaEgg.colorful => 'find every other egg',
+    NamidaEgg.sixSeven => 'six seven',
+    NamidaEgg.colorful => 'find all.. and by all we mean all',
   };
 }
 

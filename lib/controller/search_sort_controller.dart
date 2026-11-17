@@ -2,13 +2,17 @@ import 'dart:async';
 import 'dart:isolate';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:history_manager/history_manager.dart';
 import 'package:intl/intl.dart';
 import 'package:namico_db_wrapper/namico_db_wrapper.dart';
 import 'package:playlist_manager/playlist_manager.dart';
 
 import 'package:namida/base/tracks_search_wrapper.dart';
+import 'package:namida/class/faudiomodel.dart';
 import 'package:namida/class/folder.dart';
+import 'package:namida/class/library_group.dart';
+import 'package:namida/class/library_item_map.dart';
 import 'package:namida/class/sort_chain.dart';
 import 'package:namida/class/track.dart';
 import 'package:namida/class/video.dart';
@@ -74,7 +78,6 @@ class SearchSortController extends SearchPortsProvider {
     MediaType.genre: <String>[].obs,
     MediaType.style: <String>[].obs,
     MediaType.language: <String>[].obs,
-    MediaType.folder: <String>[].obs,
     MediaType.folderMusic: <String>[].obs,
     MediaType.folderVideo: <String>[].obs,
     MediaType.tag: <String>[].obs,
@@ -102,6 +105,62 @@ class SearchSortController extends SearchPortsProvider {
     MediaType.playlist => playlistSearchTemp,
     _ => _searchMapTemp[type]!,
   };
+
+  /// temp results lists start with their relevant matches, the rest show only when the section is expanded.
+  final _tempRelevantCounts = <MediaType, int>{};
+  final _tempBestScores = <MediaType, int>{};
+  final _tempSectionsWeak = <MediaType, Rx<bool>>{for (final type in MediaType.values) type: false.obs};
+  final _expandedTempSections = <MediaType>{}.obs;
+
+  int tempRelevantCountOf(MediaType type) => _tempRelevantCounts[type] ?? 0;
+
+  /// even its best match is less relevant than the best match of all sections.
+  bool isTempSectionWeakR(MediaType type) => _tempSectionsWeak[type]!.valueR;
+
+  bool isTempSectionExpandedR(MediaType type) => _expandedTempSections.valueR.contains(type);
+
+  void toggleTempSectionExpanded(MediaType type) {
+    final sections = _expandedTempSections.value;
+    if (!sections.remove(type)) sections.add(type);
+    _expandedTempSections.refresh();
+  }
+
+  void _setTempRelevance(MediaType type, int relevantCount, int bestScore) {
+    _tempRelevantCounts[type] = relevantCount;
+    _setTempBestScore(type, bestScore);
+  }
+
+  void _setTempBestScore(MediaType type, int bestScore) {
+    _tempBestScores[type] = bestScore;
+    _refreshTempSectionsWeak();
+  }
+
+  void _removeTempRelevance(MediaType type) {
+    _tempRelevantCounts.remove(type);
+    if (_tempBestScores.remove(type) != null) _refreshTempSectionsWeak();
+  }
+
+  void _refreshTempSectionsWeak() {
+    final bestScore = _tempBestScores.values.fold(0, math.max);
+    final relevantMinScore = TracksSearchWrapper.relevantMinScoreOf(bestScore);
+    for (final e in _tempSectionsWeak.entries) {
+      final sectionBestScore = _tempBestScores[e.key] ?? 0;
+      e.value.value = sectionBestScore < relevantMinScore;
+    }
+  }
+
+  static (List<T>, int) _whereKeepingRelevance<T>(List<T> results, int relevantCount, bool Function(T item) test) {
+    final filtered = <T>[];
+    int filteredRelevantCount = 0;
+    for (int i = 0; i < results.length; i++) {
+      final item = results[i];
+      if (test(item)) {
+        filtered.add(item);
+        if (i < relevantCount) filteredRelevantCount++;
+      }
+    }
+    return (filtered, filteredRelevantCount);
+  }
 
   RxList<Track> get _tracksInfoList => Indexer.inst.tracksInfoList;
 
@@ -150,17 +209,12 @@ class SearchSortController extends SearchPortsProvider {
     return super.closePorts(type);
   }
 
-  /// null [sendPort] means port dead before it could be used
-  void _sendSearchRequest(MediaType type, SendPortWithCachedMessage? sendPort, String text, bool temp, {bool? isVideo}) {
-    if (sendPort == null) {
-      if (temp) _onTempSearchEnded(type, text);
-      return;
-    }
-    sendPort.send((text: text, temp: temp, isVideo: isVideo));
-  }
-
   void searchAll(String text) {
     lastSearchText = text;
+    if (text.isEmpty && _expandedTempSections.value.isNotEmpty) {
+      _expandedTempSections.value.clear();
+      _expandedTempSections.refresh();
+    }
     final enabledSearches = settings.activeSearchMediaTypes;
 
     searchTracks(text, temp: true);
@@ -179,6 +233,7 @@ class SearchSortController extends SearchPortsProvider {
   }
 
   void setTracksSearchTemp(List<Track> tracks) {
+    _removeTempRelevance(MediaType.track);
     trackSearchTemp.value = _filterTracksKind(tracks, _activeTrSearchIsVideo);
     trackSearchTempLessRelevant.clear();
     sortTracksSearch();
@@ -216,11 +271,11 @@ class SearchSortController extends SearchPortsProvider {
     return tracks.where((e) => e is! Video).toList();
   }
 
-  List<String> _filterNonEmptyFolders(MediaType type, List<String> folders) {
+  static bool Function(String folder)? _nonEmptyFolderTestOf(MediaType type) {
     return switch (type) {
-      MediaType.folderMusic => folders.where((f) => Folder.explicit(f).tracksDedicated().isNotEmpty).toList(),
-      MediaType.folderVideo => folders.where((f) => VideoFolder.explicit(f).tracksDedicated().isNotEmpty).toList(),
-      _ => folders,
+      MediaType.folderMusic => (f) => Folder.explicit(f).tracksDedicated().isNotEmpty,
+      MediaType.folderVideo => (f) => VideoFolder.explicit(f).tracksDedicated().isNotEmpty,
+      _ => null,
     };
   }
 
@@ -264,6 +319,7 @@ class SearchSortController extends SearchPortsProvider {
       default:
         _searchMapTemp[type]?.clear();
     }
+    _removeTempRelevance(type);
   }
 
   Future<void> disposeMediaResources(MediaType? media) async {
@@ -327,13 +383,19 @@ class SearchSortController extends SearchPortsProvider {
     return SortKey.of;
   }
 
+  SortKeyPrefixIgnorer createSortKeyPrefixIgnorer(String Function(String text) normalize) {
+    return SortKeyPrefixIgnorer(settings.commonPrefixes.value, ignoreSymbols: settings.ignoreLeadingSymbols.value, normalize: normalize);
+  }
+
   Comparable Function(MapEntry<String, List<Track>>)? _getMediaSortingComparable(GroupSortType type, {GroupSortType? overrideKey, TrackSearchFilter? filter}) {
     final ignoreCommonPrefix = settings.ignoreCommonPrefixForTypes.value;
     final normalize = sortKeyNormalizer;
+    SortKeyPrefixIgnorer? prefixIgnorer;
 
     String Function(MapEntry<String, List<Track>> e) encapsulateSortCanIgnorePrefix(TrackSearchFilter filter, String Function(MapEntry<String, List<Track>> e) comparable) {
       if (ignoreCommonPrefix.contains(filter)) {
-        return (e) => comparable(e).ignoreCommonPrefixes();
+        final ignorer = prefixIgnorer ??= createSortKeyPrefixIgnorer(normalize);
+        return (e) => ignorer.ignorePrefixes(comparable(e));
       } else {
         return comparable;
       }
@@ -346,9 +408,10 @@ class SearchSortController extends SearchPortsProvider {
     return switch (type) {
       GroupSortType.album => encapsulateSortCanIgnorePrefix(TrackSearchFilter.album, (e) => normalize(e.value.first.albumsList.join())),
       GroupSortType.albumArtist => encapsulateSortCanIgnorePrefix(TrackSearchFilter.albumartist, (e) => normalize(e.value.albumArtist)),
-      GroupSortType.year => (e) => e.value.yearPreferyyyyMMdd,
+      GroupSortType.year => (e) => e.value.yearOldestPreferyyyyMMdd(),
       GroupSortType.artistsList => encapsulateSortCanIgnorePrefix(TrackSearchFilter.artist, (e) => normalize(e.value.first.artistsList.join())),
       GroupSortType.genresList => encapsulateSortCanIgnorePrefix(TrackSearchFilter.genre, (e) => normalize(e.value.first.genresList.join())),
+      GroupSortType.stylesList => encapsulateSortCanIgnorePrefix(TrackSearchFilter.style, (e) => normalize(e.value.first.stylesList.join())),
       GroupSortType.composer => encapsulateSortCanIgnorePrefix(TrackSearchFilter.composer, (e) => normalize(e.value.composer)),
       GroupSortType.label => (e) => normalize(e.value.recordLabel),
       GroupSortType.releaseType => (e) => e.value.releaseType.toLowerCase(),
@@ -387,6 +450,8 @@ class SearchSortController extends SearchPortsProvider {
 
   static QueueSource Function(String name) _genreQueueSourceOf(MediaType genreType) => genreType == MediaType.style ? QueueSource.style : QueueSource.genre;
 
+  static TrackSearchFilter _genreSearchFilterOf(MediaType genreType) => genreType == MediaType.style ? TrackSearchFilter.style : TrackSearchFilter.genre;
+
   static QueueSource Function(String name) _moodsTagsQueueSourceOf(MediaType type) => type == MediaType.tag ? QueueSource.tags : QueueSource.moods;
 
   static Comparable Function(MapEntry<String, List<Track>>) _createLastPlayedComparable(QueueSource Function(String name) sourceOf) {
@@ -407,7 +472,9 @@ class SearchSortController extends SearchPortsProvider {
 
   Comparable Function(MapEntry<String, List<Track>>)? _getGenresSortingComparable(MediaType genreType, GroupSortType sortBy) {
     if (sortBy == GroupSortType.lastPlayed) return _createLastPlayedComparable(_genreQueueSourceOf(genreType));
-    return _getMediaSortingComparable(sortBy, overrideKey: GroupSortType.genresList, filter: TrackSearchFilter.genre);
+    final nameSort = GroupSortType.genresNameOf(genreType);
+    final filter = _genreSearchFilterOf(genreType);
+    return _getMediaSortingComparable(sortBy, overrideKey: nameSort, filter: filter);
   }
 
   Comparable Function(MapEntry<String, List<Track>>)? _getLanguagesSortingComparable(GroupSortType sortBy) {
@@ -425,9 +492,11 @@ class SearchSortController extends SearchPortsProvider {
     final ignoreCommonPrefix = settings.ignoreCommonPrefixForTypes.value;
     final normalize = sortKeyNormalizer;
     String? normalizeOrNull(String? text) => text == null || text.isEmpty ? null : normalize(text);
+    SortKeyPrefixIgnorer? prefixIgnorer;
     String Function(Track e) encapsulateSortCanIgnorePrefix(TrackSearchFilter filter, String Function(Track e) comparable) {
       if (ignoreCommonPrefix.contains(filter)) {
-        return (e) => comparable(e).ignoreCommonPrefixes();
+        final ignorer = prefixIgnorer ??= createSortKeyPrefixIgnorer(normalize);
+        return (e) => ignorer.ignorePrefixes(comparable(e));
       } else {
         return comparable;
       }
@@ -445,6 +514,7 @@ class SearchSortController extends SearchPortsProvider {
       SortType.year => (e) => e.yearPreferyyyyMMdd,
       SortType.artistsList => encapsulateSortCanIgnorePrefix(TrackSearchFilter.artist, (e) => normalize(e.artistsList.join())),
       SortType.genresList => encapsulateSortCanIgnorePrefix(TrackSearchFilter.genre, (e) => normalize(e.genresList.join())),
+      SortType.stylesList => encapsulateSortCanIgnorePrefix(TrackSearchFilter.style, (e) => normalize(e.stylesList.join())),
       SortType.dateAdded => (e) => e.dateAdded,
       SortType.dateModified => (e) => e.dateModified,
       SortType.bitrate => (e) => e.bitrate,
@@ -533,6 +603,7 @@ class SearchSortController extends SearchPortsProvider {
     GroupSortType.releaseType => (tracks) => tracks.releaseType,
     GroupSortType.bpm => (tracks) => tracks.getAverageBpmFormatted(),
     GroupSortType.genresList => (tracks) => tracks.originalGenre,
+    GroupSortType.stylesList => (tracks) => tracks.originalStyle,
     GroupSortType.numberOfTracks => (tracks) => tracks.length.toString(),
     GroupSortType.duration => (tracks) => tracks.totalDurationFormatted,
     GroupSortType.albumsCount => (tracks) => tracks.toUniqueAlbums().length.toString(),
@@ -607,6 +678,7 @@ class SearchSortController extends SearchPortsProvider {
     GroupSortType.releaseType => (p) => p.tracks.firstOrNull?.track.releaseType,
     GroupSortType.bpm => (p) => p.tracks.getAverageBpmFormatted(),
     GroupSortType.genresList => (p) => p.tracks.firstOrNull?.track.originalGenre,
+    GroupSortType.stylesList => (p) => p.tracks.firstOrNull?.track.originalStyle,
     GroupSortType.numberOfTracks => (p) => p.tracks.length.toString(),
     GroupSortType.duration => (p) => p.tracks.totalDurationFormatted,
     GroupSortType.albumsCount => (p) => p.tracks.toTracks().toUniqueAlbums().length.toString(),
@@ -641,6 +713,7 @@ class SearchSortController extends SearchPortsProvider {
       SortType.albumArtist ||
       SortType.artistsList ||
       SortType.genresList ||
+      SortType.stylesList ||
       SortType.composer ||
       SortType.filename ||
       SortType.titleSort ||
@@ -760,6 +833,7 @@ class SearchSortController extends SearchPortsProvider {
     GroupSortType.albumArtist ||
     GroupSortType.artistsList ||
     GroupSortType.genresList ||
+    GroupSortType.stylesList ||
     GroupSortType.composer ||
     GroupSortType.label ||
     GroupSortType.releaseType ||
@@ -830,7 +904,7 @@ class SearchSortController extends SearchPortsProvider {
     _preparingResources = true;
     _refreshRunningSearchesCount();
 
-    Future prepareOrDispose(MediaType type, Future<SendPortWithCachedMessage?> Function() prepareFn) {
+    Future prepareOrDispose(MediaType type, Future<SendPort?> Function() prepareFn) {
       if (enabledSearches[type] ?? false) {
         return prepareFn();
       } else {
@@ -859,7 +933,7 @@ class SearchSortController extends SearchPortsProvider {
   }
 
   @override
-  Future<SendPortWithCachedMessage?> Function() mediaTypeToPrepareFn(MediaType type) {
+  Future<SendPort?> Function() mediaTypeToPrepareFn(MediaType type) {
     return switch (type) {
       MediaType.artist ||
       MediaType.albumArtist ||
@@ -879,18 +953,19 @@ class SearchSortController extends SearchPortsProvider {
     };
   }
 
-  Future<SendPortWithCachedMessage?> _prepareTracksPorts() async {
+  Future<SendPort?> _prepareTracksPorts() async {
     return await super.preparePorts(
       type: MediaType.track,
       onResult: (result) {
-        final r = result as (List<Track>, List<Track>, bool, String, bool?);
-        final isTemp = r.$3;
-        final fetchedQuery = r.$4;
+        final r = result as (List<Track>, List<Track>, int, bool, String, bool?);
+        final isTemp = r.$4;
+        final fetchedQuery = r.$5;
         if (isTemp) {
           _onTempSearchEnded(MediaType.track, fetchedQuery);
           if (fetchedQuery == lastSearchText) {
             final relevant = r.$1;
             final lessRelevant = r.$2;
+            _setTempBestScore(MediaType.track, r.$3);
             if (settings.tracksSearchShowLessRelevant.value) relevant.addAll(lessRelevant);
             trackSearchTemp.value = relevant;
             trackSearchTempLessRelevant.value = lessRelevant;
@@ -898,7 +973,7 @@ class SearchSortController extends SearchPortsProvider {
           }
         } else {
           final tab = _activeTracksTab;
-          if (fetchedQuery == tab.textSearchController?.text && r.$5 == tab.isVideoFilter) {
+          if (fetchedQuery == tab.textSearchController?.text && r.$6 == tab.isVideoFilter) {
             trackSearchList.value = r.$1;
             _trackSearchListTab = tab;
           }
@@ -918,20 +993,22 @@ class SearchSortController extends SearchPortsProvider {
   List<TrackSearchFilter>? _trackPortsFilters;
 
   TracksSearchParams generateTrackSearchIsolateParams(SendPort sendPort, ListensSortedMap<Track> topTracksMapListens, {required List<TrackSearchFilter> filters}) {
-    final tracks = _tracksInfoList.value.map((e) => e.toTrackExt());
-    return TracksSearchWrapper.generateParams(sendPort, tracks, topTracksMapListens, filters: filters);
+    return TracksSearchWrapper.generateParams(sendPort, _tracksInfoList.value, topTracksMapListens, filters: filters);
   }
 
-  Future<SendPortWithCachedMessage?> _preparePlaylistPorts() async {
+  Future<SendPort?> _preparePlaylistPorts() async {
     return await super.preparePorts(
       type: MediaType.playlist,
       onResult: (result) {
-        final r = result as (List<String>, bool, String);
-        final isTemp = r.$2;
-        final fetchedQuery = r.$3;
+        final r = result as (List<String>, int, int, bool, String);
+        final isTemp = r.$4;
+        final fetchedQuery = r.$5;
         if (isTemp) {
           _onTempSearchEnded(MediaType.playlist, fetchedQuery);
-          if (fetchedQuery == lastSearchText) playlistSearchTemp.value = r.$1;
+          if (fetchedQuery == lastSearchText) {
+            _setTempRelevance(MediaType.playlist, r.$2, r.$3);
+            playlistSearchTemp.value = r.$1;
+          }
         } else {
           if (fetchedQuery == LibraryTab.playlists.textSearchController?.text) _setPlaylistSearchList(r.$1);
         }
@@ -942,7 +1019,7 @@ class SearchSortController extends SearchPortsProvider {
         final playlistsTracks = playlists.map((e) => e.tracks).toFixedList();
         final weights = _keysSearchWeightsOf(playlistsTracks);
         final params = (
-          playlists: playlists.map((e) => e.toJson((item) => item.toJson(), PlaylistController.inst.sortToJson)).toFixedList(),
+          playlists: playlists.map((e) => e.toJson((item) => item.toJson(), PlaylistController.inst.sortToJson, includeTracks: false)).toFixedList(),
           translations: (
             autoGenerated: lang.autoGenerated,
             favourites: lang.favourites,
@@ -960,19 +1037,25 @@ class SearchSortController extends SearchPortsProvider {
     );
   }
 
-  Future<SendPortWithCachedMessage?> _prepareAlbumsPorts() async {
+  Future<SendPort?> _prepareAlbumsPorts() async {
     return await super.preparePorts(
       type: MediaType.album,
       onResult: (result) {
-        final r = result as (List<AlbumIdentifierWrapper>, bool, String);
-        final isTemp = r.$2;
-        final fetchedQuery = r.$3;
-        final keysResult = _modifyAlbumKeys(r.$1);
+        final r = result as (List<AlbumIdentifierWrapper>, int, int, bool, String);
+        final isTemp = r.$4;
+        final fetchedQuery = r.$5;
         if (isTemp) {
           _onTempSearchEnded(MediaType.album, fetchedQuery);
-          if (fetchedQuery == lastSearchText) albumSearchTemp.value = keysResult;
+          if (fetchedQuery == lastSearchText) {
+            final hiddenAlbumTypes = _hiddenAlbumTypes();
+            final (results, relevantCount) = hiddenAlbumTypes.isEmpty
+                ? (r.$1, r.$2)
+                : _whereKeepingRelevance(r.$1, r.$2, (album) => !hiddenAlbumTypes.contains(album.getAlbumType()));
+            _setTempRelevance(MediaType.album, relevantCount, r.$3);
+            albumSearchTemp.value = results;
+          }
         } else {
-          if (fetchedQuery == LibraryTab.albums.textSearchController?.text) albumSearchList.value = keysResult;
+          if (fetchedQuery == LibraryTab.albums.textSearchController?.text) albumSearchList.value = _modifyAlbumKeys(r.$1);
         }
       },
       isolateFunction: (itemsSendPort) async {
@@ -980,8 +1063,12 @@ class SearchSortController extends SearchPortsProvider {
         final albumsMap = Indexer.inst.mainMapAlbums.value;
         final albumsTracks = albumsMap.values.toFixedList();
         final weights = _keysSearchWeightsOf(albumsTracks);
+        final albumSorts = _groupsSortTagsOf(_singleAlbumOf, (sortInfo) => sortInfo.album);
+        final albumArtistSorts = _groupsSortTagsOf(_singleAlbumOf, (sortInfo) => sortInfo.albumArtist);
         final params = (
           keys: albumsMap.keys.toFixedList(),
+          albumSorts: albumSorts,
+          albumArtistSorts: albumArtistSorts,
           weights: weights,
           cleanup: _shouldCleanup,
           sendPort: itemsSendPort,
@@ -991,18 +1078,21 @@ class SearchSortController extends SearchPortsProvider {
     );
   }
 
-  Future<SendPortWithCachedMessage?> _prepareMediaPorts(MediaType type) async {
+  Future<SendPort?> _prepareMediaPorts(MediaType type) async {
     return await super.preparePorts(
       type: type,
       onResult: (result) {
-        final r = result as (List<String>, bool, String);
-        final isTemp = r.$2;
-        final fetchedQuery = r.$3;
+        final r = result as (List<String>, int, int, bool, String);
+        final isTemp = r.$4;
+        final fetchedQuery = r.$5;
 
         if (isTemp) {
           _onTempSearchEnded(type, fetchedQuery);
           if (fetchedQuery == lastSearchText) {
-            _searchMapTemp[type]?.value = _filterNonEmptyFolders(type, r.$1);
+            final nonEmptyFolderTest = _nonEmptyFolderTestOf(type);
+            final (results, relevantCount) = nonEmptyFolderTest == null ? (r.$1, r.$2) : _whereKeepingRelevance(r.$1, r.$2, nonEmptyFolderTest);
+            _setTempRelevance(type, relevantCount, r.$3);
+            _searchMapTemp[type]?.value = results;
             // sortMedia(type);
           }
         } else {
@@ -1019,8 +1109,10 @@ class SearchSortController extends SearchPortsProvider {
         final entries = _getMediaEntries(type).toFixedList();
         final entriesTracks = entries.map((e) => e.value).toFixedList();
         final weights = _keysSearchWeightsOf(entriesTracks);
+        final sortTags = _mediaSortTagsOf(type);
         final params = (
           keys: entries.map((e) => e.key).toFixedList(),
+          sortTags: sortTags,
           weights: weights,
           cleanup: _shouldCleanup,
           keyIsPath: type == MediaType.folderMusic || type == MediaType.folderVideo || type == MediaType.folder,
@@ -1053,11 +1145,49 @@ class SearchSortController extends SearchPortsProvider {
     return KeysSearchWrapper.createWeights(groups, listensCount: (tracks) => tracks.getTotalListenCount(), tracksCount: (tracks) => tracks.length);
   }
 
-  void searchTracks(String text, {bool temp = false}) async {
+  static Map<String, String>? _mediaSortTagsOf(MediaType type) {
+    return switch (type) {
+      MediaType.artist => _groupsSortTagsOf(_singleArtistOf, (sortInfo) => sortInfo.artist),
+      MediaType.albumArtist => _groupsSortTagsOf(_singleAlbumArtistOf, (sortInfo) => sortInfo.albumArtist),
+      MediaType.composer => _groupsSortTagsOf(_singleComposerOf, (sortInfo) => sortInfo.composer),
+      MediaType.genre ||
+      MediaType.style ||
+      MediaType.language ||
+      MediaType.folder ||
+      MediaType.folderMusic ||
+      MediaType.folderVideo ||
+      MediaType.mood ||
+      MediaType.tag ||
+      MediaType.rating ||
+      MediaType.track ||
+      MediaType.album ||
+      MediaType.playlist => null,
+    };
+  }
+
+  /// sort tag of each group, taken only from tracks that belong to one group, since a tag like `Choko & Someone` can't be split per name.
+  static Map<K, String> _groupsSortTagsOf<K>(K? Function(TrackExtended trExt) singleKeyOf, String? Function(FTagsSortInfo sortInfo) sortTagOf) {
+    final sortTags = <K, String>{};
+    for (final trExt in Indexer.inst.allTracksMappedByPath.values) {
+      final sortInfo = trExt.sortInfo;
+      if (sortInfo == null) continue;
+      final sortTag = sortTagOf(sortInfo);
+      if (sortTag == null || sortTag.isEmpty) continue;
+      final key = singleKeyOf(trExt);
+      if (key != null) sortTags[key] ??= sortTag;
+    }
+    return sortTags;
+  }
+
+  static String? _singleArtistOf(TrackExtended trExt) => trExt.artistsList.length == 1 ? trExt.artistsList[0] : null;
+  static String? _singleAlbumArtistOf(TrackExtended trExt) => trExt.albumArtistsList.length == 1 ? trExt.albumArtistsList[0] : null;
+  static String? _singleComposerOf(TrackExtended trExt) => trExt.composersList.length == 1 ? trExt.composersList[0] : null;
+  static AlbumIdentifierWrapper? _singleAlbumOf(TrackExtended trExt) => trExt.albumsIdentifiersWrappers.length == 1 ? trExt.albumsIdentifiersWrappers[0].modifiedOnly() : null;
+
+  void searchTracks(String text, {bool temp = false}) {
     if (text == '') {
       if (temp) {
-        trackSearchTemp.clear();
-        trackSearchTempLessRelevant.clear();
+        _clearTempResults(MediaType.track);
         _onTempSearchEnded(MediaType.track, null);
       } else {
         final tab = _activeTracksTab;
@@ -1074,7 +1204,8 @@ class SearchSortController extends SearchPortsProvider {
     }
     if (temp) _onTempSearchStarted(MediaType.track, text);
     final isVideo = temp ? _activeTrSearchIsVideo : _activeTracksTab.isVideoFilter;
-    _sendSearchRequest(MediaType.track, await _prepareTracksPorts(), text, temp, isVideo: isVideo);
+    final sendPortFuture = _prepareTracksPorts();
+    sendRequest(MediaType.track, sendPortFuture, (text: text, temp: temp, isVideo: isVideo));
   }
 
   static void searchTracksIsolate(TracksSearchParams params) {
@@ -1099,19 +1230,23 @@ class SearchSortController extends SearchPortsProvider {
 
       if (temp) {
         final result = searchWrapper.filterSplitByRelevance(text, isVideo: isVideo);
-        sendPort.send((result.relevant, result.lessRelevant, temp, text, isVideo));
+        sendPort.send((result.relevant, result.lessRelevant, result.bestScore, temp, text, isVideo));
       } else {
         final result = searchWrapper.filter(text, isVideo: isVideo);
-        sendPort.send((result, const <Track>[], temp, text, isVideo));
+        sendPort.send((result, const <Track>[], 0, temp, text, isVideo));
       }
     });
 
     sendPort.send(PortsProviderMessages.prepared);
   }
 
-  List<AlbumIdentifierWrapper> _modifyAlbumKeys(Iterable<AlbumIdentifierWrapper> original) {
+  static Set<AlbumType> _hiddenAlbumTypes() {
     final activeAlbumTypes = settings.activeAlbumTypes.value;
-    final hiddenAlbumTypes = AlbumType.values.where((e) => activeAlbumTypes[e] == false).toSet();
+    return AlbumType.values.where((e) => activeAlbumTypes[e] == false).toSet();
+  }
+
+  List<AlbumIdentifierWrapper> _modifyAlbumKeys(Iterable<AlbumIdentifierWrapper> original) {
+    final hiddenAlbumTypes = _hiddenAlbumTypes();
 
     if (hiddenAlbumTypes.isEmpty) return original.toList();
     if (hiddenAlbumTypes.length == AlbumType.values.length) return [];
@@ -1119,10 +1254,10 @@ class SearchSortController extends SearchPortsProvider {
     return original.where((element) => !hiddenAlbumTypes.contains(element.getAlbumType())).toList();
   }
 
-  void _searchAlbums(String text, {bool temp = false}) async {
+  void _searchAlbums(String text, {bool temp = false}) {
     if (text == '') {
       if (temp) {
-        albumSearchTemp.clear();
+        _clearTempResults(MediaType.album);
         _onTempSearchEnded(MediaType.album, null);
       } else {
         LibraryTab.albums.textSearchController?.clear();
@@ -1132,13 +1267,14 @@ class SearchSortController extends SearchPortsProvider {
     }
 
     if (temp) _onTempSearchStarted(MediaType.album, text);
-    _sendSearchRequest(MediaType.album, await _prepareAlbumsPorts(), text, temp);
+    final sendPortFuture = _prepareAlbumsPorts();
+    sendRequest(MediaType.album, sendPortFuture, (text: text, temp: temp, isVideo: null));
   }
 
-  void _searchMediaType({required MediaType type, required String text, bool temp = false}) async {
+  void _searchMediaType({required MediaType type, required String text, bool temp = false}) {
     if (text == '') {
       if (temp) {
-        _searchMapTemp[type]?.clear();
+        _clearTempResults(type);
         _onTempSearchEnded(type, null);
       } else {
         final typeNomalize = type == MediaType.albumArtist || type == MediaType.composer
@@ -1153,13 +1289,14 @@ class SearchSortController extends SearchPortsProvider {
     }
 
     if (temp) _onTempSearchStarted(type, text);
-    _sendSearchRequest(type, await _prepareMediaPorts(type), text, temp);
+    final sendPortFuture = _prepareMediaPorts(type);
+    sendRequest(type, sendPortFuture, (text: text, temp: temp, isVideo: null));
   }
 
-  void _searchPlaylists(String text, {bool temp = false}) async {
+  void _searchPlaylists(String text, {bool temp = false}) {
     if (text == '') {
       if (temp) {
-        playlistSearchTemp.clear();
+        _clearTempResults(MediaType.playlist);
         _onTempSearchEnded(MediaType.playlist, null);
       } else {
         LibraryTab.playlists.textSearchController?.clear();
@@ -1170,7 +1307,8 @@ class SearchSortController extends SearchPortsProvider {
     }
 
     if (temp) _onTempSearchStarted(MediaType.playlist, text);
-    _sendSearchRequest(MediaType.playlist, await _preparePlaylistPorts(), text, temp);
+    final sendPortFuture = _preparePlaylistPorts();
+    sendRequest(MediaType.playlist, sendPortFuture, (text: text, temp: temp, isVideo: null));
   }
 
   var _playlistSearchListUnfiltered = <String>[];
@@ -1234,8 +1372,14 @@ class SearchSortController extends SearchPortsProvider {
       }
       p as SearchRequest;
       final text = p.text;
-      final results = searchWrapper.filter(text).map((pl) => pl.name).toList();
-      sendPort.send((results, p.temp, text));
+      if (p.temp) {
+        final r = searchWrapper.filterRelevantFirst(text);
+        final names = r.results.map((pl) => pl.name).toList();
+        sendPort.send((names, r.relevantCount, r.bestScore, true, text));
+      } else {
+        final results = searchWrapper.filter(text).map((pl) => pl.name).toList();
+        sendPort.send((results, results.length, 0, false, text));
+      }
     });
 
     sendPort.send(PortsProviderMessages.prepared);
@@ -1394,6 +1538,7 @@ class SearchSortController extends SearchPortsProvider {
       SortType.albumArtist => MediaType.albumArtist,
       SortType.artistsList => MediaType.artist,
       SortType.genresList => MediaType.genre,
+      SortType.stylesList => MediaType.style,
       SortType.title ||
       SortType.year ||
       SortType.dateAdded ||
@@ -1446,69 +1591,58 @@ class SearchSortController extends SearchPortsProvider {
     if (sorting.firstType == GroupSortType.shuffle) {
       albumsList.shuffle();
     } else {
-      String Function(MapEntry<AlbumIdentifierWrapper, List<Track>> e) encapsulateSortCanIgnorePrefix(
-        TrackSearchFilter filter,
-        String Function(MapEntry<AlbumIdentifierWrapper, List<Track>> e) comparable,
-      ) {
-        final ignoreCommonPrefix = settings.ignoreCommonPrefixForTypes.value;
-        if (ignoreCommonPrefix.contains(filter)) {
-          return (e) => comparable(e).ignoreCommonPrefixes();
-        } else {
-          return comparable;
-        }
-      }
-
-      Comparable<dynamic> Function(MapEntry<AlbumIdentifierWrapper, List<Track>>)? comparableOf(GroupSortType s) {
-        if (s == GroupSortType.album) {
-          final normalize = sortKeyNormalizer;
-          final mainFn = encapsulateSortCanIgnorePrefix(TrackSearchFilter.album, (e) => normalize(e.key.displayAlbumName));
-          return (e) => mainFn(e);
-        } else if (s == GroupSortType.lastPlayed) {
-          final latestPlayedForSource = QueueController.latestPlayedForSourceManager;
-          return (e) => -(latestPlayedForSource.latestPlayedTime(QueueSource.album(e.key, null)) ?? 0);
-        } else {
-          final fn = _getMediaSortingComparable(s);
-          if (fn == null) return null;
-          return (e) => fn(MapEntry(e.key.displayAlbumName, e.value));
-        }
-      }
-
-      final comparables = SortChainComparables.of(
-        sorting,
-        comparableOf,
-        fallbacks: const [GroupSortType.album, GroupSortType.year, GroupSortType.dateModified],
-      );
-      albumsList.sortByChain(comparables);
+      albumsList.sortByChain(_getAlbumsComparables(sorting));
     }
+  }
+
+  SortChainComparables<MapEntry<AlbumIdentifierWrapper, List<Track>>> _getAlbumsComparables(SortChain<GroupSortType> sorting) {
+    String Function(MapEntry<AlbumIdentifierWrapper, List<Track>> e) encapsulateSortCanIgnorePrefix(
+      TrackSearchFilter filter,
+      String Function(String text) normalize,
+      String Function(MapEntry<AlbumIdentifierWrapper, List<Track>> e) comparable,
+    ) {
+      final ignoreCommonPrefix = settings.ignoreCommonPrefixForTypes.value;
+      if (ignoreCommonPrefix.contains(filter)) {
+        final ignorer = createSortKeyPrefixIgnorer(normalize);
+        return (e) => ignorer.ignorePrefixes(comparable(e));
+      } else {
+        return comparable;
+      }
+    }
+
+    Comparable<dynamic> Function(MapEntry<AlbumIdentifierWrapper, List<Track>>)? comparableOf(GroupSortType s) {
+      if (s == GroupSortType.album) {
+        final normalize = sortKeyNormalizer;
+        final mainFn = encapsulateSortCanIgnorePrefix(TrackSearchFilter.album, normalize, (e) => normalize(e.key.displayAlbumName));
+        return (e) => mainFn(e);
+      } else if (s == GroupSortType.lastPlayed) {
+        final latestPlayedForSource = QueueController.latestPlayedForSourceManager;
+        return (e) => -(latestPlayedForSource.latestPlayedTime(QueueSource.album(e.key, null)) ?? 0);
+      } else {
+        final fn = _getMediaSortingComparable(s);
+        if (fn == null) return null;
+        return (e) => fn(MapEntry(e.key.displayAlbumName, e.value));
+      }
+    }
+
+    return SortChainComparables.of(
+      sorting,
+      comparableOf,
+      fallbacks: const [GroupSortType.album, GroupSortType.year, GroupSortType.dateModified],
+    );
   }
 
   /// Sorts Artists and Saves automatically to settings
   void _sortArtistsCurrent({required MediaType artistType, SortChain<GroupSortType>? sorting, bool? reverse}) {
     final effectiveSorting = _effectiveGroupSorting(artistType, sorting, reverse);
 
-    final finalMap = switch (artistType) {
-      MediaType.artist => Indexer.inst.mainMapArtists,
-      MediaType.albumArtist => Indexer.inst.mainMapAlbumArtists,
-      MediaType.composer => Indexer.inst.mainMapComposer,
-      _ => Indexer.inst.mainMapArtists,
-    };
+    final finalMap = Indexer.inst.getArtistMapFor(artistType);
     final artistsList = finalMap.value.entries.toFixedList();
 
     if (effectiveSorting.firstType == GroupSortType.shuffle) {
       artistsList.shuffle();
     } else {
-      final fallbackGroupSortTitle = switch (artistType) {
-        MediaType.artist => GroupSortType.artistsList,
-        MediaType.albumArtist => GroupSortType.albumArtist,
-        MediaType.composer => GroupSortType.composer,
-        _ => null,
-      };
-      final comparables = SortChainComparables.of(
-        effectiveSorting,
-        (sort) => sort == GroupSortType.albumsCount ? _getArtistsAlbumsCountComparable(artistType) : _getArtistsSortingComparable(artistType, sort),
-        fallbacks: [?fallbackGroupSortTitle, GroupSortType.year, GroupSortType.dateModified],
-      );
-      artistsList.sortByChain(comparables);
+      artistsList.sortByChain(_getArtistsComparables(artistType, effectiveSorting));
     }
 
     finalMap.value.assignAllEntries(artistsList);
@@ -1519,9 +1653,24 @@ class SearchSortController extends SearchPortsProvider {
     _searchMediaType(type: artistType, text: LibraryTab.artists.textSearchController?.text ?? '');
   }
 
+  SortChainComparables<MapEntry<String, List<Track>>> _getArtistsComparables(MediaType artistType, SortChain<GroupSortType> sorting) {
+    final fallbackGroupSortTitle = switch (artistType) {
+      MediaType.artist => GroupSortType.artistsList,
+      MediaType.albumArtist => GroupSortType.albumArtist,
+      MediaType.composer => GroupSortType.composer,
+      _ => null,
+    };
+    return SortChainComparables.of(
+      sorting,
+      (sort) => sort == GroupSortType.albumsCount ? _getArtistsAlbumsCountComparable(artistType) : _getArtistsSortingComparable(artistType, sort),
+      fallbacks: [?fallbackGroupSortTitle, GroupSortType.year, GroupSortType.dateModified],
+    );
+  }
+
   /// Sorts Genres and Saves automatically to settings
   void _sortGenresCurrent({required MediaType genreType, SortChain<GroupSortType>? sorting, bool? reverse}) {
-    final effectiveSorting = _effectiveGroupSorting(genreType, sorting, reverse);
+    final baseSorting = _effectiveGroupSorting(genreType, sorting, reverse);
+    final effectiveSorting = withGenresNameSort(genreType, baseSorting);
 
     final finalMap = Indexer.inst.getGenreMapFor(genreType);
     final genresList = finalMap.value.entries.toFixedList();
@@ -1529,12 +1678,7 @@ class SearchSortController extends SearchPortsProvider {
     if (effectiveSorting.firstType == GroupSortType.shuffle) {
       genresList.shuffle();
     } else {
-      final comparables = SortChainComparables.of(
-        effectiveSorting,
-        (sort) => _getGenresSortingComparable(genreType, sort),
-        fallbacks: const [GroupSortType.genresList, GroupSortType.year, GroupSortType.dateModified],
-      );
-      genresList.sortByChain(comparables);
+      genresList.sortByChain(_getGenresComparables(genreType, effectiveSorting));
     }
 
     finalMap.value.assignAllEntries(genresList);
@@ -1542,6 +1686,25 @@ class SearchSortController extends SearchPortsProvider {
 
     settings.updateGroupSorting(genreType, effectiveSorting);
     _searchMediaType(type: genreType, text: LibraryTab.genres.textSearchController?.text ?? '');
+  }
+
+  /// genres and styles share one sorting, its name entry follows [genreType].
+  @visibleForTesting
+  static SortChain<GroupSortType> withGenresNameSort(MediaType genreType, SortChain<GroupSortType> sorting) {
+    final nameSort = GroupSortType.genresNameOf(genreType);
+    final otherNameSort = nameSort == GroupSortType.stylesList ? GroupSortType.genresList : GroupSortType.stylesList;
+    if (!sorting.hasType(otherNameSort)) return sorting;
+    final entries = sorting.entries.map((e) => e.type == otherNameSort ? SortEntry(nameSort, reverse: e.reverse) : e).toFixedList();
+    return sorting.copyWith(entries: entries);
+  }
+
+  SortChainComparables<MapEntry<String, List<Track>>> _getGenresComparables(MediaType genreType, SortChain<GroupSortType> sorting) {
+    final nameSort = GroupSortType.genresNameOf(genreType);
+    return SortChainComparables.of(
+      sorting,
+      (sort) => _getGenresSortingComparable(genreType, sort),
+      fallbacks: [nameSort, GroupSortType.year, GroupSortType.dateModified],
+    );
   }
 
   /// Sorts Languages and Saves automatically to settings
@@ -1554,12 +1717,7 @@ class SearchSortController extends SearchPortsProvider {
     if (effectiveSorting.firstType == GroupSortType.shuffle) {
       languagesList.shuffle();
     } else {
-      final comparables = SortChainComparables.of(
-        effectiveSorting,
-        _getLanguagesSortingComparable,
-        fallbacks: const [GroupSortType.title, GroupSortType.year, GroupSortType.dateModified],
-      );
-      languagesList.sortByChain(comparables);
+      languagesList.sortByChain(_getLanguagesComparables(effectiveSorting));
     }
 
     finalMap.value.assignAllEntries(languagesList);
@@ -1567,6 +1725,102 @@ class SearchSortController extends SearchPortsProvider {
 
     settings.updateGroupSorting(MediaType.language, effectiveSorting);
     _searchMediaType(type: MediaType.language, text: LibraryTab.languages.textSearchController?.text ?? '');
+  }
+
+  SortChainComparables<MapEntry<String, List<Track>>> _getLanguagesComparables(SortChain<GroupSortType> sorting) {
+    return SortChainComparables.of(
+      sorting,
+      _getLanguagesSortingComparable,
+      fallbacks: const [GroupSortType.title, GroupSortType.year, GroupSortType.dateModified],
+    );
+  }
+
+  /// above this, sorting the whole list again is cheaper than inserting each group.
+  static const _kMaxGroupsToInsert = 32;
+
+  /// inserts the few groups [changes] touched in place instead of sorting each list again, the caller refreshes the maps.
+  void sortChangedGroups(LibraryGroupChanges changes) {
+    _sortChangedGroups(
+      media: MediaType.album,
+      changes: changes,
+      finalMap: Indexer.inst.mainMapAlbums,
+      comparablesOf: _getAlbumsComparables,
+      sortAll: _sortAlbums,
+    );
+    final artistType = settings.activeArtistType.value;
+    _sortChangedGroups(
+      media: artistType,
+      changes: changes,
+      finalMap: Indexer.inst.getArtistMapFor(artistType),
+      comparablesOf: (sorting) => _getArtistsComparables(artistType, sorting),
+      sortAll: () => _sortArtistsCurrent(artistType: artistType),
+    );
+    final genreType = settings.activeGenreType.value;
+    _sortChangedGroups(
+      media: genreType,
+      changes: changes,
+      finalMap: Indexer.inst.getGenreMapFor(genreType),
+      comparablesOf: (sorting) => _getGenresComparables(genreType, sorting),
+      sortAll: () => _sortGenresCurrent(genreType: genreType),
+    );
+    _sortChangedGroups(
+      media: MediaType.language,
+      changes: changes,
+      finalMap: Indexer.inst.mainMapLanguages,
+      comparablesOf: _getLanguagesComparables,
+      sortAll: _sortLanguages,
+    );
+  }
+
+  /// a shuffled list keeps new groups at its end.
+  void _sortChangedGroups<K>({
+    required MediaType media,
+    required LibraryGroupChanges changes,
+    required LibraryItemMapRaw<K> finalMap,
+    required SortChainComparables<MapEntry<K, List<Track>>> Function(SortChain<GroupSortType> sorting) comparablesOf,
+    required void Function() sortAll,
+  }) {
+    final keys = changes.modifiedKeysOf(media);
+    if (keys == null) return;
+    if (keys.length > _kMaxGroupsToInsert) {
+      sortAll();
+      return;
+    }
+
+    final sorting = settings.groupSortingOf(media);
+    if (sorting.firstType != GroupSortType.shuffle) {
+      final map = finalMap.value;
+      // -- by list, the case insensitive maps can store a key in another case
+      final changedLists = Set<List<Track>>.identity();
+      for (final key in keys) {
+        final list = map[key];
+        if (list != null) changedLists.add(list);
+      }
+      final allEntries = map.entries.toFixedList();
+      final sortedEntries = <MapEntry<K, List<Track>>>[];
+      final changedEntries = <MapEntry<K, List<Track>>>[];
+      for (final e in allEntries) {
+        final entries = changedLists.contains(e.value) ? changedEntries : sortedEntries;
+        entries.add(e);
+      }
+      final comparables = comparablesOf(sorting);
+      for (final e in changedEntries) {
+        sortedEntries.insertByChain(e, comparables);
+      }
+
+      // -- the map rebuild is the slow part
+      bool didMove = false;
+      for (int i = 0; i < allEntries.length; i++) {
+        if (!identical(allEntries[i], sortedEntries[i])) {
+          didMove = true;
+          break;
+        }
+      }
+      if (didMove) map.assignAllEntries(sortedEntries);
+    }
+
+    final searchText = media.toLibraryTab().textSearchController?.text ?? '';
+    searchMedia(searchText, media);
   }
 
   void _saveMoodsTagsSorting(MediaType type, {SortChain<GroupSortType>? sorting, bool? reverse}) {
@@ -1657,6 +1911,7 @@ class SearchSortController extends SearchPortsProvider {
           GroupSortType.year ||
           GroupSortType.artistsList ||
           GroupSortType.genresList ||
+          GroupSortType.stylesList ||
           GroupSortType.dateAdded ||
           GroupSortType.dateModified ||
           GroupSortType.composer ||
@@ -1673,8 +1928,20 @@ class SearchSortController extends SearchPortsProvider {
     }
   }
 
-  static void _searchAlbumsIsolate(({List<AlbumIdentifierWrapper> keys, KeysSearchWeights weights, bool cleanup, SendPort sendPort}) parameters) {
+  static void _searchAlbumsIsolate(
+    ({
+      List<AlbumIdentifierWrapper> keys,
+      Map<AlbumIdentifierWrapper, String> albumSorts,
+      Map<AlbumIdentifierWrapper, String> albumArtistSorts,
+      KeysSearchWeights weights,
+      bool cleanup,
+      SendPort sendPort,
+    })
+    parameters,
+  ) {
     final sendPort = parameters.sendPort;
+    final albumSorts = parameters.albumSorts;
+    final albumArtistSorts = parameters.albumArtistSorts;
 
     final receivePort = ReceivePort();
     sendPort.send(receivePort.sendPort);
@@ -1683,6 +1950,8 @@ class SearchSortController extends SearchPortsProvider {
       parameters.keys,
       title: (key) => key.displayAlbumName,
       subtitle: (key) => key.albumArtist,
+      titleSort: (key) => albumSorts[key],
+      subtitleSort: (key) => albumArtistSorts[key],
       weights: parameters.weights,
       cleanup: parameters.cleanup,
     );
@@ -1696,16 +1965,22 @@ class SearchSortController extends SearchPortsProvider {
       }
       p as SearchRequest;
       final text = p.text;
-      final results = searchWrapper.filter(text);
-      sendPort.send((results, p.temp, text));
+      if (p.temp) {
+        final r = searchWrapper.filterRelevantFirst(text);
+        sendPort.send((r.results, r.relevantCount, r.bestScore, true, text));
+      } else {
+        final results = searchWrapper.filter(text);
+        sendPort.send((results, results.length, 0, false, text));
+      }
     });
 
     sendPort.send(PortsProviderMessages.prepared);
   }
 
-  static void _generalSearchIsolate(({List<String> keys, KeysSearchWeights weights, bool cleanup, bool keyIsPath, SendPort sendPort}) parameters) {
+  static void _generalSearchIsolate(({List<String> keys, Map<String, String>? sortTags, KeysSearchWeights weights, bool cleanup, bool keyIsPath, SendPort sendPort}) parameters) {
     final keyIsPath = parameters.keyIsPath;
     final sendPort = parameters.sendPort;
+    final sortTags = parameters.sortTags;
 
     final receivePort = ReceivePort();
     sendPort.send(receivePort.sendPort);
@@ -1713,6 +1988,7 @@ class SearchSortController extends SearchPortsProvider {
     final searchWrapper = KeysSearchWrapper.init(
       parameters.keys,
       title: (key) => keyIsPath ? Folder.explicit(key).folderNameRaw : key,
+      titleSort: sortTags == null ? null : (key) => sortTags[key],
       weights: parameters.weights,
       cleanup: parameters.cleanup,
     );
@@ -1726,8 +2002,13 @@ class SearchSortController extends SearchPortsProvider {
       }
       p as SearchRequest;
       final text = p.text;
-      final results = searchWrapper.filter(text);
-      sendPort.send((results, p.temp, text));
+      if (p.temp) {
+        final r = searchWrapper.filterRelevantFirst(text);
+        sendPort.send((r.results, r.relevantCount, r.bestScore, true, text));
+      } else {
+        final results = searchWrapper.filter(text);
+        sendPort.send((results, results.length, 0, false, text));
+      }
     });
 
     sendPort.send(PortsProviderMessages.prepared);

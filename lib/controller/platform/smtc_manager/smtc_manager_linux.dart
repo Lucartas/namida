@@ -55,9 +55,33 @@ class _SMTCManagerLinux extends NamidaSMTCManager {
     await mprisLocal?.dispose();
   }
 
+  MediaItem? _mediaItem;
+
+  /// can arrive before the item they belong to is published.
+  String? _lyricsMediaId;
+  String? _lyrics;
+  String? _publishedLyrics;
+
   @override
   void updateMetadata(MediaItem mediaItem) async {
-    final metadata = Metadata(
+    _mediaItem = mediaItem;
+    _publishMetadata(mediaItem);
+  }
+
+  @override
+  void updateLyrics(String? mediaId, String? lyrics) {
+    _lyricsMediaId = mediaId;
+    _lyrics = lyrics;
+    final mediaItem = _mediaItem;
+    if (mediaItem == null || mediaItem.id != mediaId) return;
+    if (lyrics == _publishedLyrics) return;
+    _publishMetadata(mediaItem);
+  }
+
+  void _publishMetadata(MediaItem mediaItem) {
+    final lyrics = mediaItem.id == _lyricsMediaId ? _lyrics : null;
+    _publishedLyrics = lyrics;
+    final metadata = _NamidaMPRISMetadata(
       // -- id must be in this format
       trackId: '/com/msob7y/namida/track/${mediaItem.id.hashCode.abs()}',
       trackTitle: mediaItem.title,
@@ -66,8 +90,25 @@ class _SMTCManagerLinux extends NamidaSMTCManager {
       albumArtist: [?mediaItem.albumArtist],
       trackLength: mediaItem.duration,
       artUrl: mediaItem.artUri?.toString(),
+      lyrics: lyrics,
+      url: _getMediaUrl(mediaItem),
+      isFavourite: mediaItem.rating?.hasHeart(),
     );
     mpris?.metadata = metadata;
+  }
+
+  static String? _getMediaUrl(MediaItem mediaItem) {
+    final extras = mediaItem.extras;
+    if (extras == null) return null;
+    final path = extras[NowPlayingExtras.path];
+    if (path is String) {
+      final isNetwork = Track.explicit(path).isNetwork;
+      if (isNetwork) return null;
+      return Uri.file(path).toString();
+    }
+    final videoId = extras[NowPlayingExtras.videoId];
+    if (videoId is String) return YTUrlUtils.buildVideoUrl(videoId);
+    return null;
   }
 
   @override
@@ -388,4 +429,34 @@ class _CustomMPRISService extends MPRISService {
     'audio/x-xm',
     'application/mxf',
   ];
+}
+
+class _NamidaMPRISMetadata extends Metadata {
+  final String? url;
+  final bool? isFavourite;
+
+  _NamidaMPRISMetadata({
+    required super.trackId,
+    required super.trackTitle,
+    super.trackLength,
+    super.trackArtist,
+    super.lyrics,
+    super.artUrl,
+    super.albumName,
+    super.albumArtist,
+    required this.url,
+    required this.isFavourite,
+  });
+
+  @override
+  DBusValue toValue() {
+    final value = super.toValue();
+    final url = this.url;
+    final isFavourite = this.isFavourite;
+    if (url == null && isFavourite == null) return value;
+    final entries = value.asStringVariantDict();
+    if (url != null) entries['xesam:url'] = DBusString(url);
+    if (isFavourite != null) entries['xesam:userRating'] = DBusDouble(isFavourite ? 1.0 : 0.0);
+    return DBusDict.stringVariant(entries);
+  }
 }

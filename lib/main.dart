@@ -25,6 +25,7 @@ import 'package:namida/class/file_parts.dart';
 import 'package:namida/class/route.dart';
 import 'package:namida/class/track.dart';
 import 'package:namida/controller/backup_controller.dart';
+import 'package:namida/controller/bookmarks_controller.dart';
 import 'package:namida/controller/chapters_controller.dart';
 import 'package:namida/controller/connectivity.dart';
 import 'package:namida/controller/current_color.dart';
@@ -38,9 +39,11 @@ import 'package:namida/controller/logs_controller.dart';
 import 'package:namida/controller/lyrics_integrations.dart';
 import 'package:namida/controller/music_web_server/music_web_server_base.dart';
 import 'package:namida/controller/navigator_controller.dart';
+import 'package:namida/controller/network_proxy_controller.dart';
 import 'package:namida/controller/notification_controller.dart';
 import 'package:namida/controller/now_playing_broadcaster.dart';
 import 'package:namida/controller/party/party_controller.dart';
+import 'package:namida/controller/pip_controller.dart';
 import 'package:namida/controller/platform/app_single_instance/app_single_instance.dart';
 import 'package:namida/controller/platform/base.dart';
 import 'package:namida/controller/platform/namida_channel/namida_channel.dart';
@@ -88,8 +91,9 @@ import 'package:namida/ui/widgets/animated_widgets.dart';
 import 'package:namida/ui/widgets/custom_widgets.dart';
 import 'package:namida/ui/widgets/effects/effects.dart';
 import 'package:namida/ui/widgets/library/track_tile.dart';
+import 'package:namida/ui/widgets/mascots/mascots.dart';
 import 'package:namida/ui/widgets/mini_lyrics_window.dart';
-import 'package:namida/ui/widgets/video_widget.dart';
+import 'package:namida/ui/widgets/pip_view.dart';
 import 'package:namida/youtube/class/youtube_id.dart';
 import 'package:namida/youtube/controller/youtube_account_controller.dart';
 import 'package:namida/youtube/controller/youtube_controller.dart';
@@ -245,6 +249,7 @@ Future<bool> _mainAppInitialization() async {
     }
 
     await settings.prepareAllSettings();
+    NetworkProxyController.inst.init();
     NamidaStorage.inst.initPickedDirectories().ignoreError();
     Language.initialize(); // should be done as early as possible
     TrackTileManager.initialize();
@@ -301,15 +306,19 @@ Future<bool> _mainAppInitialization() async {
       NamidaNavigator.setSystemUIImmersiveMode(false),
       Rhttp.init().then(
         (_) async {
-          final client = await RhttpCompatibleClient.create();
+          final proxySettings = NetworkProxyController.inst.rhttpSettings;
+          final client = await RhttpCompatibleClient.create(settings: proxySettings);
           final config = _HttpCacheCustomCacheConfig._(client);
+          NetworkProxyController.inst.addOnChanged(config._onProxyChanged);
           await HttpCacheManager.init(config: config).ignoreError();
         },
       ),
       NamidaFFMPEG.configure(),
       ytInfoInitSyncItemsCompleter.future,
       NamidaDeviceInfo.packageInfoCompleter.future,
+      NamidaChannel.inst.refreshEnabledAppIcon(),
     ].executeAllAndSilentReportErrors();
+    NamidaMascots.initialize();
 
     // -- best to initialize last, so that tracks are prepared (for info/colors) and rhttp is initialized (for network), etc.
     // -- lyrics integrations require the player, and must be active before the latest queue loads lyrics
@@ -328,6 +337,7 @@ Future<bool> _mainAppInitialization() async {
     ScrollSearchController.inst.initialize();
     Subtitles.inst.initialize();
     ChaptersController.inst.initialize();
+    BookmarksController.inst.initialize();
   } catch (e, st) {
     logger.error('_mainAppInitialization 2', e: e, st: st);
   }
@@ -346,6 +356,7 @@ Future<void> _secondaryAppInitialization(bool shouldShowOnBoarding) async {
     NamidaChannel.inst.logPreviousAbnormalExits().catchError(logger.report);
 
     YoutubeAccountController.initialize();
+    PipController.inst.init();
 
     await [
       YoutubeInfoController.utils.fillBackupInfoMap(), // for history videos info.
@@ -361,7 +372,6 @@ Future<void> _secondaryAppInitialization(bool shouldShowOnBoarding) async {
 
       NotificationManager.init(),
       if (!NamidaFeaturesVisibility.hidingVolumeHudIsAppWide) FlutterVolumeController.updateShowSystemUI(false),
-      NamidaChannel.inst.setCanEnterPip(settings.enablePip.value),
     ].executeAllAndSilentReportErrors();
 
     QueueController.inst.prepareAllQueuesFile().catchError(logger.report);
@@ -476,13 +486,11 @@ void _initErrorInterpreters() {
 
 void _initLifeCycle() {
   NamidaChannel.inst.addOnDestroy(() async {
-    if (settings.player.killAfterDismissingApp.value.resolveShouldKill()) {
-      await Player.inst.pause();
-      await Player.inst.dispose();
-    }
+    // -- process must go too, a new engine in it can't bind what this one holds (ex: sync server port)
+    if (settings.player.killAfterDismissingApp.value.resolveShouldKill()) await Namida.disposeAllResourcesAndExit();
   });
 
-  NamidaChannel.inst.addOnResume(CurrentColor.inst.refreshColorsAfterResumeApp);
+  NamidaChannel.inst.addOnResume(CurrentColor.inst.refreshColorsFromDeviceWallpaper);
   NamidaChannel.inst.addOnResume(() {
     final context = namida.context;
     if (context != null) {
@@ -558,8 +566,9 @@ class Namida extends StatefulWidget {
 
   static Future<Never> disposeAllResourcesAndExit() async {
     _isExiting = true;
+    final hasWindowManager = WindowController.instance != null;
     await [
-      windowManager.hide(),
+      if (hasWindowManager) windowManager.hide(),
       TrayController.instance?.dispose(),
     ].executeAllAndSilentReportErrors();
     await Future.any(
@@ -570,7 +579,7 @@ class Namida extends StatefulWidget {
       ],
     );
     if (Platform.isWindows) terminateProcessWindows();
-    await windowManager.destroy().ignoreError();
+    if (hasWindowManager) await windowManager.destroy().ignoreError();
     return exit(0); // -- destroy alone can take seconds to actually close the process
   }
 
@@ -871,15 +880,7 @@ class _NamidaState extends State<Namida> {
                     ),
                   ),
 
-                if (showPipOnly)
-                  const NamidaVideoControls(
-                    key: Key('pip_widget_child'),
-                    isFullScreen: true,
-                    showControls: false,
-                    forceEnableSponsorBlock: false,
-                    onMinimizeTap: null,
-                    isLocal: true,
-                  ),
+                if (showPipOnly) const NamidaPipView(),
               ],
             ),
           ),
@@ -911,18 +912,30 @@ class _ScaledTextMediaQuery extends StatelessWidget {
 
 class _HttpCacheCustomCacheConfig extends GlobalCacheConfig {
   _HttpCacheCustomCacheConfig._(RhttpCompatibleClient client)
-    : super(
+    : _client = client,
+      super(
         cacheDirectory: Directory(''),
         maxBufferSize: 25 * 1024 * 1024, // 25MB
         rangeRequestSplitThreshold: 512 * 1024, // 512KB
         customHttpClient: client,
       );
+
+  RhttpCompatibleClient _client;
+
+  /// read for every download, so a proxy change applies to the next one.
+  @override
+  RhttpCompatibleClient get httpClient => _client;
+
+  void _onProxyChanged(NetworkProxy? _) {
+    final proxySettings = NetworkProxyController.inst.rhttpSettings;
+    _client = RhttpCompatibleClient.createSync(settings: proxySettings);
+  }
 }
 
 /// [AnimationController]s cut their durations while [disableAnimations] is on, same as with the platform setting.
 class _NamidaWidgetsBinding extends WidgetsFlutterBinding {
   @override
-  bool get disableAnimations => settings.extra.reduceAnimations.value == true || super.disableAnimations;
+  bool get disableAnimations => settings.extra.reduceAnimations.value || super.disableAnimations;
 }
 
 class ScrollBehaviorModified extends ScrollBehavior {
@@ -1076,7 +1089,7 @@ class NamidaReceiveIntentManager {
         } else if (unresolved.isNotEmpty) {
           showErrorPlayingFileSnackbar(error: _fileNotFoundError(unresolved));
         } else if (textFilesWithoutLinks.isNotEmpty) {
-          final pathsText = textFilesWithoutLinks.join(', ');
+          final pathsText = textFilesWithoutLinks.map((e) => e.toDisplayPath()).join(', ');
           showErrorPlayingFileSnackbar(error: 'No links found: $pathsText');
         }
       }
@@ -1087,7 +1100,8 @@ class NamidaReceiveIntentManager {
     final buffer = StringBuffer('File not found or not accessible');
     if (paths.isNotEmpty) {
       buffer.write(': ');
-      buffer.writeAll(paths, ', ');
+      final displayPaths = paths.map((e) => e.toDisplayPath());
+      buffer.writeAll(displayPaths, ', ');
     }
     return buffer.toString();
   }

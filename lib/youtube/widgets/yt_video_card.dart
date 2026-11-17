@@ -21,9 +21,9 @@ import 'package:namida/ui/widgets/custom_widgets.dart';
 import 'package:namida/youtube/class/video_card_info_fetcher_wrapper.dart';
 import 'package:namida/youtube/class/youtube_id.dart';
 import 'package:namida/youtube/class/yt_card_like_status_mixin.dart';
-import 'package:namida/youtube/controller/youtube_info_controller.dart';
 import 'package:namida/youtube/functions/yt_playlist_utils.dart';
 import 'package:namida/youtube/widgets/yt_card.dart';
+import 'package:namida/youtube/widgets/yt_feedback_scope.dart';
 import 'package:namida/youtube/widgets/yt_history_video_card.dart';
 import 'package:namida/youtube/widgets/yt_thumbnail.dart';
 import 'package:namida/youtube/yt_utils.dart';
@@ -99,6 +99,8 @@ class _YoutubeVideoCardState extends State<YoutubeVideoCard> with YTCardLikeStat
 
   FutureOr<List<NamidaPopupItem>> getMenuItems() {
     final videoId = widget.video.id;
+    final videoTitle = _infoFetcher.videoTitle;
+    final feedbackMenuItem = YTFeedbackScope.moreMenuItemOf(context, widget.video, itemTitle: videoTitle ?? videoId);
     return YTUtils.getVideoCardMenuItems(
       queueSource: widget.properties.configs.queueSource,
       downloadIndex: widget.playlistIndexAndCount?.index,
@@ -108,8 +110,9 @@ class _YoutubeVideoCardState extends State<YoutubeVideoCard> with YTCardLikeStat
       videoId: videoId,
       channelID: _infoFetcher.channelId,
       playlistID: widget.playlistID,
-      idsNamesLookup: {videoId: _infoFetcher.videoTitle},
+      idsNamesLookup: {videoId: videoTitle},
       playlistName: widget.playlist?.basicInfo.title ?? '',
+      moreMenuChildren: [?feedbackMenuItem],
     );
   }
 
@@ -132,11 +135,7 @@ class _YoutubeVideoCardState extends State<YoutubeVideoCard> with YTCardLikeStat
 
     final enableGifThumbnails = settings.youtube.enableGifThumbnails.value;
     final thumbnailGifUrl = enableGifThumbnails ? widget.video.thumbnailGifUrl : null;
-    final channelThumbnailUrl =
-        _infoFetcher.channelThumbnailUrl ?? //
-        YoutubeInfoController.utils.getVideoChannelThumbnailsSync(videoId, checkFromStorage: false)?.pick()?.url;
-    // -- we only need channel id as a fallback for channel thumbnail
-    // final channelID = channelThumbnailUrl == null ? YoutubeInfoController.utils.getVideoChannelIDSync(videoId, checkFromStorage: false) : null;
+    final channelThumbnailUrl = _infoFetcher.channelThumbnailUrl ?? _infoFetcher.getChannelThumbnailUrlSync();
     Widget finalChild = NamidaPopupWrapper(
       openOnTap: false,
       childrenDefault: getMenuItems,
@@ -260,8 +259,9 @@ class YoutubeShortVideoCard extends StatelessWidget {
     this.thumbnailWidthPercentage = 1.0,
   });
 
-  FutureOr<List<NamidaPopupItem>> getMenuItems() {
+  FutureOr<List<NamidaPopupItem>> getMenuItems(BuildContext context) {
     final videoId = short.id;
+    final feedbackMenuItem = YTFeedbackScope.moreMenuItemOf(context, short, itemTitle: short.title);
     return YTUtils.getVideoCardMenuItems(
       queueSource: queueSource,
       downloadIndex: null,
@@ -272,6 +272,7 @@ class YoutubeShortVideoCard extends StatelessWidget {
       playlistID: playlistID,
       idsNamesLookup: {videoId: short.title},
       playlistName: playlist?.basicInfo.title ?? '',
+      moreMenuChildren: [?feedbackMenuItem],
     );
   }
 
@@ -282,7 +283,7 @@ class YoutubeShortVideoCard extends StatelessWidget {
 
     return NamidaPopupWrapper(
       openOnTap: false,
-      childrenDefault: getMenuItems,
+      childrenDefault: () => getMenuItems(context),
       child: YoutubeCard(
         thumbnailType: ThumbnailType.video,
         thumbnailWidthPercentage: thumbnailWidthPercentage,
@@ -317,7 +318,7 @@ class YoutubeShortVideoCard extends StatelessWidget {
           context: context,
           likeStatusRx: null,
         ),
-        menuChildrenDefault: getMenuItems,
+        menuChildrenDefault: () => getMenuItems(context),
       ),
     );
   }
@@ -339,8 +340,9 @@ class YoutubeShortVideoTallCard extends StatelessWidget {
     required this.thumbnailHeight,
   });
 
-  FutureOr<List<NamidaPopupItem>> getMenuItems() {
+  FutureOr<List<NamidaPopupItem>> getMenuItems(BuildContext context) {
     final videoId = short.id;
+    final feedbackMenuItem = YTFeedbackScope.moreMenuItemOf(context, short, itemTitle: short.title);
     return YTUtils.getVideoCardMenuItems(
       queueSource: queueSource,
       downloadIndex: null,
@@ -350,6 +352,7 @@ class YoutubeShortVideoTallCard extends StatelessWidget {
       channelID: null,
       playlistID: null,
       idsNamesLookup: {videoId: short.title},
+      moreMenuChildren: [?feedbackMenuItem],
     );
   }
 
@@ -368,7 +371,7 @@ class YoutubeShortVideoTallCard extends StatelessWidget {
 
     return NamidaPopupWrapper(
       openOnTap: false,
-      childrenDefault: getMenuItems,
+      childrenDefault: () => getMenuItems(context),
       child: NamidaInkWell(
         bgColor: NColors.card,
         borderRadius: 8.0,

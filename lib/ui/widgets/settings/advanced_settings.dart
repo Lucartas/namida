@@ -18,6 +18,7 @@ import 'package:namida/controller/indexer_controller.dart';
 import 'package:namida/controller/lossless_check_controller.dart';
 import 'package:namida/controller/music_web_server/music_web_server_base.dart';
 import 'package:namida/controller/navigator_controller.dart';
+import 'package:namida/controller/network_proxy_controller.dart';
 import 'package:namida/controller/rhythm_controller.dart';
 import 'package:namida/controller/settings_controller.dart';
 import 'package:namida/controller/storage_cache_manager.dart';
@@ -149,15 +150,12 @@ class AdvancedSettings extends SettingSubpageProvider {
 
   @override
   Widget build(BuildContext context) {
-    final hasAdvancedFlags = RhythmController.inst.isSupported || LosslessCheckController.inst.isSupported;
-    final flagsButton = hasAdvancedFlags
-        ? NamidaIconButton(
-            icon: Broken.flag,
-            tooltip: () => lang.configure,
-            iconColor: NColors.defaultIcon(),
-            onPressed: _showAdvancedFlagsDialog,
-          )
-        : null;
+    final flagsButton = NamidaIconButton(
+      icon: Broken.flag,
+      tooltip: () => lang.configure,
+      iconColor: NColors.defaultIcon(),
+      onPressed: _showAdvancedFlagsDialog,
+    );
     return SettingsCard(
       title: lang.advancedSettings,
       subtitle: lang.advancedSettingsSubtitle,
@@ -730,26 +728,27 @@ class _ClearImageCacheListTile extends StatefulWidget {
 }
 
 class __ClearImageCacheListTileState extends State<_ClearImageCacheListTile> {
-  final mainDirs = {
+  static final _mainDirs = {
     AppDirs.ARTWORKS,
     AppDirs.THUMBNAILS,
     AppDirs.ARTWORKS_ARTISTS,
     AppDirs.ARTWORKS_ALBUMS,
-    AppDirs.YT_THUMBNAILS,
-    AppDirs.YT_THUMBNAILS_CHANNELS,
+    StorageCacheManager.trimmedImageDirs.videos,
+    StorageCacheManager.trimmedImageDirs.channels,
   };
 
   final dirsMapRx = <String, int>{}.obs;
-  final totalBytesRx = (-1).obs;
+  final usedBytesRx = Rxn<({int trimmedBytes, int otherBytes})>();
 
   final dirsChoosen = <String>[].obs;
 
   @override
   void initState() {
     super.initState();
+    final trimmedDirs = StorageCacheManager.trimmedImageDirs;
     dirsChoosen.addAll([
-      AppDirs.YT_THUMBNAILS,
-      AppDirs.YT_THUMBNAILS_CHANNELS,
+      trimmedDirs.videos,
+      trimmedDirs.channels,
     ]);
     _fillSizes();
   }
@@ -757,14 +756,27 @@ class __ClearImageCacheListTileState extends State<_ClearImageCacheListTile> {
   @override
   void dispose() {
     dirsMapRx.close();
+    usedBytesRx.close();
     dirsChoosen.close();
     super.dispose();
   }
 
   void _fillSizes() async {
-    final res = await _fillSizesIsolate.thready(mainDirs);
+    final res = await _fillSizesIsolate.thready(_mainDirs);
+    if (!mounted) return;
     dirsMapRx.value = res;
-    totalBytesRx.value = res.values.fold(0, (previousValue, element) => previousValue + element);
+    final trimmedDirs = StorageCacheManager.trimmedImageDirs;
+    int trimmedBytes = 0;
+    int otherBytes = 0;
+    for (final e in res.entries) {
+      final dirPath = e.key;
+      if (dirPath == trimmedDirs.videos || dirPath == trimmedDirs.channels) {
+        trimmedBytes += e.value;
+      } else {
+        otherBytes += e.value;
+      }
+    }
+    usedBytesRx.value = (trimmedBytes: trimmedBytes, otherBytes: otherBytes);
   }
 
   static Map<String, int> _fillSizesIsolate(Set<String> dirs) {
@@ -778,9 +790,10 @@ class __ClearImageCacheListTileState extends State<_ClearImageCacheListTile> {
   @override
   Widget build(BuildContext context) {
     return ObxO(
-      rx: totalBytesRx,
-      builder: (context, totalBytes) {
-        final usedText = totalBytes < 0 ? '?' : totalBytes.fileSizeFormatted;
+      rx: usedBytesRx,
+      builder: (context, usedBytes) {
+        final trimmedText = usedBytes?.trimmedBytes.fileSizeFormatted ?? '?';
+        final otherText = usedBytes?.otherBytes.fileSizeFormatted ?? '?';
         return CustomListTile(
           bgColor: widget.bgColor,
           leading: const StackedIcon(
@@ -788,7 +801,7 @@ class __ClearImageCacheListTileState extends State<_ClearImageCacheListTile> {
             secondaryIcon: Broken.close_circle,
           ),
           title: lang.clearImageCache,
-          subtitle: '${lang.used}: $usedText',
+          subtitle: '${lang.used}: $trimmedText (+$otherText)',
           trailing: _CacheLimitWheel(
             setting: settings.imagesMaxCacheInMB,
             stepper: 8 * 4,
@@ -829,7 +842,7 @@ class __ClearImageCacheListTileState extends State<_ClearImageCacheListTile> {
                   rx: dirsMapRx,
                   builder: (context, dirsMap) => Column(
                     children: [
-                      ...mainDirs.map(
+                      ..._mainDirs.map(
                         (e) {
                           final bytes = dirsMap[e] ?? 0;
                           final warningText = e == AppDirs.ARTWORKS || e == AppDirs.THUMBNAILS ? lang.clearImageCacheWarning : '';
@@ -1115,7 +1128,7 @@ class UpdateDirectoryPathListTile extends StatelessWidget {
         delightenColors: true,
       ),
       title: lang.updateDirectoryPath,
-      subtitle: oldPath,
+      subtitle: oldPath?.toDisplayPath(),
       onTap: () {
         final oldDirController = TextEditingController(text: oldPath);
         final newDirController = TextEditingController();
@@ -1341,7 +1354,7 @@ class _CompressImagesListTile extends StatelessWidget {
                           child: ListTileWithCheckMark(
                             icon: Broken.folder,
                             title: dirPath.last,
-                            subtitle: e,
+                            subtitle: e.toDisplayPath(),
                             active: dirsToCompress.contains(e),
                             onTap: () => dirsToCompress.addOrRemove(e),
                           ),
@@ -1431,10 +1444,88 @@ class _AdvancedFlagsOptions extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          const _ProxyUrlListTile(),
           if (RhythmController.inst.isSupported) const _RhythmScanListTile(),
           if (LosslessCheckController.inst.isSupported) const _LosslessCheckListTile(),
         ],
       ),
+    );
+  }
+}
+
+class _ProxyUrlListTile extends StatelessWidget {
+  const _ProxyUrlListTile();
+
+  void _openDialog() {
+    final urlController = TextEditingController(text: settings.proxyUrl.value);
+    final formKey = GlobalKey<FormState>();
+
+    void onSave() {
+      final isValid = formKey.currentState?.validate() ?? false;
+      if (!isValid) return;
+      final url = urlController.text.trim();
+      settings.proxyUrl.save(url);
+      NamidaNavigator.inst.closeDialog();
+    }
+
+    String? validateUrl(String? value) {
+      value ??= '';
+      if (value.trim().isEmpty) return null;
+      final proxy = NetworkProxy.tryParseUrl(value);
+      return proxy == null ? 'Invalid URL' : null;
+    }
+
+    NamidaNavigator.inst.navigateDialog(
+      onDisposing: urlController.dispose,
+      dialog: Form(
+        key: formKey,
+        child: CustomBlurryDialog(
+          title: 'proxy_url'.toUpperCase(),
+          normalTitleStyle: true,
+          icon: Broken.routing,
+          actions: [
+            const CancelButton(),
+            NamidaButton(
+              text: lang.save,
+              onTap: onSave,
+            ),
+          ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12.0),
+              CustomTagTextField(
+                controller: urlController,
+                hintText: 'http://127.0.0.1:8080',
+                labelText: 'URL',
+                keyboardType: TextInputType.url,
+                validator: validateUrl,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ObxO(
+      rx: settings.proxyUrl,
+      builder: (context, url) {
+        final flagProxy = NetworkProxy.tryParseUrl(url);
+        String? subtitle = flagProxy?.toDisplayUrl();
+        if (subtitle == null) {
+          final systemProxy = NetworkProxyController.inst.current;
+          if (systemProxy != null) subtitle = '${lang.defaultLabel}: ${systemProxy.toDisplayUrl()}';
+        }
+        return CustomListTile(
+          icon: Broken.routing,
+          title: 'proxy_url'.toUpperCase(),
+          subtitle: subtitle,
+          onTap: _openDialog,
+        );
+      },
     );
   }
 }

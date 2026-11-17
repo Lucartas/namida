@@ -23,20 +23,17 @@ class _YoutubeInfoUtils {
 
   static Map<String, YoutubeVideoHistory> _parseBackupHistoryInfoIsolate(String dirPath) {
     final map = <String, YoutubeVideoHistory>{};
-    final files = Directory(dirPath).listSyncSafe();
-    for (var f in files) {
-      if (f is File) {
-        if (f.path.endsWith('.tmp')) continue;
-        try {
-          final response = f.readAsJsonSync(ensureExists: false);
-          if (response is List) {
-            for (var r in response) {
-              final yvh = YoutubeVideoHistory.fromJson(r);
-              map[yvh.id] = yvh;
-            }
+    final files = Directory(dirPath).listFilesWithoutAtomicTempsSync();
+    for (final f in files) {
+      try {
+        final response = f.readAsJsonSync(ensureExists: false);
+        if (response is List) {
+          for (var r in response) {
+            final yvh = YoutubeVideoHistory.fromJson(r);
+            map[yvh.id] = yvh;
           }
-        } catch (_) {}
-      }
+        }
+      } catch (_) {}
     }
     map.remove('');
     return map;
@@ -256,6 +253,39 @@ class _YoutubeInfoUtils {
         (await _getMissingInfo(videoId))?.channelName?.nullifyEmpty();
   }
 
+  static const _kTopicChannelSuffix = '- Topic';
+
+  /// a square cover saved to [tempFilePath]: the yt music one for `- Topic` channels, or cropped from a thumbnail holding
+  /// a square cover between solid bars. the cached video thumbnail otherwise.
+  Future<({File file, bool isTemp})?> getVideoThumbnailOrSquareCover(String videoId, {required String tempFilePath}) async {
+    try {
+      final channelName = await getVideoChannelName(videoId);
+      if (channelName != null && channelName.endsWith(_kTopicChannelSuffix)) {
+        final thumbFile = await YoutubeInfoController.video.fetchMusicVideoThumbnailToFile(videoId, tempFilePath);
+        if (thumbFile != null) return (file: thumbFile, isTemp: true);
+      }
+    } catch (_) {}
+    final thumbnailFile = await ThumbnailManager.inst.getYoutubeThumbnailAndCache(
+      id: videoId,
+      isImportantInCache: true,
+      type: ThumbnailType.video,
+    );
+    if (thumbnailFile == null) return null;
+    try {
+      final squareCoverRows = await ThumbnailSquareCover.findSquareCoverRowsInFile(thumbnailFile);
+      if (squareCoverRows != null) {
+        final didCrop = await NamidaFFMPEG.inst.cropImageCenterSquare(
+          imagePath: thumbnailFile.path,
+          outputPath: tempFilePath,
+          topFraction: squareCoverRows.top,
+          bottomFraction: squareCoverRows.bottom,
+        );
+        if (didCrop) return (file: File(tempFilePath), isTemp: true);
+      }
+    } catch (_) {}
+    return (file: thumbnailFile, isTemp: false);
+  }
+
   Future<String?> getVideoChannelID(String videoId) async {
     return _tempInfoChannelID[videoId] ??=
         tempVideoInfosFromStreams[videoId]?.channelId?.nullifyEmpty() ??
@@ -304,6 +334,18 @@ class _YoutubeInfoUtils {
     thumbnails = (await getStreamInfo(videoId))?.channel?.thumbnails;
     if (thumbnails != null && thumbnails.isNotEmpty) return thumbnails;
     return (await _getVideoPageResult(videoId))?.channelInfo?.thumbnails;
+  }
+
+  final _channelThumbnailsStorageReads = <String, Future<List<YoutiPieThumbnail>?>>{};
+
+  List<YoutiPieThumbnail>? getChannelThumbnailsSync(String channelId) {
+    return YoutubeInfoController.memoryCache.channelThumbnails.get(channelId);
+  }
+
+  Future<List<YoutiPieThumbnail>?> getChannelThumbnails(String channelId) async {
+    final thumbnails = getChannelThumbnailsSync(channelId);
+    if (thumbnails != null) return thumbnails;
+    return _channelThumbnailsStorageReads[channelId] ??= YoutubeInfoController.channel.fetchChannelInfoCache(channelId).then((page) => page?.thumbnails);
   }
 
   FutureOr<bool?> isShortContent(String videoId) {

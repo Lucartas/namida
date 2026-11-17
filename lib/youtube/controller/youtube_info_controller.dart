@@ -29,10 +29,13 @@ import 'package:youtipie/core/enum.dart';
 import 'package:youtipie/core/http.dart';
 import 'package:youtipie/youtipie.dart' hide logger;
 
+import 'package:namida/class/thumbnail_square_cover.dart';
 import 'package:namida/class/video.dart';
 import 'package:namida/controller/connectivity.dart';
+import 'package:namida/controller/ffmpeg_controller.dart';
 import 'package:namida/controller/logs_controller.dart';
 import 'package:namida/controller/navigator_controller.dart';
+import 'package:namida/controller/network_proxy_controller.dart';
 import 'package:namida/controller/player_controller.dart';
 import 'package:namida/controller/sensitive_data_key.dart';
 import 'package:namida/controller/settings_controller.dart';
@@ -66,6 +69,7 @@ class YoutubeInfoController {
   static const comment = YoutiPie.comment;
   static const commentAction = YoutiPie.commentAction;
   static const notificationsAction = YoutiPie.notificationsAction;
+  static const feedbackAction = YoutiPie.feedbackAction;
   static const search = _SearchInfoController();
   static const feed = YoutiPie.feed;
   static const hashtag = YoutiPie.hashtag;
@@ -88,9 +92,14 @@ class YoutubeInfoController {
       return;
     }
     YoutiPie.setLogs(_YTReportingLog());
+    YoutiPie.onWorkerError = (message, error, stackTrace) => logger.error(message, e: error, st: stackTrace);
     try {
       final accountCompleter = Completer<void>();
       final sensitiveKey = await SensitiveDataKey.obtain();
+      // -- the first requests (session, po token) need the system proxy too
+      await NetworkProxyController.inst.ready;
+      YoutiPie.setProxySettings(NetworkProxyController.inst.rhttpProxySettings);
+      NetworkProxyController.inst.addOnChanged((_) => YoutiPie.setProxySettings(NetworkProxyController.inst.rhttpProxySettings));
       YoutiPie.initialize(
         dataDirectory: AppDirs.YOUTIPIE_CACHE,
         sensitiveDataDirectory: AppDirs.YOUTIPIE_DATA,

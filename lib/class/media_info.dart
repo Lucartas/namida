@@ -1,5 +1,6 @@
 import 'package:namida/class/faudiomodel.dart';
 import 'package:namida/class/replay_gain_data.dart';
+import 'package:namida/class/tag_rating.dart';
 import 'package:namida/core/extensions.dart';
 
 class MediaInfo {
@@ -125,6 +126,7 @@ class MIFormatTags {
   final int? bpm;
   final String? musicalKey;
   final double? rating;
+  final String? itunesAdvisory;
   final String? language;
   final String? artist;
   final String? album;
@@ -165,6 +167,7 @@ class MIFormatTags {
     required this.bpm,
     required this.musicalKey,
     required this.rating,
+    required this.itunesAdvisory,
     required this.language,
     required this.artist,
     required this.album,
@@ -201,35 +204,51 @@ class MIFormatTags {
     required this.sortInfo,
   });
 
-  static double? _extractRatingPercentage(Map<String, dynamic> map) {
-    final ratingRaw = MediaInfo.extractNum(map.getOrUpperCase("rating")); // 0-5
-    if (ratingRaw != null) return ratingRaw / 5.0;
+  static double? _extractRatingPercentage(Map<String, dynamic> map, {required bool isMp4}) {
+    final percent = _extractRatingPercent(map, isMp4: isMp4);
+    if (percent == null) return null;
+    return percent / 100;
+  }
 
-    final ratingPercentage = MediaInfo.extractNum(map.getOrUpperCaseOrLowerCase("FMPS_Rating"));
-    if (ratingPercentage != null) return ratingPercentage.toDouble();
+  static int? _extractRatingPercent(Map<String, dynamic> map, {required bool isMp4}) {
+    final ratingText = isMp4 ? map["RATING"] : map.getOrUpperCase("rating");
+    final percent = _ratingPercentOfText(ratingText, field: TagRating.kDefaultField);
+    if (percent != null) return percent;
+
+    final fmpsRatingText = map.getOrUpperCaseOrLowerCase("FMPS_Rating");
+    final fmpsPercent = _ratingPercentOfText(fmpsRatingText, field: TagRating.kFmpsField);
+    if (fmpsPercent != null) return fmpsPercent;
 
     // -- probably non-existent
     final popmString = map.getOrUpperCase("POPM");
-    if (popmString is String && popmString.isNotEmpty) {
-      final popm = MediaInfo.extractNum(popmString) ?? MediaInfo.extractNum(_popmRatingRegex.firstMatch(popmString)?.group(1));
-      if (popm != null) return popm / 255.0;
-    }
+    if (popmString is! String || popmString.isEmpty) return null;
+    final popm = MediaInfo.extractNum(popmString) ?? MediaInfo.extractNum(_popmRatingRegex.firstMatch(popmString)?.group(1));
+    if (popm == null || popm <= 0) return null;
+    return TagRating.percentFromPopm(popm.round());
+  }
 
-    return null;
+  static int? _ratingPercentOfText(dynamic value, {required String field}) {
+    if (value == null) return null;
+    return TagRating.percentFromText('$value', field: field);
   }
 
   factory MIFormatTags.fromMap(Map<String, dynamic> map) {
-    final ratingPercentage = _extractRatingPercentage(map);
+    final majorBrand = map.getOrUpperCase("major_brand");
+    // -- ffmpeg names the mp4 `rtng` atom `rating`, a freeform RATING atom keeps its case
+    final isMp4 = majorBrand != null;
+    final ratingPercentage = _extractRatingPercentage(map, isMp4: isMp4);
+    final mp4AdvisoryText = isMp4 ? map["rating"] : null;
     return MIFormatTags(
       date: map.getOrUpperCase("date") ?? map["Date"],
       bpm: MediaInfo.extractInt(map.getOrLowerCase("BPM")) ?? MediaInfo.extractInt(map.getOrLowerCase("TBPM")) ?? MediaInfo.extractNum(map.getOrLowerCase("FBPM"))?.round(),
       musicalKey: map.getOrLowerCase("INITIALKEY") ?? map.getOrLowerCase("TKEY") ?? map.getOrLowerCase("KEY"),
       rating: ratingPercentage,
+      itunesAdvisory: map.getOrLowerCase("ITUNESADVISORY") ?? mp4AdvisoryText,
       language: map.getOrLowerCase("LANGUAGE") ?? map["Language"],
       artist: map.getOrUpperCase("artist") ?? map["Artist"],
       album: map.getOrUpperCase("album") ?? map["Album"],
       composer: map.getOrUpperCase("composer") ?? map["Composer"],
-      majorBrand: map.getOrUpperCase("major_brand"),
+      majorBrand: majorBrand,
       description: map.getOrUpperCase("description") ?? map["Description"],
       remixer: map.getOrLowerCase("REMIXER") ?? map["Remixer"],
       synopsis: map.getOrUpperCase("synopsis") ?? map["Synopsis"],
@@ -267,6 +286,7 @@ class MIFormatTags {
     "BPM": bpm,
     "INITIALKEY": musicalKey,
     "rating": rating,
+    "ITUNESADVISORY": itunesAdvisory,
     "LANGUAGE": language,
     "artist": artist,
     "album": album,
@@ -463,6 +483,7 @@ class MIStreamTags {
   final String? album;
   final String? albumArtist;
   final String? track;
+  final String? comment;
 
   const MIStreamTags({
     required this.handlerName,
@@ -472,6 +493,7 @@ class MIStreamTags {
     required this.album,
     required this.albumArtist,
     required this.track,
+    required this.comment,
   });
 
   factory MIStreamTags.fromMap(Map<String, dynamic> map) => MIStreamTags(
@@ -482,6 +504,7 @@ class MIStreamTags {
     album: map["Album"] ?? map.getOrUpperCase("album"),
     albumArtist: map["AlbumArtist"] ?? map.getOrUpperCase("albumArtist") ?? map.getOrUpperCase("album_artist"),
     track: map["Track"] ?? map.getOrUpperCase("track"),
+    comment: map.getOrUpperCase("comment"),
   );
 
   Map<dynamic, dynamic> toMap() => {
@@ -492,6 +515,7 @@ class MIStreamTags {
     "album": album,
     "album_artist": albumArtist,
     "track": track,
+    "comment": comment,
   };
 }
 

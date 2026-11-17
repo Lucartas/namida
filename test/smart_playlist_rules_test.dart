@@ -65,7 +65,13 @@ void main() {
         originalArtist: s.artists.join(', '),
         albumsList: [s.album],
         originalAlbum: s.album,
-        albumsIdentifiersWrappers: AlbumIdentifierWrapper.fromAlbums(albums: [s.album], albumArtist: '', year: '', mbAlbumId: '', mbAlbumArtistId: ''),
+        albumsIdentifiersWrappers: AlbumIdentifierWrapper.fromAlbums(
+          albums: [s.album],
+          albumArtist: '',
+          year: '',
+          mbAlbumId: '',
+          mbAlbumArtistId: '',
+        ),
         durationMS: s.seconds * 1000,
         size: s.seconds * 1000,
         rating: s.rating,
@@ -161,6 +167,12 @@ void main() {
     enableCleanup: enableCleanup,
   );
 
+  SmartPlaylistDateValue? legacyDateValueOf(DateTime? date, {required bool clockOnly}) {
+    if (date == null) return null;
+    if (clockOnly) return SmartPlaylistDatePartsValue.ofLegacyClock(date);
+    return SmartPlaylistDate.legacy(date);
+  }
+
   SmartPlaylistRuleDateTime dateRule(
     SmartPlaylistRuleFilterDateTime filter,
     SmartPlaylistRuleFilterDateTimeSource source, {
@@ -169,14 +181,19 @@ void main() {
     bool clockOnly = false,
     SmartPlaylistRelativeDuration? relativeDuration,
   }) => SmartPlaylistRuleDateTime(
-    data: data,
-    data2: data2,
+    data: legacyDateValueOf(data, clockOnly: clockOnly),
+    data2: legacyDateValueOf(data2, clockOnly: clockOnly),
     filter: filter,
     source: source,
     enableCleanup: false,
-    clockOnly: clockOnly,
+    parts: clockOnly ? SmartPlaylistDateParts.timeOnly : SmartPlaylistDateParts.dateAndClock,
     relativeDuration: relativeDuration,
   );
+
+  SmartPlaylistDatePartsValue clockValue(String text) {
+    final clock = SmartPlaylistDatePartsValue.tryParseClock(text)!;
+    return SmartPlaylistDatePartsValue(secondOfDay: clock.secondOfDay, hasSeconds: clock.hasSeconds);
+  }
 
   SmartPlaylistRuleNumber numberRule(
     SmartPlaylistRuleFilterNumberSource source,
@@ -257,7 +274,7 @@ void main() {
         filter: SmartPlaylistRuleFilterNumber.isGreaterThan,
         source: SmartPlaylistRuleFilterNumberSource.totalListens,
         enableCleanup: false,
-        clockOnly: false,
+        dateParts: SmartPlaylistDateParts.date,
         relativeDuration: null,
       );
       expect((listens as SmartPlaylistRuleNumber).aggregate, SmartPlaylistNumberAggregate.sum);
@@ -312,7 +329,7 @@ void main() {
         addTrack('added_d2', dateAdded: d2.millisecondsSinceEpoch),
         addTrack('added_mid', dateAdded: DateTime(2024, 3, 15).millisecondsSinceEpoch),
         addTrack('added_before', dateAdded: d1.millisecondsSinceEpoch - 1000),
-        addTrack('added_after', dateAdded: d2.millisecondsSinceEpoch + 1000),
+        addTrack('added_after', dateAdded: DateTime(2024, 6, 2).millisecondsSinceEpoch),
         addTrack('added_unknown'),
       ];
       listenedTracks = [
@@ -331,7 +348,7 @@ void main() {
       ];
     });
 
-    test('between and before/after include the exact bounds, outside excludes them', () {
+    test('between and before/after include the whole bound days, outside excludes them', () {
       expect(resolveAmong(dateRule(.isInBetween, .dateAdded, data: d1, data2: d2), addedTracks), {'added_d1', 'added_d2', 'added_mid'});
       expect(resolveAmong(dateRule(.isOutside, .dateAdded, data: d1, data2: d2), addedTracks), {'added_before', 'added_after'});
       expect(resolveAmong(dateRule(.isBefore, .dateAdded, data: d1), addedTracks), {'added_before', 'added_d1'});
@@ -371,10 +388,10 @@ void main() {
 
     test('midnight is a valid clock bound', () {
       final empty = dateRule(.isInBetween, .lastListen, clockOnly: true);
-      final rule = empty.copyWith(datas: (empty.textToData('00:00:00'), empty.textToData2('06:00:00')));
+      final rule = empty.copyWith(datas: (clockValue('00:00'), clockValue('06:00')));
       expect(rule.validate(), isNull);
       expect(resolveAmong(rule, clockTracks), {'clock_0100', 'clock_0200', 'clock_0000'});
-      final withoutEnd = empty.copyWith(datas: (empty.textToData('00:00:00'), null));
+      final withoutEnd = empty.copyWith(datas: (clockValue('00:00'), null));
       expect(withoutEnd.validate(), lang.emptyValue);
     });
 
@@ -400,17 +417,19 @@ void main() {
       expect(resolveAmong(within.copyWith(filter: .isNotWithinLast), tracks), {'month_before'});
     });
 
-    test('dates with sub millisecond parts compare exactly', () {
+    test('dates with sub millisecond parts compare exactly, a clock covers its whole second', () {
       final listenMS = DateTime.utc(2024, 1, 15, 12).millisecondsSinceEpoch;
       final tracks = [
         addTrack('subms_at', listens: [listenMS]),
         addTrack('subms_next', listens: [listenMS + 1]),
       ];
       final halfAfter = DateTime.fromMicrosecondsSinceEpoch(listenMS * 1000 + 500);
+      final secondBeforeHalfAfter = halfAfter.subtract(const Duration(seconds: 1));
+      final earlier = DateTime.fromMillisecondsSinceEpoch(listenMS - 5000);
       expect(resolveAmong(dateRule(.isAfter, .lastListen, data: halfAfter), tracks), {'subms_next'});
-      expect(resolveAmong(dateRule(.isBefore, .lastListen, data: halfAfter), tracks), {'subms_at'});
-      expect(resolveAmong(dateRule(.isSame, .lastListen, data: halfAfter), tracks), isEmpty);
-      expect(resolveAmong(dateRule(.isInBetween, .lastListen, data: DateTime.fromMillisecondsSinceEpoch(listenMS), data2: halfAfter), tracks), {'subms_at'});
+      expect(resolveAmong(dateRule(.isSame, .lastListen, data: halfAfter), tracks), {'subms_next'});
+      expect(resolveAmong(dateRule(.isBefore, .lastListen, data: secondBeforeHalfAfter), tracks), {'subms_at'});
+      expect(resolveAmong(dateRule(.isInBetween, .lastListen, data: earlier, data2: secondBeforeHalfAfter), tracks), {'subms_at'});
     });
 
     test('any and all listens are decided by the oldest or newest listen', () {
@@ -654,6 +673,46 @@ void main() {
       expect(pl.toMap()['sorts_v2'], {
         'sorts': ['title'],
       });
+    });
+  });
+
+  group('unused fields', () {
+    test('a rule keeps only what its filter uses', () {
+      final text = SmartPlaylistRuleText(
+        data: const [SmartPlaylistTextDataTokenLiteral('foo')],
+        data2: const [SmartPlaylistTextDataTokenLiteral('bar')],
+        filter: .exists,
+        source: .title,
+        enableCleanup: true,
+      );
+      expect(text.data, isNull);
+      expect(text.data2, isNull);
+      expect(text.validate(), isNull);
+      expect(text.toMap()['data'], isNull);
+
+      final number = SmartPlaylistRuleNumber(data: 20, data2: 80, filter: .isGreaterThan, source: .rating, enableCleanup: false);
+      expect(number.data2, isNull);
+      expect(number.validate(), isNull);
+
+      const twoWeeks = SmartPlaylistRelativeDuration(amount: 2, unit: .weeks);
+      final date = dateRule(.isAfter, .dateAdded, data: DateTime(2020), relativeDuration: twoWeeks);
+      expect(date.relativeDuration, isNull);
+      final relative = date.copyWith(filter: .isWithinLast, relativeDuration: twoWeeks);
+      expect(relative.data, isNull);
+      expect(relative.validate(), isNull);
+    });
+
+    test('switching the filter drops the old values', () {
+      final rule = SmartPlaylistRuleText(
+        data: const [SmartPlaylistTextDataTokenLiteral('foo')],
+        data2: null,
+        filter: .contains,
+        source: .title,
+        enableCleanup: true,
+      );
+      final exists = rule.copyWith(filter: .exists);
+      expect(exists.validate(), isNull);
+      expect(exists, SmartPlaylistRuleText(data: null, data2: null, filter: .exists, source: .title, enableCleanup: true));
     });
   });
 }

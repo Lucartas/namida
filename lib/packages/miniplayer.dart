@@ -52,8 +52,9 @@ import 'package:namida/ui/widgets/animated_widgets.dart';
 import 'package:namida/ui/widgets/artwork.dart';
 import 'package:namida/ui/widgets/custom_widgets.dart';
 import 'package:namida/ui/widgets/effects/effects.dart';
-import 'package:namida/ui/widgets/jellyfish.dart';
+import 'package:namida/ui/widgets/floating_image.dart';
 import 'package:namida/ui/widgets/library/track_tile.dart';
+import 'package:namida/ui/widgets/mascots/mascots.dart';
 import 'package:namida/youtube/class/youtube_id.dart';
 import 'package:namida/youtube/controller/youtube_info_controller.dart';
 import 'package:namida/youtube/controller/youtube_playlist_controller.dart';
@@ -1091,6 +1092,7 @@ class _AnimatingThumnailWidgetState extends State<_AnimatingThumnailWidget> {
                           maxWidth: lyricsMaxSize.width,
                           maxHeight: lyricsMaxSize.height,
                           insideMiniplayerCard: true,
+                          fadesWithMiniplayer: true,
                           canHoldToCopyLine: false,
                           visibilityNotifier: Lyrics.inst.lrcOverlayVisibility,
                         ),
@@ -1164,80 +1166,53 @@ class _ExpandingRadiusClipper extends CustomClipper<RRect> {
 // by claude
 /// [AnimatedScale] that never paints [child] wider than [maxPaintedWidth]. The cap is applied
 /// while painting, so a box resizing every frame neither rebuilds nor re-animates it.
-class _AnimatedScaleWithinWidth extends ImplicitlyAnimatedWidget {
+///
+/// Transitions run on [NamidaFloatClock] for its fps cap and idle pause. [scale] changes every
+/// position update, so a vsync ticker of its own would run nonstop.
+class _AnimatedScaleWithinWidth extends SingleChildRenderObjectWidget {
   final double scale;
   final double maxPaintedWidth;
-  final Widget child;
+  final Duration duration;
 
   const _AnimatedScaleWithinWidth({
     required this.scale,
     required this.maxPaintedWidth,
-    required super.duration,
-    required this.child,
-  });
-
-  @override
-  ImplicitlyAnimatedWidgetState<_AnimatedScaleWithinWidth> createState() => _AnimatedScaleWithinWidthState();
-}
-
-class _AnimatedScaleWithinWidthState extends ImplicitlyAnimatedWidgetState<_AnimatedScaleWithinWidth> {
-  Tween<double>? _scale;
-  late Animation<double> _scaleAnimation;
-
-  @override
-  void forEachTween(TweenVisitor<dynamic> visitor) {
-    _scale = visitor(_scale, widget.scale, (dynamic value) => Tween<double>(begin: value as double)) as Tween<double>?;
-  }
-
-  @override
-  void didUpdateTweens() {
-    _scaleAnimation = animation.drive(_scale!);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _ScaleWithinWidth(
-      scale: _scaleAnimation,
-      maxPaintedWidth: widget.maxPaintedWidth,
-      child: widget.child,
-    );
-  }
-}
-
-class _ScaleWithinWidth extends SingleChildRenderObjectWidget {
-  final Animation<double> scale;
-  final double maxPaintedWidth;
-
-  const _ScaleWithinWidth({
-    required this.scale,
-    required this.maxPaintedWidth,
+    required this.duration,
     required super.child,
   });
 
   @override
-  _RenderScaleWithinWidth createRenderObject(BuildContext context) => _RenderScaleWithinWidth(scale, maxPaintedWidth);
+  _RenderAnimatedScaleWithinWidth createRenderObject(BuildContext context) => _RenderAnimatedScaleWithinWidth(scale, maxPaintedWidth, duration);
 
   @override
-  void updateRenderObject(BuildContext context, _RenderScaleWithinWidth renderObject) {
+  void updateRenderObject(BuildContext context, _RenderAnimatedScaleWithinWidth renderObject) {
     renderObject
+      ..duration = duration
       ..scale = scale
       ..maxPaintedWidth = maxPaintedWidth;
   }
 }
 
-class _RenderScaleWithinWidth extends RenderProxyBox {
-  _RenderScaleWithinWidth(this._scale, this._maxPaintedWidth);
+class _RenderAnimatedScaleWithinWidth extends RenderProxyBox {
+  _RenderAnimatedScaleWithinWidth(double scale, this._maxPaintedWidth, this._duration) : _scale = scale, _fromScale = scale, _toScale = scale;
 
-  Animation<double> _scale;
-  set scale(Animation<double> value) {
-    if (value == _scale) return;
-    if (attached) {
-      _scale.removeListener(markNeedsPaint);
-      value.addListener(markNeedsPaint);
-    }
-    _scale = value;
-    markNeedsPaint();
+  double _scale;
+  double _fromScale;
+  double _toScale;
+  double _progress = 1.0;
+  double _lastClockSeconds = 0.0;
+  bool _isTicking = false;
+
+  set scale(double value) {
+    if (value == _toScale) return;
+    _fromScale = _scale;
+    _toScale = value;
+    _progress = 0.0;
+    if (attached) _startTicking();
   }
+
+  Duration _duration;
+  set duration(Duration value) => _duration = value;
 
   double _maxPaintedWidth;
   set maxPaintedWidth(double value) {
@@ -1249,17 +1224,42 @@ class _RenderScaleWithinWidth extends RenderProxyBox {
   @override
   void attach(PipelineOwner owner) {
     super.attach(owner);
-    _scale.addListener(markNeedsPaint);
+    if (_progress < 1.0) _startTicking();
   }
 
   @override
   void detach() {
-    _scale.removeListener(markNeedsPaint);
+    _stopTicking();
     super.detach();
   }
 
+  void _startTicking() {
+    if (_isTicking) return;
+    _isTicking = true;
+    final clock = NamidaFloatClock.instance;
+    _lastClockSeconds = clock.seconds;
+    clock.addListener(_onTick);
+  }
+
+  void _stopTicking() {
+    if (!_isTicking) return;
+    _isTicking = false;
+    NamidaFloatClock.instance.removeListener(_onTick);
+  }
+
+  void _onTick() {
+    final seconds = NamidaFloatClock.instance.seconds;
+    final elapsed = seconds - _lastClockSeconds;
+    _lastClockSeconds = seconds;
+    final durationSeconds = _duration.inMicroseconds / Duration.microsecondsPerSecond;
+    _progress = (_progress + elapsed / durationSeconds).withMaximum(1.0);
+    _scale = _fromScale + (_toScale - _fromScale) * _progress;
+    markNeedsPaint();
+    if (_progress >= 1.0) _stopTicking();
+  }
+
   double _computeEffectiveScale() {
-    final scale = _scale.value;
+    final scale = _scale;
     final width = size.width;
     if (width <= 0) return scale;
     return scale.withMaximum(_maxPaintedWidth / width);
@@ -1295,6 +1295,7 @@ class _RenderScaleWithinWidth extends RenderProxyBox {
   void paint(PaintingContext context, Offset offset) {
     final child = this.child;
     if (child == null) return;
+    if (_isTicking) NamidaFloatClock.instance.markPainted();
     final scale = _computeEffectiveScale();
     if (scale == 1.0) {
       layer = null;
@@ -1433,8 +1434,8 @@ class _TrackImage extends StatelessWidget {
     final artworkKey = isFront ? Key(track.pathToImage) : ObjectKey(backCover);
     final imagePath = isFront ? track.pathToImage : backCover.filePath;
     return _PlaybackGlowOpacity(
-      builder: (glowOpacity) => LayoutWidthProvider(
-        builder: (context, maxWidth) => ArtworkWidget(
+      builder: (glowOpacity) => LayoutWidthHeightProvider(
+        builder: (context, maxWidth, maxHeight) => ArtworkWidget(
           key: artworkKey,
           track: isFront ? track : null,
           path: imagePath,
@@ -1442,6 +1443,8 @@ class _TrackImage extends StatelessWidget {
           extractInternally: isFront,
           fallbackToFolderCover: isFront,
           thumbnailSize: maxWidth,
+          width: maxWidth,
+          height: maxHeight,
           compressed: MiniPlayerController.inst.shouldCompressArtwork,
           borderRadius: 6.0 + 8.0.multipliedRadius * (maxWidth * 0.004),
           fadeMilliSeconds: 0,
@@ -1474,6 +1477,7 @@ class _YoutubeIDImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _PlaybackGlowOpacity(
+      // -- should pass height like [_TrackImage], skipped cuz yt thumbnails are always wide (shorts too) or square, not portrait
       builder: (glowOpacity) => LayoutWidthProvider(
         builder: (context, maxWidth) => YoutubeThumbnail(
           type: ThumbnailType.video,
@@ -1619,17 +1623,9 @@ class Wallpaper extends StatelessWidget {
           child: NamidaPlayerBackground(),
         ),
 
-        if (NamidaJellys.enabled)
-          const Positioned.fill(
-            child: NamidaJellyBackground(
-              count: 5,
-              opacity: 0.22,
-              minHeight: 140.0,
-              maxHeight: 380.0,
-              reactToPlayback: true,
-              seed: 13,
-            ),
-          ),
+        const Positioned.fill(
+          child: NamidaMascotBackground.miniplayer(),
+        ),
 
         const Positioned.fill(
           child: NamidaVisualizer.wallpaper(),

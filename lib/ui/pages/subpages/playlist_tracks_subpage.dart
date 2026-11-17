@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:history_manager/history_manager.dart';
 import 'package:namico_db_wrapper/namico_db_wrapper.dart';
-import 'package:sticky_headers/sticky_headers.dart';
 
 import 'package:namida/base/tracks_search_wrapper.dart';
 import 'package:namida/base/history_days_rebuilder.dart';
@@ -40,9 +39,10 @@ import 'package:namida/ui/widgets/animated_widgets.dart';
 import 'package:namida/ui/widgets/artwork.dart';
 import 'package:namida/ui/widgets/custom_widgets.dart';
 import 'package:namida/ui/widgets/expandable_box.dart';
-import 'package:namida/ui/widgets/jellyfish.dart';
+import 'package:namida/ui/widgets/history_days_sliver.dart';
 import 'package:namida/ui/widgets/library/multi_artwork_container.dart';
 import 'package:namida/ui/widgets/library/track_tile.dart';
+import 'package:namida/ui/widgets/mascots/mascots.dart';
 import 'package:namida/ui/widgets/network_artwork.dart';
 
 class HistoryTracksPage extends StatefulWidget with NamidaRouteWidget {
@@ -86,6 +86,9 @@ class _HistoryTracksPageState extends State<HistoryTracksPage>
 
   @override
   ScrollController? get providedScrollController => HistoryController.inst.scrollController;
+
+  @override
+  bool get showsMatchesInOwnOrder => true;
 
   List<int>? _filteredForResults;
   _FilteredHistory? _filteredHistory;
@@ -132,14 +135,16 @@ class _HistoryTracksPageState extends State<HistoryTracksPage>
   }
 
   bool _isSearchBoxShown = false;
+  final _searchFocusNode = FocusNode();
 
   void _toggleSearchBox(bool show) {
     if (show) {
       setState(() => _isSearchBoxShown = true);
-      WidgetsBinding.instance.addPostFrameCallback((_) => onSearchBoxVisibilityChange(true)); // -- focuses the field once it's built
+      WidgetsBinding.instance.addPostFrameCallback((_) => ScrollSearchController.inst.requestKeyboardOf(_searchFocusNode)); // -- focuses the field once it's built
     } else {
       clearSearch();
       onSearchBoxVisibilityChange(false);
+      _searchFocusNode.unfocus();
       setState(() => _isSearchBoxShown = false);
     }
   }
@@ -187,13 +192,13 @@ class _HistoryTracksPageState extends State<HistoryTracksPage>
     HistoryController.inst.historyMap.removeListener(_onHistoryChanged);
     final isReplacedByHistoryPage = NamidaNavigator.inst.currentRoute?.route == RouteType.SUBPAGE_historyTracks;
     if (!isReplacedByHistoryPage) NamidaOnTaps.historyListensNavigation.value = null;
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final trackTileExtent = Dimensions.inst.trackTileItemExtent;
-    const dayHeaderExtent = kHistoryDayHeaderHeightWithPadding;
 
     const dayHeaderHeight = kHistoryDayHeaderHeight;
     final dayHeaderSideColor = CurrentColor.inst.color;
@@ -297,7 +302,7 @@ class _HistoryTracksPageState extends State<HistoryTracksPage>
                     padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
                     sliver: SliverToBoxAdapter(
                       child: CustomTextField(
-                        focusNode: focusNode,
+                        focusNode: _searchFocusNode,
                         textFieldController: textEditingController,
                         textFieldHintText: lang.search,
                         onTextFieldValueChanged: searchTracks,
@@ -315,20 +320,17 @@ class _HistoryTracksPageState extends State<HistoryTracksPage>
                     // -- refresh sublist when history change
                     return ObxO(
                       rx: HistoryController.inst.highlightedItem,
-                      builder: (context, highlightedItem) => SliverVariedExtentList.builder(
-                        key: ValueKey(filteredHistory ?? shownDaysLength), // rebuild after adding/removing day or filtering
-                        itemExtentBuilder: (index, dimensions) {
-                          final day = shownDays[index];
-                          if (filteredHistory != null) return filteredHistory.dayExtent(day, trackTileExtent, dayHeaderExtent);
-                          return HistoryController.inst.dayToSectionExtent(day, trackTileExtent, dayHeaderExtent);
-                        },
-                        itemCount: shownDaysLength,
-                        itemBuilder: (context, index) {
-                          final day = shownDays[index];
+                      builder: (context, highlightedItem) => HistoryDaysSliver(
+                        daysCount: shownDaysLength,
+                        dayItemsCount: (dayIndex) => dayItemsAt(dayIndex)?.length ?? 0,
+                        itemExtent: trackTileExtent,
+                        headerExtent: dayHeaderHeight,
+                        itemsTopPadding: kHistoryDayListTopPadding,
+                        itemsBottomPadding: kHistoryDayListBottomPadding,
+                        headerBuilder: (context, dayIndex) {
+                          final day = shownDays[dayIndex];
                           final dayInMs = super.dayToMillis(day);
-                          final tracks = dayItemsAt(index) ?? [];
-                          final rangeOrder = SectionedRangeOrder(index, shownDaysLength, dayItemsAt);
-                          final isHighlightedDay = !isFiltering && highlightedItem != null && day == highlightedItem.dayToHighLight;
+                          final tracks = dayItemsAt(dayIndex) ?? [];
 
                           final dayHeaderMenu = NamidaIconButton(
                             icon: Broken.more,
@@ -347,47 +349,40 @@ class _HistoryTracksPageState extends State<HistoryTracksPage>
                             },
                           );
 
-                          return StickyHeader(
-                            key: ValueKey(index),
-                            header: NBuilder(
-                              builder: (context, colors) {
-                                final dayHeaderBgColor = Color.alphaBlend(colors.cardTheme.withOpacityExt(0.55), colors.scaffold);
-                                final dayHeaderShadowColor = Color.alphaBlend(colors.shadow.withOpacityExt(0.55), colors.scaffold).withOpacityExt(0.4);
-                                return NamidaHistoryDayHeaderBox(
-                                  height: dayHeaderHeight,
-                                  title: [
-                                    dayInMs.dateFormattedOriginal,
-                                    tracks.length.displayTrackKeyword,
-                                  ].join('  •  '),
-                                  sideColor: dayHeaderSideColor,
-                                  bgColor: dayHeaderBgColor,
-                                  shadowColor: dayHeaderShadowColor,
-                                  menu: dayHeaderMenu,
-                                );
-                              },
-                            ),
-                            content: SuperSmoothListView.builder(
-                              padding: const EdgeInsets.only(bottom: kHistoryDayListBottomPadding, top: kHistoryDayListTopPadding),
-                              primary: false,
-                              shrinkWrap: false,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemExtent: Dimensions.inst.trackTileItemExtent,
-                              itemCount: tracks.length,
-                              itemBuilder: (context, i) {
-                                final tr = tracks[i];
-                                final topRightWidget = listenOrderWidget(tr, tr.track, smallTextStyle);
-                                return TrackTile(
-                                  properties: properties,
-                                  trackOrTwd: tr,
-                                  index: i,
-                                  tracks: tracks,
-                                  rangeOrder: rangeOrder,
-                                  isJumpHighlighted: isHighlightedDay && i == highlightedItem.indexOfSmallList,
-                                  thirdLineText: tr.dateAdded.dateAndClockFormattedOriginal,
-                                  topRightWidget: topRightWidget,
-                                );
-                              },
-                            ),
+                          return NBuilder(
+                            builder: (context, colors) {
+                              final dayHeaderBgColor = Color.alphaBlend(colors.cardTheme.withOpacityExt(0.55), colors.scaffold);
+                              final dayHeaderShadowColor = Color.alphaBlend(colors.shadow.withOpacityExt(0.55), colors.scaffold).withOpacityExt(0.4);
+                              return NamidaHistoryDayHeaderBox(
+                                height: dayHeaderHeight,
+                                title: [
+                                  dayInMs.dateFormattedOriginal,
+                                  tracks.length.displayTrackKeyword,
+                                ].join('  •  '),
+                                sideColor: dayHeaderSideColor,
+                                bgColor: dayHeaderBgColor,
+                                shadowColor: dayHeaderShadowColor,
+                                menu: dayHeaderMenu,
+                              );
+                            },
+                          );
+                        },
+                        itemBuilder: (context, dayIndex, itemIndex) {
+                          final day = shownDays[dayIndex];
+                          final tracks = dayItemsAt(dayIndex)!;
+                          final tr = tracks[itemIndex];
+                          final rangeOrder = SectionedRangeOrder(dayIndex, shownDaysLength, dayItemsAt);
+                          final isHighlightedDay = !isFiltering && highlightedItem != null && day == highlightedItem.dayToHighLight;
+                          final topRightWidget = listenOrderWidget(tr, tr.track, smallTextStyle);
+                          return TrackTile(
+                            properties: properties,
+                            trackOrTwd: tr,
+                            index: itemIndex,
+                            tracks: tracks,
+                            rangeOrder: rangeOrder,
+                            isJumpHighlighted: isHighlightedDay && itemIndex == highlightedItem.indexOfSmallList,
+                            thirdLineText: tr.dateAdded.dateAndClockFormattedOriginal,
+                            topRightWidget: topRightWidget,
                           );
                         },
                       ),
@@ -563,12 +558,12 @@ class _EmptyPlaylistSubpageState extends State<EmptyPlaylistSubpage> {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               height: isExpanded ? context.height * 0.1 : context.height * 0.3,
-              child: NamidaJellys.enabled
+              child: NamidaMascots.active != null
                   ? ClipRect(
                       child: Obx(
                         (context) => Align(
                           alignment: Alignment.bottomCenter,
-                          child: FloatingJelly(
+                          child: NamidaMascotFigure(
                             height: context.height * 0.26,
                             tint: CurrentColor.inst.color,
                             opacity: 0.85,
@@ -718,7 +713,12 @@ class _NormalPlaylistTracksPageState extends State<NormalPlaylistTracksPage>
     final index = tracksWithDate.indexWhere((e) => focusTracksSet.contains(e.track));
     if (index < 0) return;
     JumpHighlight.showBriefly(tracksWithDate[index], index, inQueue: false);
-    MainPageFABResumeButton.jumpToItem(index, Dimensions.inst.trackTileItemExtent, widget.route, position: position);
+    MainPageFABResumeButton.jumpToItem(
+      index,
+      Dimensions.inst.trackTileItemExtent,
+      widget.route,
+      position: position,
+    );
   }
 
   @override
@@ -953,10 +953,5 @@ class _FilteredHistory {
       listensCount += items.length;
     }
     return _FilteredHistory(days, dayItems, listensCount);
-  }
-
-  double dayExtent(int day, double itemExtent, double dayHeaderExtent) {
-    final itemsCount = dayItems[day]?.length ?? 0;
-    return dayHeaderExtent + (itemsCount * itemExtent);
   }
 }

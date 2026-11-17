@@ -105,12 +105,13 @@ class NamidaYTGenerator extends NamidaGeneratorBase<YoutubeID, String> with Port
   @override
   IsolateFunctionReturnBuild<YTGeneratorIsolateParams> isolateFunction(SendPort port) {
     final playlists = {for (final pl in YoutubePlaylistController.inst.playlistsMap.value.values) pl.name: pl.tracks};
+    final mostplayedIds = YoutubeHistoryController.inst.topTracksMapListens.value.keysSortedByValue.toFixedList();
     final params = (
       databasesDir: AppDirs.YOUTIPIE_CACHE,
       sensitiveDataDir: AppDirs.YOUTIPIE_DATA,
       sensitiveDataKey: SensitiveDataKey.current,
       statsDir: AppDirs.YT_STATS,
-      mostplayedPlaylist: YoutubeHistoryController.inst.topTracksMapListens.value.keysSortedByValue,
+      mostplayedPlaylist: mostplayedIds,
       favouritesPlaylist: YoutubePlaylistController.inst.favouritesPlaylist.value.tracks,
       playlists: playlists,
       sendPort: port,
@@ -257,24 +258,21 @@ class NamidaYTGenerator extends NamidaGeneratorBase<YoutubeID, String> with Port
       db.close();
     }
 
-    final files = Directory(statsDir).listSyncSafe();
-    for (var f in files) {
-      if (f is File) {
-        if (f.path.endsWith('.tmp')) continue;
-        try {
-          final response = f.readAsJsonSync(ensureExists: false);
-          if (response is List) {
-            for (var r in response) {
-              final id = r['id'] as String? ?? '';
-              if (releaseDateMap[id] == null) {
-                allIds.add(id);
-                allIdsAdded[id] = true;
-                // releaseDateMap[id] = null;
-              }
+    final files = Directory(statsDir).listFilesWithoutAtomicTempsSync();
+    for (final f in files) {
+      try {
+        final response = f.readAsJsonSync(ensureExists: false);
+        if (response is List) {
+          for (var r in response) {
+            final id = r['id'] as String? ?? '';
+            if (releaseDateMap[id] == null) {
+              allIds.add(id);
+              allIdsAdded[id] = true;
+              // releaseDateMap[id] = null;
             }
           }
-        } catch (_) {}
-      }
+        }
+      } catch (_) {}
     }
 
     // -- filling from playlists
@@ -323,7 +321,7 @@ typedef YTGeneratorIsolateParams = ({
   String sensitiveDataDir,
   String? sensitiveDataKey,
   String statsDir,
-  Iterable<String> mostplayedPlaylist,
+  List<String> mostplayedPlaylist,
   List<YoutubeID> favouritesPlaylist,
   Map<String, List<YoutubeID>> playlists,
   SendPort sendPort,

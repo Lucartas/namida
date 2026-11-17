@@ -398,7 +398,7 @@ class _PlaylistsPageState extends State<PlaylistsPage> with TickerProviderStateM
         },
         onPointerUp: (event) => onRefresh(
           () => Future.wait([
-            PlaylistController.inst.prepareM3UPlaylists(),
+            PlaylistController.inst.refreshM3UPlaylists(),
             Indexer.inst.refreshServerPlaylists(),
           ]),
         ),
@@ -434,11 +434,9 @@ class _PlaylistsPageState extends State<PlaylistsPage> with TickerProviderStateM
                     isCurrentlyReversed: sortReverse,
                     onReverseIconTap: () => SearchSortController.inst.sortMedia(MediaType.playlist, reverse: !sortReverse),
                   ),
-                  textField: CustomTextField(
-                    textFieldController: libraryTab.textSearchControllerR,
-                    textFieldHintText: lang.filterPlaylists,
-                    onTextFieldValueChanged: (value) => SearchSortController.inst.searchMedia(value, MediaType.playlist),
-                  ),
+                  textFieldController: libraryTab.textSearchControllerR,
+                  textFieldHintText: lang.filterPlaylists,
+                  onTextFieldValueChanged: (value) => SearchSortController.inst.searchMedia(value, MediaType.playlist),
                 );
               },
             ),
@@ -605,15 +603,19 @@ class _PlaylistsPageState extends State<PlaylistsPage> with TickerProviderStateM
                                       child: NamidaHero(
                                         enabled: enableTopSectionHero,
                                         tag: 'DPC_queues',
-                                        child: Obx(
-                                          (context) => DefaultPlaylistCard(
-                                            colorScheme: Colors.blue,
-                                            icon: Broken.driver,
-                                            title: lang.queues,
-                                            displayLoadingIndicator: !QueueController.inst.isQueuesLoaded,
-                                            text: QueueController.inst.totalQueuesCount.valueR.formatDecimal(),
-                                            onTap: const QueuesPage().navigate,
-                                          ),
+                                        child: ObxO(
+                                          rx: QueueController.inst.totalQueuesCount,
+                                          builder: (context, queuesCount) {
+                                            final queuesCountText = queuesCount?.formatDecimal() ?? '';
+                                            return DefaultPlaylistCard(
+                                              colorScheme: Colors.blue,
+                                              icon: Broken.driver,
+                                              title: lang.queues,
+                                              displayLoadingIndicator: queuesCount == null,
+                                              text: queuesCountText,
+                                              onTap: const QueuesPage().navigate,
+                                            );
+                                          },
                                         ),
                                       ),
                                     ),
@@ -1194,7 +1196,7 @@ class _PlaylistsSelection {
             CustomListTile(
               icon: Broken.folder,
               title: lang.convertToM3UPlaylist,
-              subtitle: defaultDirectoryPath,
+              subtitle: defaultDirectoryPath.toDisplayPath(),
               trailingRaw: NamidaTooltip(
                 message: () => lang.defaultLabel,
                 child: const Icon(
@@ -1226,13 +1228,13 @@ class _PlaylistsSelection {
   Future<void> _exportTo(List<String> names, String directoryPath) async {
     if (!await requestManageStoragePermission()) return;
     final exportedCount = await PlaylistController.inst.exportPlaylistsToM3UFiles(names, directoryPath);
-    snackyy(message: '${lang.savedIn}: $directoryPath (${exportedCount.displayPlaylistKeyword})');
+    snackyy(message: '${lang.savedIn}: ${directoryPath.toDisplayPath()} (${exportedCount.displayPlaylistKeyword})');
   }
 
   Future<void> _convertToM3U(List<String> names) async {
     if (!await requestManageStoragePermission()) return;
     final convertedCount = await PlaylistController.inst.convertPlaylistsToM3U(names);
-    snackyy(message: '${lang.savedIn}: ${AppDirs.M3UPlaylists} (${convertedCount.displayPlaylistKeyword})');
+    snackyy(message: '${lang.savedIn}: ${AppDirs.M3UPlaylists.toDisplayPath()} (${convertedCount.displayPlaylistKeyword})');
   }
 
   void promptDelete() {
@@ -1462,7 +1464,7 @@ class _PlaylistGridCard extends StatelessWidget {
     Widget? sourceBadge;
     if (m3uPath != null) {
       sourceBadge = _PlaylistSourceBadge(
-        tooltip: () => "${lang.m3uPlaylist}\n${m3uPath.formatPath()}",
+        tooltip: () => "${lang.m3uPlaylist}\n${m3uPath.toShortDisplayPath()}",
         iconSize: iconSize,
         textAreaHeight: textAreaHeight,
         child: Icon(
@@ -1575,7 +1577,12 @@ class _PlaylistSourceBadge extends StatelessWidget {
           ),
         ),
         Padding(
-          padding: EdgeInsets.only(left: fadeWidth, top: topPadding, right: rightPadding, bottom: bottomPadding),
+          padding: EdgeInsets.only(
+            left: fadeWidth,
+            top: topPadding,
+            right: rightPadding,
+            bottom: bottomPadding,
+          ),
           child: NamidaTooltip(
             message: tooltip,
             child: child,

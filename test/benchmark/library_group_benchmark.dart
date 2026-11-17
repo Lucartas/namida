@@ -112,7 +112,13 @@ TrackExtended _extendedOf(SyntheticTrack s) {
   final albumArtists = _splitOrFallback(s.albumArtist, UnknownTags.ALBUMARTIST);
   final genres = _splitOrFallback(s.genre, UnknownTags.GENRE);
   final composers = _splitOrFallback(s.composer, UnknownTags.COMPOSER);
-  final albumsWrappers = AlbumIdentifierWrapper.fromAlbums(albums: albums, albumArtist: albumArtist, year: yearText, mbAlbumId: '', mbAlbumArtistId: '');
+  final albumsWrappers = AlbumIdentifierWrapper.fromAlbums(
+    albums: albums,
+    albumArtist: albumArtist,
+    year: yearText,
+    mbAlbumId: '',
+    mbAlbumArtistId: '',
+  );
   return kDummyExtendedTrack.copyWith(
     path: s.path,
     title: title,
@@ -140,9 +146,11 @@ int _addTheseTracksToAlbumGenreArtistEtc(Map<TrackExtended, TrackExtended?> trac
   final changedMedias = changes.changedMedias;
   final mediaSorters = {for (final e in changedMedias) e: SearchSortController.inst.getMediaTracksSortingComparables(e)};
   group.sortChangedSync(changes, mediaSorters);
-  for (final e in changedMedias) {
-    SearchSortController.inst.sortMedia(e);
-  }
+  SearchSortController.inst.sortChangedGroups(changes);
+  group.refreshMedias(changedMedias);
+  if (changedMedias.contains(MediaType.folder)) FoldersController.tracksAndVideos.refreshAfterSorting();
+  if (changedMedias.contains(MediaType.folderMusic)) FoldersController.tracks.refreshAfterSorting();
+  if (changedMedias.contains(MediaType.folderVideo)) FoldersController.videos.refreshAfterSorting();
   if (changes.hasNewKeys(MediaType.folder)) FoldersController.tracksAndVideos.onMapChanged(group.mainMapFoldersTracksAndVideos.value);
   if (changes.hasNewKeys(MediaType.folderMusic)) FoldersController.tracks.onMapChanged(group.mainMapFoldersTracks.value);
   if (changes.hasNewKeys(MediaType.folderVideo)) FoldersController.videos.onMapChanged(group.mainMapFoldersVideos.value);

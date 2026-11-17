@@ -65,13 +65,15 @@ class YTLocalSearchController with PortsProvider<YTLocalSearchIsolateParams> {
 
   void _sortStreams(List<StreamInfoItem> streams) {
     if (streams.isEmpty) return; // cuz empty might be const
+    final topTracksMapListens = YoutubeHistoryController.inst.topTracksMapListens.value;
     switch (_sortType) {
       case YTLocalSearchSortType.mostPlayed:
-        streams.sortBy((e) => -(YoutubeHistoryController.inst.topTracksMapListens.value[e.id]?.length ?? 0));
+        streams.sortByPrecomputed((e) => -(topTracksMapListens[e.id]?.length ?? 0));
       case YTLocalSearchSortType.latestPlayed:
-        streams.sortBy((e) => -(YoutubeHistoryController.inst.topTracksMapListens.value[e.id]?.lastOrNull ?? 0));
+        streams.sortByPrecomputed((e) => -(topTracksMapListens[e.id]?.lastOrNull ?? 0));
       case YTLocalSearchSortType.firstListen:
-        streams.sortBy((e) => YoutubeHistoryController.inst.topTracksMapListens.value[e.id]?.firstOrNull ?? DateTime(99999).millisecondsSinceEpoch);
+        final neverListenedMS = DateTime(99999).millisecondsSinceEpoch;
+        streams.sortByPrecomputed((e) => topTracksMapListens[e.id]?.firstOrNull ?? neverListenedMS);
     }
   }
 
@@ -319,20 +321,17 @@ class YTLocalSearchController with PortsProvider<YTLocalSearchIsolateParams> {
         }
       }
 
-      final files = Directory(statsDir).listSyncSafe();
-      for (var f in files) {
-        if (f is File) {
-          if (f.path.endsWith('.tmp')) continue;
-          try {
-            final response = f.readAsJsonSync(ensureExists: false);
-            if (response is List) {
-              for (var map in response) {
-                final info = YoutubeVideoHistory.fromJson(map).toStreamInfo();
-                onAddEntry(_LookupEntry.inMemory(info));
-              }
+      final files = Directory(statsDir).listFilesWithoutAtomicTempsSync();
+      for (final f in files) {
+        try {
+          final response = f.readAsJsonSync(ensureExists: false);
+          if (response is List) {
+            for (var map in response) {
+              final info = YoutubeVideoHistory.fromJson(map).toStreamInfo();
+              onAddEntry(_LookupEntry.inMemory(info));
             }
-          } catch (_) {}
-        }
+          }
+        } catch (_) {}
       }
 
       for (final item in faultyTitlesBackupList.entries) {

@@ -3,20 +3,21 @@ package com.msob7y.namida
 import android.Manifest
 import android.app.PictureInPictureParams
 import android.content.ActivityNotFoundException
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.media.MediaScannerConnection
 import android.media.RingtoneManager
 import android.media.audiofx.AudioEffect
-import android.net.wifi.WifiManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Rational
+import android.view.animation.DecelerateInterpolator
 import android.widget.Toast
+import android.window.SplashScreenView
 import androidx.annotation.NonNull
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
@@ -26,37 +27,27 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.util.ViewUtils
-import io.flutter.Log;
 import java.io.File
-import java.util.concurrent.CompletableFuture
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class NamidaMainActivity : FlutterActivity() {
   companion object {
     var currentLifecycle: Lifecycle? = null
     var currentApplicationContext : Context? = null
+    private var pipAspectRatio: Rational? = null
+    private const val SPLASH_EXIT_DURATION_MS = 300L
   }
 
 
-  private val CHANNELNAME = "namida"
-  private val CHANNELNAME_STORAGE = "namida/storage"
-  private val EVENTCHANNELNAME = "namida_events"
   private lateinit var channel: MethodChannel
   private lateinit var channelStorage: MethodChannel
   private lateinit var context: Context
   private var toast: Toast? = null
-  private var multicastLock: WifiManager.MulticastLock? = null
 
-  private val storageUtilsCompleter = CompletableFuture<StorageUtils>()
+  private val appChannels by lazy { NamidaAppChannels.get(applicationContext) }
   private val storageUtils: StorageUtils
-    get() {
-      return storageUtilsCompleter.get()
-    }
-
-  private val safUtils by lazy { SafUtils(context) }
+    get() = appChannels.storageUtils
+  private val safUtils: SafUtils
+    get() = appChannels.safUtils
   private var pendingSafAccessResult: MethodChannel.Result? = null
   private var pendingSafAccessPath: String? = null
   private var pendingSafTreeResult: MethodChannel.Result? = null
@@ -68,12 +59,6 @@ class NamidaMainActivity : FlutterActivity() {
     ViewUtils.calculateMaximumDisplayMetrics(this, flutterEngine)
 
     currentLifecycle = lifecycle
-
-    try {
-      flutterEngine.plugins.add(FAudioTagger());
-    } catch (e: Exception) {
-      Log.e("NamidaMainActivity", "Error registering plugin FAudioTagger, com.msob7y.namida.FAudioTagger", e);
-    }
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       pipBuilder = PictureInPictureParams.Builder()
@@ -130,84 +115,10 @@ class NamidaMainActivity : FlutterActivity() {
 
   private fun registerNamidaChannels(@NonNull flutterEngine: FlutterEngine) {
     val messenger = flutterEngine.dartExecutor.binaryMessenger
-    channel = MethodChannel(messenger, CHANNELNAME)
+    channel = MethodChannel(messenger, NamidaAppChannels.CHANNELNAME)
 
     channel.setMethodCallHandler { call, result ->
       when (call.method) {
-        "sdk" -> result.success(Build.VERSION.SDK_INT)
-        "consumeExitReports" -> {
-          CoroutineScope(Dispatchers.IO).launch {
-            val reports = try {
-              ProcessExitReporter.consume(context)
-            } catch (_: Exception) {
-              emptyList()
-            }
-            withContext(Dispatchers.Main) { result.success(reports) }
-          }
-        }
-        "sendBroadcast" -> {
-          val action = call.argument<String>("action")
-          val extras = call.argument<Map<String, Any?>>("extras")
-          if (action == null) {
-            result.success(false)
-          } else {
-            val intent = Intent(action)
-            intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
-            extras?.forEach { (key, value) ->
-              when (value) {
-                is String -> intent.putExtra(key, value)
-                is Boolean -> intent.putExtra(key, value)
-                is Int -> intent.putExtra(key, value)
-                is Long -> intent.putExtra(key, value)
-                is Double -> intent.putExtra(key, value)
-              }
-            }
-            sendBroadcast(intent)
-            result.success(true)
-          }
-        }
-        "sendSuperLyric" -> {
-          val sent = SuperLyricPublisher.send(
-            title = call.argument<String>("title"),
-            artist = call.argument<String>("artist"),
-            album = call.argument<String>("album"),
-            text = call.argument<String>("text"),
-            startMS = call.argument<Number>("startMS")?.toLong() ?: 0L,
-            endMS = call.argument<Number>("endMS")?.toLong() ?: 0L,
-          )
-          result.success(sent)
-        }
-        "releaseSuperLyric" -> {
-          SuperLyricPublisher.release()
-          result.success(null)
-        }
-        "setMulticastLock" -> {
-          val enabled = call.argument<Boolean>("enabled") ?: false
-          try {
-            if (enabled) {
-              if (multicastLock == null) {
-                val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-                multicastLock = wifi.createMulticastLock("namida_mdns").apply { setReferenceCounted(false) }
-              }
-              multicastLock?.acquire()
-            } else {
-              multicastLock?.let { if (it.isHeld) it.release() }
-            }
-            result.success(true)
-          } catch (e: Exception) {
-            result.error("MULTICAST_LOCK", e.message, null)
-          }
-        }
-        "setUsbDacHandlerEnabled" -> {
-          val enabled = call.argument<Boolean>("enabled") ?: false
-          val state = if (enabled) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-          packageManager.setComponentEnabledSetting(
-            ComponentName(this, "com.msob7y.namida.UsbDacHandler"),
-            state,
-            PackageManager.DONT_KILL_APP,
-          )
-          result.success(null)
-        }
         "showToast" -> {
           try {
             val durInSeconds = call.argument<Number?>("seconds")
@@ -221,29 +132,18 @@ class NamidaMainActivity : FlutterActivity() {
           }
         }
 
-        "consumeSelfSentMediaCommand" -> {
-          result.success(NamidaConstants.selfSentMediaCommand)
-          NamidaConstants.selfSentMediaCommand = false
-        }
-
         "cancelToast" -> {
           cancelToast()
           result.success(true)
         }
 
-        "setCanEnterPip" -> {
-          val canEnter = call.argument<Boolean?>("canEnter")
-          if (canEnter != null) canEnterPip = canEnter
+        "setPipAspectRatio" -> {
+          val width = call.argument<Int?>("width")
+          val height = call.argument<Int?>("height")
+          val ratio = if (width != null && height != null) Rational(width, height) else null
+          pipAspectRatio = ratio
+          if (ratio != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPip()) updatePipAspectRatio(ratio)
           result.success(null)
-        }
-
-        "updatePipRatio" -> {
-          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPip()) {
-            updatePipRatio(call.argument<Int?>("width"), call.argument<Int?>("height"))
-            result.success(true)
-          } else {
-            result.success(false)
-          }
         }
 
         "setMusicAs" -> {
@@ -279,6 +179,13 @@ class NamidaMainActivity : FlutterActivity() {
         "shareFiles" -> {
           val paths = call.argument<List<String>>("paths") ?: emptyList()
           result.success(shareFilesExternally(paths))
+        }
+
+        "scanMediaFiles" -> {
+          val paths = call.argument<List<String>>("paths") ?: emptyList()
+          val pathsArray = paths.toTypedArray()
+          MediaScannerConnection.scanFile(applicationContext, pathsArray, null, null)
+          result.success(null)
         }
 
         "openHomeWidgetSettings" -> {
@@ -318,8 +225,13 @@ class NamidaMainActivity : FlutterActivity() {
             "namida" -> LauncherIcon.DEFAULT
             "cutsie" -> LauncherIcon.CUTSIE
             "jellyda" -> LauncherIcon.JELLYDA
+            "cutsieda" -> LauncherIcon.CUTSIEDA
+            "kyunda" -> LauncherIcon.KYUNDA
+            "dokida" -> LauncherIcon.DOKIDA
+            "namiween" -> LauncherIcon.NAMIWEEN
             "eddy" -> LauncherIcon.EDDY
             "namichin" -> LauncherIcon.NAMICHIN
+            "tetoda" -> LauncherIcon.TETODA
             "space" -> LauncherIcon.SPACE
             "retro" -> LauncherIcon.RETRO
             "ookami" -> LauncherIcon.OOKAMI
@@ -330,7 +242,6 @@ class NamidaMainActivity : FlutterActivity() {
             "monet" -> LauncherIcon.MONET
             "glowy" -> LauncherIcon.GLOWY
             "spooky" -> LauncherIcon.SPOOKY
-            "namiween" -> LauncherIcon.NAMIWEEN
             "tired" -> LauncherIcon.TIRED
             else -> null
           }
@@ -342,64 +253,19 @@ class NamidaMainActivity : FlutterActivity() {
               result.error("INVALID_ICON", "No matching icon for key: $key", null)
           }
         }
-        "isAppIconEnabled" -> {
-          val key = call.argument<String>("key")
-          val nativeIcon = when (key) {
-            "namida" -> LauncherIcon.DEFAULT
-            "cutsie" -> LauncherIcon.CUTSIE
-            "jellyda" -> LauncherIcon.JELLYDA
-            "eddy" -> LauncherIcon.EDDY
-            "namichin" -> LauncherIcon.NAMICHIN
-            "space" -> LauncherIcon.SPACE
-            "retro" -> LauncherIcon.RETRO
-            "ookami" -> LauncherIcon.OOKAMI
-            "original" -> LauncherIcon.ORIGINAL
-            "enhanced" -> LauncherIcon.ENHANCED
-            "hollow" -> LauncherIcon.HOLLOW
-            "pastel" -> LauncherIcon.PASTEL
-            "monet" -> LauncherIcon.MONET
-            "glowy" -> LauncherIcon.GLOWY
-            "spooky" -> LauncherIcon.SPOOKY
-            "namiween" -> LauncherIcon.NAMIWEEN
-            "tired" -> LauncherIcon.TIRED
-            else -> null
-          }
-
-          if (nativeIcon != null) {
-              val enabled = LauncherIconController.isEnabled(nativeIcon)
-              result.success(enabled)
-          } else {
-              result.error("INVALID_ICON", "No matching icon for key: $key", null)
-          }
+        "getEnabledAppIcon" -> {
+          val enabledIcon = LauncherIcon.values().firstOrNull { LauncherIconController.isEnabled(it) }
+          result.success(enabledIcon?.dartKey)
         }
         // SPLASH_AUTO_GENERATED END
 
-        else -> result.notImplemented()
+        else -> if (!appChannels.handleCall(call, result, channel)) result.notImplemented()
       }
     }
 
-    channelStorage = MethodChannel(messenger, CHANNELNAME_STORAGE)
+    channelStorage = MethodChannel(messenger, NamidaAppChannels.CHANNELNAME_STORAGE)
     channelStorage.setMethodCallHandler { call, result ->
       when (call.method) {
-        "getStorageDirs" -> {
-          storageUtils.fillStoragePaths()
-          result.success(storageUtils.storagePaths)
-        }
-
-        "getStorageDirsData" -> {
-          result.success(storageUtils.getStorageDirsData())
-        }
-
-        "getStorageDirsCache" -> {
-          result.success(storageUtils.getStorageDirsCache())
-        }
-
-        "getRealPath" -> {
-          val contentUri = call.argument<String?>("contentUri")
-          val realPath = storageUtils.contentUriToPath(Uri.parse(contentUri))
-          result.success(realPath)
-        }
-
         "pickFile" -> {
           checkStorageReadPermission()
           val note = call.argument("note") as String?
@@ -425,6 +291,7 @@ class NamidaMainActivity : FlutterActivity() {
           checkStorageReadPermission()
           val note = call.argument("note") as String?
           val initialDirectory = call.argument("initialDirectory") as String?
+          val allowTreeUri = call.argument<Boolean?>("allowTreeUri") ?: false
           if (note != null && note != "") showToast(note, 3)
           val error =
             FileSysPicker.pickDirectory(
@@ -432,13 +299,9 @@ class NamidaMainActivity : FlutterActivity() {
               activity,
               NamidaRequestCodes.REQUEST_CODE_FILES_PICKER,
               initialDirectory,
+              allowTreeUri,
             )
           if (error != null) showToast(error, 3)
-        }
-
-        "safHasAccess" -> {
-          val path = call.argument<String?>("path")
-          result.success(path != null && safUtils.findDocumentUri(path) != null)
         }
 
         "safRequestAccess" -> {
@@ -464,19 +327,6 @@ class NamidaMainActivity : FlutterActivity() {
           }
         }
 
-        "safCopyFile" -> {
-          val source = call.argument<String?>("source")
-          val dest = call.argument<String?>("dest")
-          if (source == null || dest == null) {
-            result.success("source or dest parameters aren't provided")
-          } else {
-            CoroutineScope(Dispatchers.IO).launch {
-              val error = safUtils.copyFileToDocument(source, dest)
-              withContext(Dispatchers.Main) { result.success(error) }
-            }
-          }
-        }
-
         "safPickTree" -> {
           if (pendingSafTreeResult != null) {
             result.success(null)
@@ -497,41 +347,9 @@ class NamidaMainActivity : FlutterActivity() {
           }
         }
 
-        "safTreeHasAccess" -> {
-          val treeUri = call.argument<String?>("treeUri")
-          result.success(treeUri != null && safUtils.hasTreeAccess(Uri.parse(treeUri)))
-        }
-
-        "safListTree" -> {
-          val treeUri = call.argument<String?>("treeUri")
-          if (treeUri == null) {
-            result.success(null)
-          } else {
-            CoroutineScope(Dispatchers.IO).launch {
-              val listing = safUtils.listTree(Uri.parse(treeUri))
-              withContext(Dispatchers.Main) { result.success(listing) }
-            }
-          }
-        }
-
-        "safCopyDocument" -> {
-          val documentUri = call.argument<String?>("documentUri")
-          val dest = call.argument<String?>("dest")
-          if (documentUri == null || dest == null) {
-            result.success("documentUri or dest parameters aren't provided")
-          } else {
-            CoroutineScope(Dispatchers.IO).launch {
-              val error = safUtils.copyDocumentToFile(Uri.parse(documentUri), dest)
-              withContext(Dispatchers.Main) { result.success(error) }
-            }
-          }
-        }
-
-        else -> result.notImplemented()
+        else -> if (!appChannels.handleStorageCall(call, result)) result.notImplemented()
       }
     }
-
-    pipEventChannel = BetterEventChannel(messenger, EVENTCHANNELNAME)
   }
 
   private fun showToast(text: String?, duration: Int) {
@@ -547,23 +365,16 @@ class NamidaMainActivity : FlutterActivity() {
 
   override fun provideFlutterEngine(@NonNull context: Context): FlutterEngine {
     this.context = context
-    try {
-      storageUtilsCompleter.complete(StorageUtils(context))
-    } catch (_: Exception) {
-    }
     return AudioServicePlugin.getFlutterEngine(context)
   }
 
   override fun onUserLeaveHint() {
     channel.invokeMethod("onUserLeaveHint", null)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    val ratio = pipAspectRatio
+    if (ratio != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       try {
-        if (canEnterPip &&
-          com.ryanheise.just_audio.MainMethodCallHandler.willPlayWhenReady() &&
-          com.ryanheise.just_audio.MainMethodCallHandler.hasVideo() &&
-          !isInPip()
-        ) {
-          enterPip()
+        if (com.ryanheise.just_audio.MainMethodCallHandler.willPlayWhenReady() && !isInPip()) {
+          enterPip(ratio)
         }
       } catch (_: Exception) {
         // -- non initialized handler
@@ -577,14 +388,35 @@ class NamidaMainActivity : FlutterActivity() {
       currentApplicationContext = getApplicationContext();
     } catch (e: Exception) {
     }
-    ProcessExitReporter.installJavaCrashRecorder(applicationContext)
 
     super.onCreate(savedInstanceState)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      splashScreen.setOnExitAnimationListener { animateSplashExit(it) }
+    }
     if (intent?.action == NamidaConstants.BABE_WAKE_UP) {
       moveTaskToBack(true)
     }
     DisplayRefreshRate.applyMax(this)
     LauncherIconController.tryFixLauncherIconIfNeeded();
+  }
+
+  @RequiresApi(Build.VERSION_CODES.S)
+  private fun animateSplashExit(splashView: SplashScreenView) {
+    val interpolator = DecelerateInterpolator()
+    // -- the icon can be its own surface, the parent alpha doesnt reach it
+    splashView.iconView?.animate()
+      ?.alpha(0f)
+      ?.setDuration(SPLASH_EXIT_DURATION_MS)
+      ?.setInterpolator(interpolator)
+    splashView.animate()
+      .alpha(0f)
+      .setDuration(SPLASH_EXIT_DURATION_MS)
+      .setInterpolator(interpolator)
+      .withEndAction {
+        splashView.remove()
+        // -- remove() resets the system bars to the theme ones
+        updateSystemUiOverlays()
+      }
   }
 
   override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -619,7 +451,6 @@ class NamidaMainActivity : FlutterActivity() {
 
   override fun onDestroy() {
     channel.invokeMethod("onDestroy", null)
-    pipEventChannel?.endOfStream()
     super.onDestroy()
   }
 
@@ -628,10 +459,11 @@ class NamidaMainActivity : FlutterActivity() {
     super.onNewIntent(intent)
   }
 
+  // -- links are handled by namida, not as flutter routes. not the manifest flag cuz flutter reads it from the launching icon alias
+  override fun shouldHandleDeeplinking(): Boolean = false
+
   // ------- PIP -------
 
-  private var canEnterPip: Boolean = false
-  private var pipEventChannel: BetterEventChannel? = null
   private var pipBuilder: PictureInPictureParams.Builder? = null
 
   public fun isInPip(): Boolean {
@@ -645,26 +477,24 @@ class NamidaMainActivity : FlutterActivity() {
     isInPictureInPictureMode: Boolean,
     newConfig: Configuration
   ) {
-    pipEventChannel?.success(isInPictureInPictureMode)
+    channel.invokeMethod("onPipModeChanged", isInPictureInPictureMode)
+    super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
   }
 
   @RequiresApi(api = Build.VERSION_CODES.O)
-  private fun enterPip() {
-    val rational =
-      com.ryanheise.just_audio.MainMethodCallHandler.getVideoRational() ?: Rational(1, 1)
+  private fun enterPip(ratio: Rational) {
     val pipB = pipBuilder
     if (pipB != null) {
-      pipB.setAspectRatio(rational)
+      pipB.setAspectRatio(ratio)
       activity.enterPictureInPictureMode(pipB.build())
     }
   }
 
   @RequiresApi(api = Build.VERSION_CODES.O)
-  private fun updatePipRatio(width: Int?, height: Int?) {
-    if (width == null || height == null) return
+  private fun updatePipAspectRatio(ratio: Rational) {
     val pipB = pipBuilder
     if (pipB == null) return
-    pipB.setAspectRatio(Rational(width, height))
+    pipB.setAspectRatio(ratio)
     activity.setPictureInPictureParams(pipB.build())
   }
 
@@ -746,7 +576,7 @@ class NamidaMainActivity : FlutterActivity() {
       SET_AS_LATEST_TYPES = null
     } else if (requestCode == NamidaRequestCodes.REQUEST_CODE_FILES_PICKER) {
       if (resultCode == RESULT_OK) {
-        FileSysPicker.onPickerResult(data, storageUtils)
+        FileSysPicker.onPickerResult(data, storageUtils, safUtils)
       } else if (resultCode == RESULT_CANCELED) {
         FileSysPicker.finishWithSuccess(mutableListOf())
       }

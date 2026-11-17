@@ -8,9 +8,11 @@ import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:path/path.dart' as p;
 import 'package:playlist_manager/playlist_manager.dart';
 import 'package:rhttp/rhttp.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-import 'package:namida/class/file_matcher.dart';
 import 'package:namida/class/folder.dart';
+import 'package:namida/class/http_response_wrapper.dart';
+import 'package:namida/class/missing_track_matcher.dart';
 import 'package:namida/class/queue.dart';
 import 'package:namida/class/route.dart';
 import 'package:namida/class/track.dart';
@@ -21,8 +23,8 @@ import 'package:namida/controller/indexer_controller.dart';
 import 'package:namida/controller/lyrics_search_utils/lrc_search_utils_selectable.dart';
 import 'package:namida/controller/music_web_server/music_web_server_base.dart';
 import 'package:namida/controller/navigator_controller.dart';
+import 'package:namida/controller/network_proxy_controller.dart';
 import 'package:namida/controller/platform/namida_channel/namida_channel.dart';
-import 'package:namida/controller/platform/namida_storage/namida_storage.dart';
 import 'package:namida/controller/player_controller.dart';
 import 'package:namida/controller/playlist_controller.dart';
 import 'package:namida/controller/selected_tracks_controller.dart';
@@ -41,6 +43,7 @@ import 'package:namida/core/utils.dart';
 import 'package:namida/main.dart';
 import 'package:namida/packages/three_arched_circle.dart';
 import 'package:namida/ui/dialogs/add_to_playlist_dialog.dart';
+import 'package:namida/ui/dialogs/artwork_source_menu.dart';
 import 'package:namida/ui/dialogs/bookmarks_sheet.dart';
 import 'package:namida/ui/dialogs/chapters_sheet.dart';
 import 'package:namida/ui/dialogs/common_dialogs.dart';
@@ -144,7 +147,7 @@ Future<void> showGeneralPopupDialog(
     iconColor.value = Color.alphaBlend(color.withOpacityExt(0.47), namida.textTheme.displayMedium!.color!);
   }
 
-  onColorsObtained(CurrentColor.inst.color);
+  onColorsObtained(NamidaNavigator.inst.inheritedColor);
 
   if (extractColor && trackToExtractColorFrom != null) {
     final colorSync = CurrentColor.inst.getTrackDelightnedColorSync(trackToExtractColorFrom, networkArtworkInfo);
@@ -211,10 +214,13 @@ Future<void> showGeneralPopupDialog(
                   ),
               if (subtitle != '') ...[
                 const SizedBox(height: 2.0),
-                NamidaText(
-                  subtitle,
-                  style: const NText(.small, size: .s12),
-                  maxLines: 1,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: NamidaText(
+                    subtitle,
+                    style: const NText(.small, size: .s12),
+                    maxLines: 1,
+                  ),
                 ),
               ],
             ],
@@ -323,6 +329,13 @@ Future<void> showGeneralPopupDialog(
     PlaylistController.inst.updatePlaylistMetadata(playlistName, isPinned: !pl.isPinned);
   }
 
+  void toggleSmartPlaylistPin() {
+    final smartPlaylist = smartPlaylistWrapper?.value;
+    if (smartPlaylist == null) return;
+    NamidaNavigator.inst.closeDialog();
+    SmartPlaylistsController.inst.setPinned(smartPlaylist.key, isPinned: !smartPlaylist.isPinned);
+  }
+
   Future<void> deletePlaylist({bool deleteM3uFileOnly = false}) async {
     NamidaNavigator.inst.closeDialog();
 
@@ -378,7 +391,7 @@ Future<void> showGeneralPopupDialog(
 
     final savePath = await PlaylistController.inst.convertPlaylistToM3U(pl, directoryPath: directoryPath);
     snackyy(
-      message: "${lang.savedIn}: $savePath",
+      message: "${lang.savedIn}: ${savePath.toDisplayPath()}",
       leftBarIndicatorColor: colorDelightened.value,
       altDesign: true,
       top: false,
@@ -450,12 +463,29 @@ Future<void> showGeneralPopupDialog(
     if (m3uPath.isNotEmpty) {
       await PlaylistController.inst.exportPlaylistToM3UFile(finalPlaylist, m3uPath);
       snackyy(
-        message: "${lang.savedIn}: $m3uPath",
+        message: "${lang.savedIn}: ${m3uPath.toDisplayPath()}",
         leftBarIndicatorColor: colorDelightened.value,
         altDesign: true,
         top: false,
       );
     }
+  }
+
+  Future<List<String>> getMissingTrackSuggestions(Set<String> existingPaths) {
+    final missingPath = tracks.first.path;
+    final libraryTracks = Indexer.inst.allTracksMappedByPath;
+    final missingTrExt = libraryTracks[missingPath];
+    final fingerprint = missingTrExt == null ? null : MissingTrackMatcher.fingerprintOf(size: missingTrExt.size, durationMS: missingTrExt.durationMS);
+    final sameFingerprintPaths = <String>[];
+    if (fingerprint != null) {
+      for (final e in libraryTracks.entries) {
+        final trExt = e.value;
+        final isSameFile = trExt.size == fingerprint.size && trExt.durationMS == fingerprint.durationMS;
+        if (isSameFile && e.key != missingPath) sameFingerprintPaths.add(e.key);
+      }
+    }
+    final params = (missingPath: missingPath, existingPaths: existingPaths, fingerprint: fingerprint, sameFingerprintPaths: sameFingerprintPaths);
+    return MissingTrackMatcher.scanSuggestions.thready(params);
   }
 
   void updatePathDialog(String newPath) async {
@@ -479,9 +509,11 @@ Future<void> showGeneralPopupDialog(
               text: lang.confirm,
               onTap: () async {
                 isUpdating.value = true;
-                await EditDeleteController.inst.updateTrackPathInEveryPartOfNamida(tracks.first, newPath);
+                final newTrack = await EditDeleteController.inst.updateTrackPathInEveryPartOfNamida(tracks.first, newPath);
                 isUpdating.value = false;
                 NamidaNavigator.inst.closeDialog(2);
+                final didFixFailedCurrentTrack = errorPlayingTrack != null && newTrack != null && Player.inst.currentTrack?.track == newTrack;
+                if (didFixFailedCurrentTrack) Player.inst.skipToQueueItem(Player.inst.currentIndex.value);
               },
             ),
           ),
@@ -502,7 +534,7 @@ Future<void> showGeneralPopupDialog(
         ...highMatchesFiles.map(
           (e) => SmallListTile(
             borderRadius: 12.0,
-            title: showFullPath ? e : e.getFilename,
+            title: showFullPath ? e.toDisplayPath() : e.getFilename,
             subtitle: File(e).fileSizeFormatted(),
             onTap: () => updatePathDialog(e),
             color: colorDelightened.value, // not worth refreshing
@@ -537,8 +569,7 @@ Future<void> showGeneralPopupDialog(
     }
     pathsList.sortBy((p) => p);
 
-    final fileMatcher = FileMatcher.init(allAudioFiles: pathsSet, buildIndex: false);
-    final highMatchesFiles = fileMatcher.getAllSuggestions(tracks.first.path);
+    final highMatchesFiles = await getMissingTrackSuggestions(pathsSet);
 
     /// Searching
     final txtc = TextEditingController();
@@ -657,7 +688,7 @@ Future<void> showGeneralPopupDialog(
 
   final networkTracksToCache = <Track>[];
   for (final t in tracks) {
-    if (t.isNetwork && !ServerCacheController.inst.isKept(t)) networkTracksToCache.add(t);
+    if (t.isNetwork && !ServerCacheController.inst.isKept(t.path)) networkTracksToCache.add(t);
   }
 
   final Widget? serverCacheListTile = networkTracksToCache.isEmpty
@@ -678,14 +709,23 @@ Future<void> showGeneralPopupDialog(
           ),
         );
 
+  String getRemoveFromPlaylistSubtitle(String playlistName) {
+    final playlistText = playlistName.translatePlaylistName();
+    final isOneSelectedListen = source == QueueSource.selectedTracks && playlistName == k_PLAYLIST_NAME_HISTORY && tracksWithDates.length == 1;
+    if (!isOneSelectedListen) return playlistText;
+    final listenText = tracksWithDates.first.dateAdded.dateAndClockFormatted;
+    return '$playlistText • $listenText';
+  }
+
   final Widget? removeFromPlaylistListTile = shoulShowRemoveFromPlaylist()
       ? ObxO(
           rx: colorDelightened,
           builder: (context, colorDelightened) => SmallListTile(
             color: colorDelightened,
             compact: true,
+            dense: true,
             title: lang.removeFromPlaylist,
-            subtitle: playlistName!.translatePlaylistName(),
+            subtitle: getRemoveFromPlaylistSubtitle(playlistName!),
             icon: Broken.box_remove,
             onTap: () async {
               cancelSkipTimer();
@@ -700,6 +740,7 @@ Future<void> showGeneralPopupDialog(
   final playlistIsM3u = playlist?.m3uPath != null;
   final playlistIsReadOnly = playlist?.isReadOnly == true;
   final playlistIsPinned = playlist?.isPinned == true;
+  final smartPlaylistIsPinned = smartPlaylistWrapper?.value.isPinned == true;
 
   final Widget? playlistUtilsRow = shoulShowPlaylistUtils()
       ? SizedBox(
@@ -779,6 +820,14 @@ Future<void> showGeneralPopupDialog(
               ),
               const SizedBox(width: 8.0),
               Expanded(
+                child: bigIcon(
+                  smartPlaylistIsPinned ? Broken.paperclip_2 : Broken.paperclip,
+                  () => smartPlaylistIsPinned ? lang.unpin : lang.pin,
+                  toggleSmartPlaylistPin,
+                ),
+              ),
+              const SizedBox(width: 8.0),
+              Expanded(
                 child: bigIcon(Broken.edit_2, () => lang.edit, () {
                   NamidaNavigator.inst.closeDialog();
                   NamidaNavigator.inst.navigateDialog(
@@ -796,12 +845,23 @@ Future<void> showGeneralPopupDialog(
                   () => CreateSmartPlaylistDialog.promptDeletePlaylist(smartPlaylistWrapper.value),
                 ),
               ),
-              Expanded(
-                child: bigIcon(Broken.driver_2, () => lang.convertToNormalPlaylist, () => exportSmartPlaylist(asM3u: false)),
-              ),
               const SizedBox(width: 8.0),
               Expanded(
-                child: bigIcon(Broken.directbox_send, () => lang.convertToM3UPlaylist, () => exportSmartPlaylist(asM3u: true)),
+                child: NamidaPopupWrapper(
+                  childBuilder: (openMenu) => bigIcon(Broken.directbox_send, () => lang.export, openMenu),
+                  childrenDefault: () => [
+                    NamidaPopupItem(
+                      icon: Broken.driver_2,
+                      title: lang.convertToNormalPlaylist,
+                      onTap: () => exportSmartPlaylist(asM3u: false),
+                    ),
+                    NamidaPopupItem(
+                      icon: Broken.directbox_send,
+                      title: lang.convertToM3UPlaylist,
+                      onTap: () => exportSmartPlaylist(asM3u: true),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(width: 8.0),
 
@@ -833,7 +893,7 @@ Future<void> showGeneralPopupDialog(
   if (hasHeaderTap && trailingIcon == null) trailingIcon = Broken.arrow_right_3;
 
   final artworkFile = customArtworkManager?.getArtworkFile();
-  final artworkFileGood = artworkFile != null && artworkFile.existsSync() && (artworkFile.fileSizeSync() ?? 0) > 0;
+  final hasCollageFallback = customArtworkManager != null && networkArtworkInfo == null;
 
   NamidaNavigator.inst.navigateDialog(
     onDisposing: () {
@@ -915,7 +975,7 @@ Future<void> showGeneralPopupDialog(
               )
             : null;
 
-        return NTheme(
+        return NamidaDialogTheme(
           data: theme,
           child: _ThemedDialog(
             insetPadding: EdgeInsets.symmetric(horizontal: horizontalMargin, vertical: 24.0),
@@ -946,14 +1006,14 @@ Future<void> showGeneralPopupDialog(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             const SizedBox(width: 16.0),
-                            if (forceSingleArtwork! || artworkFileGood)
+                            if (forceSingleArtwork! && !hasCollageFallback)
                               NamidaHero(
                                 tag: heroTag,
                                 child: NetworkArtwork.orLocal(
                                   key: Key(tracks.pathToImage),
                                   fadeMilliSeconds: 0,
                                   track: tracks.trackOfImage,
-                                  path: artworkFileGood ? artworkFile.path : tracks.pathToImage,
+                                  path: tracks.pathToImage,
                                   info: networkArtworkInfo,
                                   thumbnailSize: 60,
                                   forceSquared: forceSquared,
@@ -1085,7 +1145,7 @@ Future<void> showGeneralPopupDialog(
                               if (isSingle) ...[
                                 SmallListTile(
                                   title: lang.update,
-                                  subtitle: tracks.first.path,
+                                  subtitle: tracks.first.path.toDisplayPath(),
                                   color: colorDelightened,
                                   compact: true,
                                   icon: Broken.document_upload,
@@ -1097,8 +1157,8 @@ Future<void> showGeneralPopupDialog(
                                     }
 
                                     /// firstly checks if a file exists in current library
-                                    final fileMatcher = FileMatcher.init(allAudioFiles: Indexer.inst.allAudioFiles.value, buildIndex: false);
-                                    final firstHighMatchesFiles = fileMatcher.getAllSuggestions(tracks.first.path);
+                                    final audioFiles = Indexer.inst.allAudioFiles.value;
+                                    final firstHighMatchesFiles = await getMissingTrackSuggestions(audioFiles);
                                     if (firstHighMatchesFiles.isNotEmpty) {
                                       await openDialog(
                                         (theme) => CustomBlurryDialog(
@@ -1453,7 +1513,12 @@ Future<void> showGeneralPopupDialog(
                                   icon: Broken.chart_2,
                                   onTap: () {
                                     NamidaNavigator.inst.closeDialog();
-                                    showTracksStatsCardDialog(tracks: tracks, title: title, subtitle: subtitle, isCircle: isCircle);
+                                    showTracksStatsCardDialog(
+                                      tracks: tracks,
+                                      title: title,
+                                      subtitle: subtitle,
+                                      isCircle: isCircle,
+                                    );
                                   },
                                 ),
 
@@ -1613,7 +1678,7 @@ Future<void> showGeneralPopupDialog(
                                                 Broken.grammerly,
                                                 () => lang.setRating,
                                                 setTrackStatsDialog,
-                                                subtitle: stats.rating <= 0 ? '' : ' ${stats.rating}%',
+                                                subtitle: stats.rating <= 0 ? '' : ' ${stats.rating}%', // nbsp to avoid splitting to new line anyway
                                               ),
                                             ),
                                     ),
@@ -1778,196 +1843,208 @@ class _ArtworkManager extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NamidaIconButton(
-      icon: Broken.gallery_edit,
-      tooltip: () => lang.editArtwork,
-      onPressed: customArtworkManager.showEditDialog,
+    return CustomArtworkSourceMenu(
+      manager: customArtworkManager,
+      childBuilder: (openMenu) => NamidaIconButton(
+        icon: Broken.gallery_edit,
+        tooltip: () => lang.editArtwork,
+        onPressed: openMenu,
+      ),
     );
   }
 }
 
-extension CustomArtworkManagerDialog on CustomArtworkManager {
+/// [ArtworkSourceMenu] for artworks set by the user (playlists, albums, artists), every choice is saved right away.
+class CustomArtworkSourceMenu extends StatelessWidget {
+  final CustomArtworkManager manager;
+  final Widget Function(VoidCallback openMenu) childBuilder;
+
+  const CustomArtworkSourceMenu({
+    super.key,
+    required this.manager,
+    required this.childBuilder,
+  });
+
   static final _lastfmImageSizeRegex = RegExp(r'\/i\/u\/(.+)\/');
 
-  Future<void> showEditDialog() async {
-    final alreadySetArtworkPossible = getArtworkFile();
-    final alreadySetArtworkGood = await alreadySetArtworkPossible.exists() && ((await alreadySetArtworkPossible.fileSize() ?? 0) > 0);
-    final alreadySetArtworkExisting = alreadySetArtworkGood ? alreadySetArtworkPossible : null;
-
-    void showSnackInfo([dynamic error]) {
-      if (error == null) {
-        snackyy(icon: Broken.gallery_edit, message: lang.succeeded, borderColor: Colors.green);
-      } else {
-        snackyy(icon: Broken.gallery_edit, message: "${lang.failed}:$error", borderColor: Colors.red);
-      }
+  Future<void> _setArtwork(File? file, Uint8List? bytes) async {
+    try {
+      await manager.setArtworkFile(file, bytes);
+      snackyy(icon: Broken.gallery_edit, message: lang.succeeded, borderColor: Colors.green);
+    } catch (e) {
+      snackyy(icon: Broken.gallery_edit, message: "${lang.failed}:$e", borderColor: Colors.red);
     }
+  }
 
-    Future<void> onEdit() async {
-      final artworkFile = await NamidaFileBrowser.pickFile(memeType: NamidaStorageFileMemeType.image);
-      if (artworkFile != null) {
-        try {
-          await setArtworkFile(artworkFile, null);
-          showSnackInfo();
-        } catch (e) {
-          showSnackInfo(e);
-        }
-      }
-    }
+  bool _hasArtwork() {
+    final artworkFile = manager.getArtworkFile();
+    final size = artworkFile.fileSizeSync() ?? 0;
+    return size > 0;
+  }
 
-    Future<void> onDelete() async {
-      try {
-        await setArtworkFile(null, null);
-        showSnackInfo();
-      } catch (e) {
-        showSnackInfo(e);
-      }
-    }
+  Future<Uint8List?> _getArtworkBytes() {
+    final artworkFile = manager.getArtworkFile();
+    return artworkFile.readAsBytes();
+  }
 
-    final fetchPossibleArtworksFn = fetchPossibleArtworks;
-    if (alreadySetArtworkExisting != null || fetchPossibleArtworksFn != null) {
-      final possibleArtworks = Rxn<List<String>>();
-      CancelToken? cancelToken;
-      final possibleArtworksLoading = false.obs;
+  void _showLastfmArtworksDialog(Future<List<String>?> Function(CancelToken? cancelToken) fetchPossibleArtworks) {
+    final possibleArtworks = Rxn<List<String>>();
+    final possibleArtworksLoading = true.obs;
+    final cancelToken = CancelToken();
 
-      if (fetchPossibleArtworksFn != null) {
-        possibleArtworksLoading.value = true;
-        cancelToken = CancelToken();
-        fetchPossibleArtworksFn(cancelToken).catchError((_) => null).then(
-          (value) {
-            possibleArtworks.value = value;
-            possibleArtworksLoading.value = false;
-          },
-        );
-      }
+    fetchPossibleArtworks(cancelToken).catchError((_) => null).then(
+      (value) {
+        possibleArtworks.value = value;
+        possibleArtworksLoading.value = false;
+      },
+    );
 
-      NamidaNavigator.inst.navigateDialog(
-        onDisposing: () {
-          cancelToken?.cancel();
-          possibleArtworks.close();
-          possibleArtworksLoading.close();
-        },
-        dialog: CustomBlurryDialog(
-          title: lang.configure,
-          actions: [
-            NamidaButton(
-              colorScheme: Colors.red,
-              text: lang.delete.toUpperCase(),
-              onTap: () async {
-                await onDelete();
-                NamidaNavigator.inst.closeDialog();
-              },
-            ),
-            NamidaButton(
-              text: lang.pickFromStorage.toUpperCase(),
-              onTap: () async {
-                await onEdit();
-                NamidaNavigator.inst.closeDialog();
-              },
-            ),
-          ],
-          child: ObxO(
-            rx: possibleArtworks,
-            builder: (context, urls) {
-              final extraCountText = fetchPossibleArtworksFn == null ? '' : " (${urls?.length ?? 0})";
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: NamidaText(
-                      lang.choose + extraCountText,
-                      style: NText.medium,
-                    ),
+    NamidaNavigator.inst.navigateDialog(
+      onDisposing: () {
+        cancelToken.cancel();
+        possibleArtworks.close();
+        possibleArtworksLoading.close();
+      },
+      dialog: CustomBlurryDialog(
+        title: 'Last.fm',
+        actions: const [
+          CancelButton(),
+        ],
+        child: ObxO(
+          rx: possibleArtworks,
+          builder: (context, urls) {
+            final extraCountText = " (${urls?.length ?? 0})";
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: NamidaText(
+                    lang.choose + extraCountText,
+                    style: NText.medium,
                   ),
-                  ObxO(
-                    rx: possibleArtworksLoading,
-                    builder: (context, loading) => SizedBox(
-                      height: fetchPossibleArtworksFn == null ? null : context.height * 0.4,
-                      width: context.width,
-                      child: loading
-                          ? Center(
-                              child: NBuilder(
-                                builder: (context, colors) => ThreeArchedCircle(
-                                  color: colors.onSurface.withOpacityExt(0.5),
-                                  size: 32.0,
-                                ),
+                ),
+                ObxO(
+                  rx: possibleArtworksLoading,
+                  builder: (context, loading) => SizedBox(
+                    height: context.height * 0.4,
+                    width: context.width,
+                    child: loading
+                        ? Center(
+                            child: NBuilder(
+                              builder: (context, colors) => ThreeArchedCircle(
+                                color: colors.onSurface.withOpacityExt(0.5),
+                                size: 32.0,
                               ),
-                            )
-                          : fetchPossibleArtworksFn == null
-                          ? null
-                          : urls == null || urls.isEmpty
-                          ? const Center(
-                              child: NoResultsWidget(),
-                            )
-                          : SmoothGridView.builder(
-                              padding: EdgeInsets.zero,
-                              shrinkWrap: true,
-                              scrollCacheExtent: const ScrollCacheExtent.viewport(3),
-                              itemCount: urls.length,
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 3,
-                                mainAxisSpacing: 6.0,
-                                crossAxisSpacing: 4.0,
-                              ),
-                              itemBuilder: (context, index) {
-                                final url = urls[index];
-                                return BorderRadiusClip(
-                                  borderRadius: BorderRadius.circular(8.0.multipliedRadius),
-                                  child: FutureBuilder(
-                                    future: Rhttp.getBytes(url),
-                                    builder: (context, snapshot) {
-                                      final bytes = snapshot.data?.body;
-                                      return CustomAnimatedSwitcher(
-                                        layoutBuilder: (currentChild, previousChildren) {
-                                          return Stack(
-                                            alignment: Alignment.center,
-                                            children: <Widget>[
-                                              ...previousChildren,
-                                              if (currentChild != null) Positioned.fill(child: currentChild),
-                                            ],
-                                          );
-                                        },
-                                        duration: const Duration(milliseconds: 200),
-                                        child: bytes == null
-                                            ? const NColoredBox(
-                                                color: NColors.card,
-                                              )
-                                            : TapDetector(
-                                                onTap: () async {
-                                                  NamidaNavigator.inst.closeDialog();
-                                                  Uint8List? fullResbytes;
-                                                  try {
-                                                    final fullResUrl = url.replaceAll(_lastfmImageSizeRegex, '/i/u/ar0/');
-                                                    final res = await Rhttp.getBytes(fullResUrl);
-                                                    fullResbytes = res.body;
-                                                  } catch (_) {}
-
-                                                  try {
-                                                    await setArtworkFile(null, fullResbytes ?? bytes);
-                                                    showSnackInfo();
-                                                  } catch (e) {
-                                                    showSnackInfo(e);
-                                                  }
-                                                },
-                                                child: Image.memory(bytes),
-                                              ),
-                                      );
-                                    },
-                                  ),
-                                );
-                              },
                             ),
-                    ),
+                          )
+                        : urls == null || urls.isEmpty
+                        ? const Center(
+                            child: NoResultsWidget(),
+                          )
+                        : SmoothGridView.builder(
+                            padding: EdgeInsets.zero,
+                            shrinkWrap: true,
+                            scrollCacheExtent: const ScrollCacheExtent.viewport(3),
+                            itemCount: urls.length,
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              mainAxisSpacing: 6.0,
+                              crossAxisSpacing: 4.0,
+                            ),
+                            itemBuilder: (context, index) {
+                              final url = urls[index];
+                              final proxySettings = NetworkProxyController.inst.rhttpSettings;
+                              return BorderRadiusClip(
+                                borderRadius: BorderRadius.circular(8.0.multipliedRadius),
+                                child: FutureBuilder(
+                                  future: NamidaHttp.getBytes(
+                                    url,
+                                    settings: proxySettings,
+                                  ),
+                                  builder: (context, snapshot) {
+                                    final bytes = snapshot.data?.body;
+                                    return CustomAnimatedSwitcher(
+                                      layoutBuilder: (currentChild, previousChildren) {
+                                        return Stack(
+                                          alignment: Alignment.center,
+                                          children: <Widget>[
+                                            ...previousChildren,
+                                            if (currentChild != null) Positioned.fill(child: currentChild),
+                                          ],
+                                        );
+                                      },
+                                      duration: const Duration(milliseconds: 200),
+                                      child: bytes == null
+                                          ? const NColoredBox(
+                                              color: NColors.card,
+                                            )
+                                          : TapDetector(
+                                              onTap: () async {
+                                                NamidaNavigator.inst.closeDialog();
+                                                Uint8List? fullResbytes;
+                                                try {
+                                                  final fullResUrl = url.replaceAll(_lastfmImageSizeRegex, '/i/u/ar0/');
+                                                  final res = await NamidaHttp.getBytes(
+                                                    fullResUrl,
+                                                    settings: proxySettings,
+                                                  );
+                                                  fullResbytes = res.body;
+                                                } catch (_) {}
+
+                                                await _setArtwork(null, fullResbytes ?? bytes);
+                                              },
+                                              child: Image.memory(bytes),
+                                            ),
+                                    );
+                                  },
+                                ),
+                              );
+                            },
+                          ),
                   ),
-                ],
-              );
-            },
-          ),
+                ),
+              ],
+            );
+          },
         ),
-      );
-    } else {
-      await onEdit();
-    }
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fetchPossibleArtworks = manager.fetchPossibleArtworks;
+    final getLastfmPageUrl = manager.getLastfmPageUrl;
+    final hasExtraItems = fetchPossibleArtworks != null || getLastfmPageUrl != null;
+    return ArtworkSourceMenu(
+      childBuilder: childBuilder,
+      onArtworkObtained: (imagePath) => _setArtwork(File(imagePath), null),
+      onRemove: () => _setArtwork(null, null),
+      canRemove: _hasArtwork,
+      canCrop: _hasArtwork,
+      getArtworkBytes: _getArtworkBytes,
+      getSearchQuery: manager.getSearchQuery,
+      getExtraItems: hasExtraItems
+          ? () {
+              final lastfmPageUrl = getLastfmPageUrl?.call();
+              return [
+                if (lastfmPageUrl != null)
+                  NamidaPopupItem(
+                    icon: Broken.global,
+                    title: '${lang.open}: Last.fm',
+                    onTap: () => NamidaLinkUtils.openLink(lastfmPageUrl, preferredMode: LaunchMode.externalApplication),
+                  ),
+                if (fetchPossibleArtworks != null)
+                  NamidaPopupItem(
+                    icon: Broken.gallery,
+                    title: 'Last.fm',
+                    onTap: () => _showLastfmArtworksDialog(fetchPossibleArtworks),
+                  ),
+              ];
+            }
+          : null,
+    );
   }
 }
 
@@ -2091,14 +2168,14 @@ class _ConvertToM3UDirectoryDialog extends StatelessWidget {
           CustomListTile(
             icon: Broken.folder,
             title: lang.defaultLabel,
-            subtitle: AppDirs.M3UPlaylists,
+            subtitle: AppDirs.M3UPlaylists.toDisplayPath(),
             onTap: () => onDirectoryTap(null),
           ),
           if (tracksDirectoryPath != null)
             CustomListTile(
               icon: Broken.music_library_2,
               title: lang.tracks,
-              subtitle: tracksDirectoryPath,
+              subtitle: tracksDirectoryPath.toDisplayPath(),
               onTap: () => onDirectoryTap(tracksDirectoryPath),
             ),
           CustomListTile(

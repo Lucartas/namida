@@ -110,7 +110,12 @@ class _ArtistsMapPageState extends State<ArtistsMapPage> {
     if (input == null) return;
 
     final layouts = await _computeArtistsMapLayouts.thready(input);
-    final data = _ArtistsMapData(signature: signature, names: names, grid: layouts.grid, graph: layouts.graph);
+    final data = _ArtistsMapData(
+      signature: signature,
+      names: names,
+      grid: layouts.grid,
+      graph: layouts.graph,
+    );
     _cached = data;
     if (mounted) setState(() => _data = data);
   }
@@ -164,7 +169,7 @@ class _ArtistsMapViewState extends State<_ArtistsMapView> with SingleTickerProvi
   double _flyFromScale = 1.0;
   double _flyToScale = 1.0;
 
-  bool _graphMode = settings.extra.artistsMapGraphLayout.value ?? true;
+  bool _graphMode = settings.extra.artistsMapGraphLayout.value;
   TransformationController? _controller;
   Size _viewport = Size.zero;
   double _fitScale = 1.0;

@@ -33,6 +33,7 @@ import 'package:namida/ui/widgets/custom_widgets.dart';
 import 'package:namida/ui/widgets/effects/effects.dart';
 import 'package:namida/ui/widgets/lyrics_karaoke_text.dart';
 import 'package:namida/ui/widgets/player_transport_controls.dart';
+import 'package:namida/ui/widgets/snapshot_blur.dart';
 import 'package:namida/youtube/class/youtube_id.dart';
 import 'package:namida/youtube/controller/youtube_info_controller.dart';
 import 'package:namida/youtube/widgets/yt_thumbnail.dart';
@@ -55,6 +56,7 @@ class LyricsLRCParsedView extends StatefulWidget {
   final Widget? bottomPadding;
   final SettingsKey<double>? fontScaleKey;
   final bool insideMiniplayerCard;
+  final bool fadesWithMiniplayer;
   final bool fadeOnEmptyLine;
   final bool showJumpButton;
   final double? baseFontSize;
@@ -76,6 +78,7 @@ class LyricsLRCParsedView extends StatefulWidget {
     this.blurColorMaskOpacity = 0.6,
     this.fontScaleKey,
     this.insideMiniplayerCard = false,
+    this.fadesWithMiniplayer = false,
     this.fadeOnEmptyLine = true,
     this.showJumpButton = false,
     this.baseFontSize,
@@ -225,6 +228,7 @@ class LyricsLRCParsedViewState extends State<LyricsLRCParsedView> with SingleTic
       durationDifferenceToInsertEmptyLine: const Duration(seconds: 1),
       extraOffsetDuration: Duration(milliseconds: settings.visualDelayMS.value),
       romanizer: Romanizer.inst.lyricsRomanizer(lrc),
+      withUntimedLines: true,
     );
 
     lyrics = uiInfo.uiLyricsLines;
@@ -236,20 +240,21 @@ class LyricsLRCParsedViewState extends State<LyricsLRCParsedView> with SingleTic
     _updateHighlightedLine(Player.inst.nowPlayingPosition.value, jump: true);
   }
 
-  /// last word end, the original's end for romanized copies, next line start for plain lines, -1 for bg lines.
+  /// last word end, the original's end for romanized copies, next line start for plain lines, -1 for bg lines and untimed rows.
   static Int32List _computeLineEndsMS(List<LrcLine> lyrics) {
     final length = lyrics.length;
     final ends = Int32List(length);
     for (int i = 0; i < length; i++) {
       final line = lyrics[i];
-      if (line.isBGLyrics) {
+      if (line.isBGLyrics || line.isUntimed) {
         ends[i] = -1;
         continue;
       }
       final parts = line.parts;
+      final previous = i > 0 ? lyrics[i - 1] : null;
       if (parts != null && parts.isNotEmpty) {
         ends[i] = parts.last.endTimestamp.inMilliseconds;
-      } else if (i > 0 && lyrics[i - 1].timestamp == line.timestamp) {
+      } else if (previous != null && !previous.isUntimed && previous.timestamp == line.timestamp) {
         ends[i] = ends[i - 1];
       } else {
         ends[i] = i + 1 < length ? lyrics[i + 1].timestamp.inMilliseconds : -1;
@@ -354,6 +359,12 @@ class LyricsLRCParsedViewState extends State<LyricsLRCParsedView> with SingleTic
   final _canAnimateScroll = true.obs;
 
   static const _kCopyLineHoldDuration = Duration(seconds: 1);
+
+  void _seekToLine(Duration timestamp) {
+    _canAnimateScroll.value = true;
+    _currentIndex = null; // reset so that tapping the current line still animates to it
+    Player.inst.seek(timestamp); //  should auto scroll bcz position changes
+  }
 
   void _copyLine(String text) {
     VibratorController.medium();
@@ -481,6 +492,8 @@ class LyricsLRCParsedViewState extends State<LyricsLRCParsedView> with SingleTic
     final initialFontSize = widget.baseFontSize ?? (fullscreen ? 26.0 : 15.0);
     final normalTextStyle = NText.medium.of(context).copyWith(fontSize: _fontMultiplier * initialFontSize);
     final plainLyricsTextStyle = normalTextStyle.copyWith(height: 1.8);
+    late final untimedBaseTextStyle = normalTextStyle.copyWith(fontSize: normalTextStyle.fontSize! * 0.8);
+    late final untimedGapHeight = normalTextStyle.fontSize! * 0.8;
     final fullscreenIconButton = fullscreen && widget.canShowToggleFullscreenButton
         ? NContainer(
             clipBehavior: Clip.antiAlias,
@@ -616,7 +629,7 @@ class LyricsLRCParsedViewState extends State<LyricsLRCParsedView> with SingleTic
     final bottomControlsChildren = fullscreen ? const [PlayerTransportControls()] : null;
 
     final pagePaddingHorizontal = fullscreen ? 0.0 : 24.0;
-    late final mpAnimation = NamidaMiniPlayerBase.clampedAnimationBCP;
+    late final mpAnimation = widget.fadesWithMiniplayer ? NamidaMiniPlayerBase.clampedAnimationBCP : kAlwaysCompleteAnimation;
 
     final videoOrImageChild = fullscreen
         ? Positioned.fill(
@@ -748,6 +761,39 @@ class LyricsLRCParsedViewState extends State<LyricsLRCParsedView> with SingleTic
                                     final distanceDiffFromSelectedAbs = distanceDiffFromSelected?.abs();
                                     final lrc = lyrics[index];
                                     String text = lrc.readableText;
+
+                                    if (lrc.isUntimed) {
+                                      if (text.isEmpty) {
+                                        return SizedBox(
+                                          height: untimedGapHeight,
+                                        );
+                                      }
+                                      final untimedOpacity = distanceDiffFromSelectedAbs == null || distanceDiffFromSelectedAbs > 2 ? 0.25 : 0.4;
+                                      final untimedTextStyle = untimedBaseTextStyle.copyWith(
+                                        color: untimedBaseTextStyle.color?.withOpacityExt(untimedOpacity),
+                                      );
+                                      final untimedTextDirection = lrc.isRTL ? TextDirection.rtl : TextDirection.ltr;
+                                      final untimedAlignment = alignAtStart ? AlignmentDirectional.centerStart : AlignmentDirectional.center;
+                                      final untimedRowWidget = _LyricsUntimedRow(
+                                        text: text,
+                                        textDirection: untimedTextDirection,
+                                        textStyle: untimedTextStyle,
+                                        textAlign: alignAtStart ? TextAlign.start : TextAlign.center,
+                                        alignment: untimedAlignment,
+                                        horizontalPadding: fullscreen ? 18.0 : 16.0,
+                                        maxWidth: widget.maxWidth,
+                                        onTap: () => _seekToLine(lrc.timestamp),
+                                      );
+                                      if (!hasFocalEffect) return untimedRowWidget;
+                                      return _LyricsFocalEffect(
+                                        alignment: untimedAlignment.resolve(untimedTextDirection),
+                                        selected: false,
+                                        scrollTick: _scrollTick,
+                                        effects: effects,
+                                        child: untimedRowWidget,
+                                      );
+                                    }
+
                                     final parts = lrc.parts;
                                     final hasParts = parts != null && parts.isNotEmpty;
                                     final person = lrc.person;
@@ -961,11 +1007,7 @@ class LyricsLRCParsedViewState extends State<LyricsLRCParsedView> with SingleTic
                                       type: MaterialType.transparency,
                                       child: InkWell(
                                         splashFactory: InkSparkle.splashFactory,
-                                        onTap: () {
-                                          _canAnimateScroll.value = true;
-                                          _currentIndex = null; // reset so that tapping the current line still animates to it
-                                          Player.inst.seek(lrc.timestamp); //  should auto scroll bcz position changes
-                                        },
+                                        onTap: () => _seekToLine(lrc.timestamp),
                                       ),
                                     );
                                     if (widget.canHoldToCopyLine) {
@@ -1879,6 +1921,57 @@ class _LyricsInterludeDotsPainter extends CustomPainter {
 }
 
 /// hidden lyrics would otherwise keep ticking behind a zero opacity, producing frames on whatever page is shown.
+class _LyricsUntimedRow extends StatelessWidget {
+  final String text;
+  final TextDirection textDirection;
+  final TextStyle textStyle;
+  final TextAlign textAlign;
+  final AlignmentDirectional alignment;
+  final double horizontalPadding;
+  final double? maxWidth;
+  final VoidCallback onTap;
+
+  const _LyricsUntimedRow({
+    required this.text,
+    required this.textDirection,
+    required this.textStyle,
+    required this.textAlign,
+    required this.alignment,
+    required this.horizontalPadding,
+    required this.maxWidth,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final maxWidth = this.maxWidth ?? double.infinity;
+    return Directionality(
+      textDirection: textDirection,
+      child: Align(
+        alignment: alignment,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: maxWidth,
+          ),
+          child: NamidaInkWell(
+            onTap: onTap,
+            borderRadius: 8.0,
+            padding: EdgeInsets.symmetric(
+              horizontal: horizontalPadding,
+              vertical: 4.0,
+            ),
+            child: Text(
+              text,
+              style: textStyle,
+              textAlign: textAlign,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _TickerModeWhileVisible extends StatefulWidget {
   final Animation<double> opacity;
   final Animation<double> secondaryOpacity;
@@ -2209,6 +2302,11 @@ class LyricsOverlayBackdrop extends StatelessWidget {
     required this.child,
   });
 
+  static const _kBlur = 12.0;
+
+  /// the blur's spill, plus the artwork glow under it spilling up to 3x its 32 blur.
+  static const _kSnapshotOverflow = 3.0 * _kBlur + 96.0;
+
   @override
   Widget build(BuildContext context) {
     final animation = Listenable.merge([mpAnimation, visibility]);
@@ -2221,9 +2319,9 @@ class LyricsOverlayBackdrop extends StatelessWidget {
           child: child,
           builder: (context, child) {
             final factor = mpAnimation.value * visibility.value;
-            return NamidaBlur(
-              blur: 12.0 * factor,
-              fixArtifacts: true,
+            return NamidaSnapshotBlur(
+              blur: _kBlur * factor,
+              overflow: _kSnapshotOverflow,
               child: Stack(
                 children: [
                   child!,

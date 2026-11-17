@@ -188,9 +188,75 @@ class ArtworkWidget extends StatefulWidget {
   }
 
   static Future<void> evictImageFile(File file) async {
-    final provider = FileImage(file);
+    final provider = fileImageOf(file.path);
     await provider.evict();
     await fullQualityImage(provider).evict();
+  }
+
+  /// bumped per path when its file is replaced, so the next provider misses the stale decoded image.
+  static final _imageFilesVersions = <String, int>{};
+
+  /// version of every path missing from [_imageFilesVersions], bumped when files were replaced in bulk.
+  static int _allImageFilesVersion = 0;
+  static int _latestImageFilesVersion = 0;
+
+  static FileImage fileImageOf(String path) {
+    final file = File(path);
+    final allVersion = _allImageFilesVersion;
+    final version = _imageFilesVersions.isEmpty ? allVersion : _imageFilesVersions[path] ?? allVersion;
+    return version == 0 ? FileImage(file) : _VersionedFileImage(file, version);
+  }
+
+  /// reloads every artwork showing one of [paths], call after these files were written or deleted.
+  static void refreshImageFiles(Iterable<String> paths) {
+    final pathsSet = paths.toSet();
+    if (pathsSet.isEmpty) return;
+    for (final path in pathsSet) {
+      _imageFilesVersions[path] = ++_latestImageFilesVersion;
+      _ArtworkWidgetState._latestInvalidImagePath.remove(path);
+    }
+    for (final state in _ArtworkWidgetState._mountedStates) {
+      final isShowingPath = pathsSet.contains(state.widget.path) || pathsSet.contains(state._imagePath);
+      if (isShowingPath) state._onImageFileChanged();
+    }
+    if (_imageFileListeners.isEmpty) return;
+    for (final path in pathsSet) {
+      final listeners = _imageFileListeners[path];
+      if (listeners == null) continue;
+      for (final listener in listeners) {
+        listener();
+      }
+    }
+  }
+
+  /// reloads every artwork, call after image files were replaced in bulk, ex: a backup restore.
+  static void refreshAllImageFiles() {
+    _imageFilesVersions.clear();
+    _allImageFilesVersion = ++_latestImageFilesVersion;
+    _ArtworkWidgetState._latestInvalidImagePath.clear();
+    PaintingBinding.instance.imageCache.clear();
+    for (final state in _ArtworkWidgetState._mountedStates) {
+      state._onImageFileChanged();
+    }
+    for (final listeners in _imageFileListeners.values) {
+      for (final listener in listeners) {
+        listener();
+      }
+    }
+  }
+
+  static final _imageFileListeners = <String, Set<VoidCallback>>{};
+
+  static void addImageFileListener(String path, VoidCallback listener) {
+    final listeners = _imageFileListeners[path] ??= <VoidCallback>{};
+    listeners.add(listener);
+  }
+
+  static void removeImageFileListener(String path, VoidCallback listener) {
+    final listeners = _imageFileListeners[path];
+    if (listeners == null) return;
+    listeners.remove(listener);
+    if (listeners.isEmpty) _imageFileListeners.remove(path);
   }
 
   @override
@@ -198,6 +264,7 @@ class ArtworkWidget extends StatefulWidget {
 }
 
 class _ArtworkWidgetState extends State<ArtworkWidget> with LoadingItemsDelayMixin {
+  static final _mountedStates = <_ArtworkWidgetState>{};
   static final _latestInvalidImagePath = <String?, bool>{};
   static final _staggeredAspectRatios = <Object, double>{};
   static const _kStaticMapsMaxEntries = 4000;
@@ -256,6 +323,7 @@ class _ArtworkWidgetState extends State<ArtworkWidget> with LoadingItemsDelayMix
   @override
   void initState() {
     super.initState();
+    _mountedStates.add(this);
     if (_bytes?.isNotEmpty == true) {
       // -- skip
     } else {
@@ -273,6 +341,18 @@ class _ArtworkWidgetState extends State<ArtworkWidget> with LoadingItemsDelayMix
         },
       );
     }
+  }
+
+  @override
+  void dispose() {
+    _mountedStates.remove(this);
+    super.dispose();
+  }
+
+  void _onImageFileChanged() {
+    _bytes = widget.bytes ?? Indexer.inst.artworksBytesMap[widget.path];
+    refreshState();
+    if (widget.extractInternally) _initValues();
   }
 
   Future<void> _initValues() async {
@@ -452,7 +532,7 @@ class _ArtworkWidgetState extends State<ArtworkWidget> with LoadingItemsDelayMix
 
     ImageProvider? image;
     if (canDisplayImage && !widget.forceDummyArtwork) {
-      final ImageProvider source = goodImagePath ? FileImage(File(_imagePath!)) : MemoryImage(bytes!);
+      final ImageProvider source = goodImagePath ? ArtworkWidget.fileImageOf(_imagePath!) : MemoryImage(bytes!);
       if (widget.compressed) {
         final pixelRatio = context.pixelRatio;
         final cacheMultiplier = pixelRatio * settings.artworkCacheHeightMultiplier.value;
@@ -607,7 +687,7 @@ class _ArtworkWidgetState extends State<ArtworkWidget> with LoadingItemsDelayMix
 
     if (NamidaFeaturesVisibility.floatingArtworkEffect) {
       if (widget.allowFloating) {
-        if (settings.extra.floatingArtworkEffect.value == true) {
+        if (settings.extra.floatingArtworkEffect.value) {
           artwork = _EncapsulateWithFloatingTilt(
             compressed: widget.compressed,
             child: artwork,
@@ -732,7 +812,12 @@ class MultiArtworks extends StatelessWidget {
       images.add(
         NamidaFullscreenImage(
           imageFile: () => File(imagePath),
-          fetchImage: () => Indexer.inst.getArtwork(imagePath: imagePath, track: tr, compressed: false, checkFileFirst: false),
+          fetchImage: () => Indexer.inst.getArtwork(
+            imagePath: imagePath,
+            track: tr,
+            compressed: false,
+            checkFileFirst: false,
+          ),
           onSave: (_, _) => EditDeleteController.inst.saveTrackArtworkToStorage(tr),
           placeholder: placeholder,
         ),
@@ -1428,6 +1513,21 @@ class _StockGlowColorBuilder extends StatelessWidget {
     }
     return builder(stockGlowColor);
   }
+}
+
+class _VersionedFileImage extends FileImage {
+  final int version;
+
+  const _VersionedFileImage(super.file, this.version);
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! _VersionedFileImage) return false;
+    return other.file.path == file.path && other.scale == scale && other.version == version;
+  }
+
+  @override
+  int get hashCode => Object.hash(file.path, scale, version);
 }
 
 extension<T extends num> on T {

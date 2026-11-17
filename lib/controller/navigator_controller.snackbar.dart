@@ -127,7 +127,10 @@ SnackbarController snackyy({
             else if (icon != null)
               Padding(
                 padding: const EdgeInsets.only(right: 8.0),
-                child: Icon(icon, color: itemsColor),
+                child: Icon(
+                  icon,
+                  color: itemsColor,
+                ),
               ),
             Expanded(
               child: Column(
@@ -545,6 +548,7 @@ enum SnackbarMergeGroup {
   queueInsertVideos,
   playlistAddTracks,
   playlistAddVideos,
+  explicitTracksSkipped,
 }
 
 typedef _SnackbarMergeKey = (SnackbarMergeGroup, String);

@@ -194,7 +194,10 @@ extension LibraryTabUtils on LibraryTab {
   NamidaRouteWidget toWidget([CountPerRow? gridCount, bool animateTiles = true, bool enableHero = false]) {
     gridCount ??= settings.mediaGridCounts.value.get(this);
     return switch (this) {
-      LibraryTab.tracks || LibraryTab.tracksMusic || LibraryTab.tracksVideos => TracksPage(tab: this, animateTiles: animateTiles),
+      LibraryTab.tracks || LibraryTab.tracksMusic || LibraryTab.tracksVideos => TracksPage(
+        tab: this,
+        animateTiles: animateTiles,
+      ),
       LibraryTab.albums => AlbumsPage(
         countPerRow: gridCount,
         animateTiles: animateTiles,
@@ -245,7 +248,10 @@ extension LibraryTabUtils on LibraryTab {
       LibraryTab.moods => const MoodsPage(),
       LibraryTab.tags => const TagsPage(),
       LibraryTab.rating => const RatingsPage(),
-      LibraryTab.stats => const StatsPage(isYoutube: false, isLibraryTab: true),
+      LibraryTab.stats => const StatsPage(
+        isYoutube: false,
+        isLibraryTab: true,
+      ),
       LibraryTab.party => const NamidaPartyPage(),
     };
   }
@@ -400,6 +406,7 @@ extension FAudioModelExtensions on FAudioModel {
         releaseType: original.tags.releaseType ?? this.tags.releaseType,
         bpm: original.tags.bpm ?? this.tags.bpm,
         musicalKey: original.tags.musicalKey ?? this.tags.musicalKey,
+        itunesAdvisory: original.tags.itunesAdvisory ?? this.tags.itunesAdvisory,
         mbAlbumId: original.tags.mbAlbumId ?? this.tags.mbAlbumId,
         mbAlbumArtistId: original.tags.mbAlbumArtistId ?? this.tags.mbAlbumArtistId,
         ratingPercentage: original.tags.ratingPercentage ?? this.tags.ratingPercentage,
@@ -462,6 +469,7 @@ extension MediaInfoToFAudioModel on MediaInfo {
         releaseType: info?.releaseType,
         bpm: info?.bpm,
         musicalKey: info?.musicalKey,
+        itunesAdvisory: info?.itunesAdvisory,
         mbAlbumId: info?.mbAlbumId,
         mbAlbumArtistId: info?.mbAlbumArtistId,
         gainData: info?.gainData,
@@ -496,7 +504,7 @@ extension QueueNameGetter on Queue {
       switch (source) {
         final QueueSource s => switch (s.s) {
           QueueSourceEnum.playlist || QueueSourceEnum.favourites || QueueSourceEnum.history || QueueSourceEnum.mostPlayed => s.title?.translatePlaylistName(),
-          QueueSourceEnum.folder || QueueSourceEnum.folderMusic || QueueSourceEnum.folderVideos => s.title?.formatPath(),
+          QueueSourceEnum.folder || QueueSourceEnum.folderMusic || QueueSourceEnum.folderVideos => s.title?.toShortDisplayPath(),
           QueueSourceEnum.queuePage => null, // has date as title
           _ => s.title,
         },
@@ -1056,7 +1064,13 @@ extension OnYoutubeLinkOpenActionUtils on OnYoutubeLinkOpenAction {
     switch (this) {
       case OnYoutubeLinkOpenAction.showDownload:
         if (ids.length == 1) {
-          showDownloadVideoBottomSheet(videoId: ids.first, originalIndex: null, totalLength: null, playlistId: null, streamInfoItem: null);
+          showDownloadVideoBottomSheet(
+            videoId: ids.first,
+            originalIndex: null,
+            totalLength: null,
+            playlistId: null,
+            streamInfoItem: null,
+          );
         } else {
           final ptitle = 'External - ${DateTime.now().dateAndClockFormattedOriginal}';
           YTPlaylistDownloadPage(
@@ -1300,6 +1314,13 @@ extension SponsorBlockActionExt on SponsorBlockAction {
   }
 }
 
+extension FeedbackMenuActionTypeUtils on FeedbackMenuActionType {
+  IconData toIcon() => switch (this) {
+    FeedbackMenuActionType.notInterested => Broken.eye_slash,
+    FeedbackMenuActionType.dontRecommendChannel => Broken.user_remove,
+  };
+}
+
 extension RouteUtils on NamidaRoute {
   AlbumIdentifierWrapper? get routeDataAlbumIdentifier => routeData is AlbumIdentifierWrapper ? (routeData as AlbumIdentifierWrapper) : null;
 
@@ -1503,7 +1524,11 @@ extension RouteUtils on NamidaRoute {
 
   Widget? toTitle(BuildContext context) {
     final textTheme = context.textTheme;
-    Widget getTextWidget(String t) => Text(t, style: textTheme.titleLarge);
+    final routeData = this.routeData;
+    Widget getTextWidget(String t) => Text(
+      t,
+      style: textTheme.titleLarge,
+    );
     Widget? finalWidget;
     bool displaySettingSearch = false;
     switch (route) {
@@ -1515,16 +1540,27 @@ extension RouteUtils on NamidaRoute {
         displaySettingSearch = true;
         finalWidget = getTextWidget(name ?? '');
         break;
-      case RouteType.SEARCH_albumResults || RouteType.SEARCH_albumCustomResults:
-        finalWidget = getTextWidget(lang.albums);
+      case RouteType.SEARCH_albumResults:
+        finalWidget = ObxO(
+          rx: SearchSortController.inst.albumSearchTemp,
+          builder: (context, albums) => getTextWidget("${lang.albums} • ${albums.length}"),
+        );
+        break;
+      case RouteType.SEARCH_albumCustomResults:
+        if (routeData is List<AlbumIdentifierWrapper>) finalWidget = getTextWidget("${lang.albums} • ${routeData.length}");
         break;
       case RouteType.SEARCH_artistResults:
-        finalWidget = getTextWidget(lang.artists);
+        if (routeData is RxList<String>) {
+          finalWidget = ObxO(
+            rx: routeData,
+            builder: (context, artists) => getTextWidget("${lang.artists} • ${artists.length}"),
+          );
+        }
         break;
       case RouteType.PAGE_queue:
         finalWidget = ObxO(
           rx: QueueController.inst.totalQueuesCount,
-          builder: (context, count) => getTextWidget("${lang.queues} • $count"),
+          builder: (context, count) => getTextWidget(count == null ? lang.queues : "${lang.queues} • $count"),
         );
         break;
       case RouteType.PAGE_smartPlaylists:
@@ -1534,13 +1570,22 @@ extension RouteUtils on NamidaRoute {
         );
         break;
       case RouteType.PAGE_discover:
-        finalWidget = getTextWidget(lang.discover);
+        finalWidget = getTextWidget(lang.discoverPage);
         break;
       case RouteType.PAGE_artistsMap:
         finalWidget = getTextWidget(lang.artistsMap);
         break;
       case RouteType.PAGE_party:
         finalWidget = getTextWidget(lang.partyListeningParty);
+        break;
+      case RouteType.SUBPAGE_INDEXER_DUPLICATE_TRACKS:
+        finalWidget = getTextWidget(lang.duplicatedTracks);
+        break;
+      case RouteType.SUBPAGE_INDEXER_FILTERED_TRACKS:
+        finalWidget = getTextWidget(lang.filteredBySizeAndDuration);
+        break;
+      case RouteType.SUBPAGE_INDEXER_NOMEDIA_FOLDERS:
+        finalWidget = getTextWidget(lang.tracksExcludedByNomedia);
         break;
       default:
         null;
@@ -1622,13 +1667,31 @@ extension RouteUtils on NamidaRoute {
       ),
 
       // -- Parsing Json Icon
-      _getAnimatedCrossFade(child: const ParsingJsonPercentage(size: 30.0, hero: false), shouldShow: shouldShowProgressPercentage),
+      _getAnimatedCrossFade(
+        child: const ParsingJsonPercentage(
+          size: 30.0,
+          hero: false,
+        ),
+        shouldShow: shouldShowProgressPercentage,
+      ),
 
       // -- Indexer Icon
-      _getAnimatedCrossFade(child: const IndexingPercentage(size: 30.0, hero: false), shouldShow: shouldShowProgressPercentage),
+      _getAnimatedCrossFade(
+        child: const IndexingPercentage(
+          size: 30.0,
+          hero: false,
+        ),
+        shouldShow: shouldShowProgressPercentage,
+      ),
 
       // -- Videos Icon
-      _getAnimatedCrossFade(child: const VideosExtractingPercentage(size: 30.0, hero: false), shouldShow: shouldShowProgressPercentage),
+      _getAnimatedCrossFade(
+        child: const VideosExtractingPercentage(
+          size: 30.0,
+          hero: false,
+        ),
+        shouldShow: shouldShowProgressPercentage,
+      ),
 
       _getAnimatedCrossFade(
         child: NamidaAppBarIcon(
@@ -1954,6 +2017,7 @@ extension TrackSourceL10n on TrackSource {
     TrackSource.lastfm => 'Last.fm',
     TrackSource.spotify => 'Spotify',
     TrackSource.listenbrainz => 'ListenBrainz',
+    TrackSource.appleMusic => 'Apple Music',
   };
 }
 
@@ -2207,6 +2271,7 @@ extension SortTypeL10n on SortType {
     SortType.path => lang.path,
     SortType.duration => lang.duration,
     SortType.genresList => lang.genres,
+    SortType.stylesList => lang.styles,
     SortType.sampleRate => lang.sampleRate,
     SortType.bitDepth => lang.bitDepth,
     SortType.bpm => 'BPM',
@@ -2232,6 +2297,7 @@ extension SortTypeL10n on SortType {
     SortType.artistsList => MediaType.artist.toIcon(),
     SortType.albumArtist => MediaType.albumArtist.toIcon(),
     SortType.genresList => MediaType.genre.toIcon(),
+    SortType.stylesList => MediaType.style.toIcon(),
     SortType.composer => MediaType.composer.toIcon(),
     SortType.trackNo => Broken.hashtag,
     SortType.discNo => Broken.hashtag,
@@ -2304,6 +2370,7 @@ extension GroupSortTypeL10n on GroupSortType {
     GroupSortType.albumArtist => lang.albumArtist,
     GroupSortType.artistsList => lang.artist,
     GroupSortType.genresList => lang.genres,
+    GroupSortType.stylesList => lang.styles,
     GroupSortType.composer => lang.composer,
     GroupSortType.label => lang.recordLabel,
     GroupSortType.releaseType => lang.releaseType,
@@ -2335,6 +2402,7 @@ extension GroupSortTypeL10n on GroupSortType {
     GroupSortType.artistsList => MediaType.artist.toIcon(),
     GroupSortType.albumArtist => MediaType.albumArtist.toIcon(),
     GroupSortType.genresList => MediaType.genre.toIcon(),
+    GroupSortType.stylesList => MediaType.style.toIcon(),
     GroupSortType.composer => MediaType.composer.toIcon(),
     GroupSortType.numberOfTracks => Broken.hashtag,
     GroupSortType.year => Broken.calendar,
@@ -2534,6 +2602,7 @@ extension TagFieldL10n on TagField {
     TagField.musicalKey => lang.musicalKey,
     TagField.rating => lang.rating,
     TagField.tags => lang.tags,
+    TagField.explicit => lang.explicit,
     TagField.titleSort => '${lang.title} (${lang.sortBy})',
     TagField.albumSort => '${lang.album} (${lang.sortBy})',
     TagField.albumArtistSort => '${lang.albumArtist} (${lang.sortBy})',
@@ -2569,11 +2638,19 @@ extension TagFieldL10n on TagField {
     TagField.musicalKey => Broken.musicnote,
     TagField.rating => MediaType.rating.toIcon(),
     TagField.tags => MediaType.tag.toIcon(),
+    TagField.explicit => Icons.explicit_rounded,
     TagField.titleSort => Broken.music,
     TagField.albumSort => MediaType.album.toIcon(),
     TagField.albumArtistSort => MediaType.albumArtist.toIcon(),
     TagField.artistSort => MediaType.artist.toIcon(),
     TagField.composerSort => MediaType.composer.toIcon(),
+  };
+}
+
+extension ExplicitStatusL10n on ExplicitStatus {
+  String toText() => switch (this) {
+    ExplicitStatus.explicit => lang.explicit,
+    ExplicitStatus.clean => lang.clean,
   };
 }
 
@@ -2706,7 +2783,7 @@ extension HomePageItemsL10n on HomePageItems {
     HomePageItems.recentArtists => lang.recentArtists,
     HomePageItems.topRecentAlbums => lang.topRecentAlbums,
     HomePageItems.topRecentArtists => lang.topRecentArtists,
-    HomePageItems.pinnedPlaylists => lang.pinnedPlaylists,
+    HomePageItems.pinned => lang.pinned,
   };
 
   IconData toMainIcon() => switch (this) {
@@ -2720,7 +2797,7 @@ extension HomePageItemsL10n on HomePageItems {
     HomePageItems.recentArtists => Broken.undo,
     HomePageItems.topRecentAlbums => Broken.crown_1,
     HomePageItems.topRecentArtists => Broken.crown_1,
-    HomePageItems.pinnedPlaylists => Broken.paperclip,
+    HomePageItems.pinned => Broken.paperclip,
   };
 
   IconData? toIcon() => switch (this) {
@@ -2734,7 +2811,14 @@ extension HomePageItemsL10n on HomePageItems {
     HomePageItems.topRecentAlbums => Broken.music_dashboard,
     HomePageItems.recentArtists => Broken.user,
     HomePageItems.topRecentArtists => Broken.user,
-    HomePageItems.pinnedPlaylists => Broken.music_playlist,
+    HomePageItems.pinned => null,
+  };
+}
+
+extension PinnedItemTypeL10n on PinnedItemType {
+  String toText() => switch (this) {
+    PinnedItemType.playlist => lang.playlists,
+    PinnedItemType.smartPlaylist => lang.smartPlaylists,
   };
 }
 
@@ -2997,16 +3081,49 @@ extension FABTypeL10n on FABType {
   String toText() => switch (this) {
     FABType.none => lang.none,
     FABType.search => lang.search,
-    FABType.shuffle => lang.shuffle,
-    FABType.play => lang.play,
+    FABType.play || FABType.shuffle || FABType.playNext || FABType.playLast => quickPlayMode!.toText(),
   };
 
   IconData toIcon() => switch (this) {
     FABType.none => Broken.status,
     FABType.search => Broken.search_normal,
-    FABType.shuffle => Broken.shuffle,
-    FABType.play => Broken.play_cricle,
+    FABType.play || FABType.shuffle || FABType.playNext || FABType.playLast => quickPlayMode!.toIcon(),
   };
+}
+
+extension QuickPlayModeL10n on QuickPlayMode {
+  String toText() => switch (this) {
+    QuickPlayMode.play => lang.play,
+    QuickPlayMode.shuffle => lang.shuffle,
+    QuickPlayMode.playNext => lang.playNext,
+    // QuickPlayMode.playAfter => lang.playAfter,
+    QuickPlayMode.playLast => lang.playLast,
+  };
+
+  IconData toIcon() => switch (this) {
+    QuickPlayMode.play => Broken.play,
+    QuickPlayMode.shuffle => Broken.shuffle,
+    QuickPlayMode.playNext => Broken.next,
+    // QuickPlayMode.playAfter => Broken.hierarchy_square,
+    QuickPlayMode.playLast => Broken.play_cricle,
+  };
+}
+
+extension QuickPlayModeUtils on QuickPlayMode {
+  Future<void> execute(List<Selectable> tracks, QueueSourceBase source, {HomePageItems? homePageItem}) async {
+    switch (this) {
+      case QuickPlayMode.play:
+        await Player.inst.playOrPause(0, tracks, source, homePageItem: homePageItem);
+      case QuickPlayMode.shuffle:
+        await Player.inst.playOrPause(0, tracks, source, shuffle: true, homePageItem: homePageItem);
+      case QuickPlayMode.playNext:
+        await Player.inst.addToQueue(tracks, insertNext: true);
+      // case QuickPlayMode.playAfter:
+      //   await Player.inst.addToQueue(tracks, insertAfterLatest: true);
+      case QuickPlayMode.playLast:
+        await Player.inst.addToQueue(tracks);
+    }
+  }
 }
 
 extension YTHomeSourceL10n on YTHomeSource {
@@ -3063,6 +3180,25 @@ extension TrackSearchFilterL10n on TrackSearchFilter {
     TrackSearchFilter.moods => lang.moods,
     TrackSearchFilter.tags => lang.tags,
     TrackSearchFilter.lyrics => lang.lyrics,
+  };
+
+  IconData toIcon() => switch (this) {
+    TrackSearchFilter.filename => SortType.filename.toIcon(),
+    TrackSearchFilter.folder => MediaType.folder.toIcon(),
+    TrackSearchFilter.title => TagField.title.toIcon(),
+    TrackSearchFilter.album => TagField.album.toIcon(),
+    TrackSearchFilter.artist => TagField.artist.toIcon(),
+    TrackSearchFilter.albumartist => TagField.albumArtist.toIcon(),
+    TrackSearchFilter.genre => TagField.genre.toIcon(),
+    TrackSearchFilter.style => TagField.style.toIcon(),
+    TrackSearchFilter.language => TagField.language.toIcon(),
+    TrackSearchFilter.composer => TagField.composer.toIcon(),
+    TrackSearchFilter.comment => TagField.comment.toIcon(),
+    TrackSearchFilter.description => TagField.description.toIcon(),
+    TrackSearchFilter.year => TagField.year.toIcon(),
+    TrackSearchFilter.moods => TagField.mood.toIcon(),
+    TrackSearchFilter.tags => TagField.tags.toIcon(),
+    TrackSearchFilter.lyrics => TagField.lyrics.toIcon(),
   };
 }
 
@@ -3362,6 +3498,7 @@ extension WebhookEventL10n on WebhookEvent {
     WebhookEvent.trackChanged => 'Track changed',
     WebhookEvent.play => lang.play,
     WebhookEvent.pause => lang.pause,
+    WebhookEvent.favouriteChanged => lang.favourite,
   };
 }
 
@@ -3370,6 +3507,7 @@ extension WebhookEventUtils on WebhookEvent {
     WebhookEvent.trackChanged => Broken.music,
     WebhookEvent.play => Broken.play,
     WebhookEvent.pause => Broken.pause,
+    WebhookEvent.favouriteChanged => Broken.heart,
   };
 }
 
@@ -3382,6 +3520,22 @@ extension DiscordPresenceStatusL10n on DiscordPresenceStatus {
   };
 }
 
+extension PipContentL10n on PipContent {
+  String toText() => switch (this) {
+    PipContent.video => lang.video,
+    PipContent.lyrics => lang.lyrics,
+    PipContent.artwork => lang.artwork,
+  };
+}
+
+extension PipContentUtils on PipContent {
+  IconData toIcon() => switch (this) {
+    PipContent.video => Broken.video,
+    PipContent.lyrics => Broken.message_text,
+    PipContent.artwork => Broken.gallery,
+  };
+}
+
 extension LyricsIntegrationL10n on LyricsIntegration {
   String toText() => switch (this) {
     LyricsIntegration.lyricInfo => 'ColorOS & HyperLyric',
@@ -3389,6 +3543,7 @@ extension LyricsIntegrationL10n on LyricsIntegration {
     LyricsIntegration.flymeTicker => 'Flyme & Lyricon',
     LyricsIntegration.menuBar => 'macOS menu bar',
     LyricsIntegration.liveActivity => 'Live Activity',
+    LyricsIntegration.mpris => 'MPRIS',
   };
 }
 
@@ -3399,6 +3554,7 @@ extension LyricsIntegrationUtils on LyricsIntegration {
     LyricsIntegration.flymeTicker => Broken.notification_status,
     LyricsIntegration.menuBar => Broken.monitor,
     LyricsIntegration.liveActivity => Broken.lock,
+    LyricsIntegration.mpris => Broken.music_dashboard,
   };
 }
 
@@ -3411,5 +3567,17 @@ extension RomanizationScriptL10n on RomanizationScript {
     RomanizationScript.cyrillic => 'Кириллица (Cyrillic)',
     RomanizationScript.armenian => 'Հայերեն (Armenian)',
     RomanizationScript.georgian => 'ქართული (Georgian)',
+  };
+}
+
+extension PlayableBookmarkRoleL10n on PlayableBookmarkRole {
+  String toText() => switch (this) {
+    PlayableBookmarkRole.start => lang.start,
+    PlayableBookmarkRole.end => lang.stop,
+  };
+
+  IconData toIcon() => switch (this) {
+    PlayableBookmarkRole.start => Broken.play_circle,
+    PlayableBookmarkRole.end => Broken.stop_circle,
   };
 }

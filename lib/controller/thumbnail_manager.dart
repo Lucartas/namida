@@ -12,6 +12,7 @@ import 'package:youtipie/class/thumbnail.dart';
 
 import 'package:namida/class/http_manager.dart';
 import 'package:namida/controller/ffmpeg_controller.dart';
+import 'package:namida/controller/network_proxy_controller.dart';
 import 'package:namida/core/constants.dart';
 import 'package:namida/core/extensions.dart';
 import 'package:namida/youtube/class/download_task_base.dart';
@@ -136,14 +137,29 @@ class ThumbnailManager {
     if (id == null && customUrl == null) return null;
 
     if (isTemp == null) {
-      final file1 = imageUrlToCacheFile(id: id, url: customUrl, isTemp: false, type: type);
+      final file1 = imageUrlToCacheFile(
+        id: id,
+        url: customUrl,
+        isTemp: false,
+        type: type,
+      );
       if (file1 != null && file1.existsSync()) return file1;
-      final file2 = imageUrlToCacheFile(id: id, url: customUrl, isTemp: true, type: type);
+      final file2 = imageUrlToCacheFile(
+        id: id,
+        url: customUrl,
+        isTemp: true,
+        type: type,
+      );
       if (file2 != null && file2.existsSync()) return file2;
       return null;
     }
 
-    final file = imageUrlToCacheFile(id: id, url: customUrl, isTemp: isTemp, type: type);
+    final file = imageUrlToCacheFile(
+      id: id,
+      url: customUrl,
+      isTemp: isTemp,
+      type: type,
+    );
     if (file != null && file.existsSync()) return file;
     return null;
   }
@@ -158,14 +174,29 @@ class ThumbnailManager {
 
     if (isTemp == null) {
       // -- check for both if temp == null
-      final file1 = imageUrlToCacheFile(id: id, url: customUrl, isTemp: false, type: type);
+      final file1 = imageUrlToCacheFile(
+        id: id,
+        url: customUrl,
+        isTemp: false,
+        type: type,
+      );
       if (file1 != null && await file1.exists()) return file1;
-      final file2 = imageUrlToCacheFile(id: id, url: customUrl, isTemp: true, type: type);
+      final file2 = imageUrlToCacheFile(
+        id: id,
+        url: customUrl,
+        isTemp: true,
+        type: type,
+      );
       if (file2 != null && await file2.exists()) return file2;
       return null;
     }
 
-    final file = imageUrlToCacheFile(id: id, url: customUrl, isTemp: isTemp, type: type);
+    final file = imageUrlToCacheFile(
+      id: id,
+      url: customUrl,
+      isTemp: isTemp,
+      type: type,
+    );
     if (file != null && await file.exists()) return file;
     return null;
   }
@@ -181,13 +212,24 @@ class ThumbnailManager {
 
     final isTemp = isImportantInCache ? false : true;
 
-    final file = imageUrlToCacheFile(id: id, url: customUrl, isTemp: isTemp, type: type);
+    final file = imageUrlToCacheFile(
+      id: id,
+      url: customUrl,
+      isTemp: isTemp,
+      type: type,
+    );
     if (file == null) return null;
     if (await file.exists()) return file;
 
     if (symlinkId != null) {
       try {
-        final symlinkfile = imageUrlToCacheFile(id: id, url: customUrl, symlinkId: symlinkId, isTemp: isTemp, type: type);
+        final symlinkfile = imageUrlToCacheFile(
+          id: id,
+          url: customUrl,
+          symlinkId: symlinkId,
+          isTemp: isTemp,
+          type: type,
+        );
         if (symlinkfile != null && await symlinkfile.exists()) {
           final targetFilePath = await Link.fromUri(symlinkfile.uri).target();
           final targetFile = File(targetFilePath);
@@ -212,7 +254,12 @@ class ThumbnailManager {
 
     if (isTemp == false) {
       // return the low res if high res failed
-      final filetemp = imageUrlToCacheFile(id: id, url: customUrl, isTemp: true, type: type);
+      final filetemp = imageUrlToCacheFile(
+        id: id,
+        url: customUrl,
+        isTemp: true,
+        type: type,
+      );
       if (filetemp != null && await filetemp.exists()) return filetemp;
     }
 
@@ -229,7 +276,12 @@ class ThumbnailManager {
     }
     final bool lowerResYTID = isTemp;
 
-    final file = imageUrlToCacheFile(id: videoId, url: null, isTemp: isTemp, type: ThumbnailType.video);
+    final file = imageUrlToCacheFile(
+      id: videoId,
+      url: null,
+      isTemp: isTemp,
+      type: ThumbnailType.video,
+    );
     if (file == null) return null;
     final downloaded = await _getYoutubeThumbnail(
       itemId: videoId,
@@ -308,7 +360,7 @@ class _ActiveDownload {
   _ActiveDownload(this.token);
 }
 
-class _YTThumbnailDownloadManager with PortsProvider<SendPort> {
+class _YTThumbnailDownloadManager with PortsProvider<(SendPort, ClientSettings?)>, NetworkProxyPortsProvider<(SendPort, ClientSettings?)> {
   final _activeDownloads = <_VideoIdAndTemp, _ActiveDownload>{};
   final _notFoundThumbnails = <String, int>{}; // {item id: not found time ms}
   final _tokens = IsolateMessageTokenWrapper.create();
@@ -373,9 +425,10 @@ class _YTThumbnailDownloadManager with PortsProvider<SendPort> {
     sendPort({'id': id, 'isTemp': isTemp, 'token': active.token, 'stop': true});
   }
 
-  static Future<void> _prepareDownloadResources(SendPort sendPort) async {
+  static Future<void> _prepareDownloadResources((SendPort, ClientSettings?) params) async {
+    final (sendPort, rhttpSettings) = params;
     await Rhttp.init();
-    final httpManager = HttpMultiRequestManager.createSync();
+    final httpManager = HttpMultiRequestManager.createSync(rhttpSettings);
 
     final recievePort = ReceivePort();
     sendPort.send(recievePort.sendPort);
@@ -408,7 +461,15 @@ class _YTThumbnailDownloadManager with PortsProvider<SendPort> {
 
       if (destinationFile.existsSync()) {
         if (isImportantInCache) updateLastAccessed(destinationFile);
-        return sendPort.send(_YTThumbnailDownloadResult(itemId: id, isTemp: isTemp, token: token, file: destinationFile, notfound: false));
+        return sendPort.send(
+          _YTThumbnailDownloadResult(
+            itemId: id,
+            isTemp: isTemp,
+            token: token,
+            file: destinationFile,
+            notfound: false,
+          ),
+        );
       }
 
       final request = _IsolateThumbRequest();
@@ -481,8 +542,10 @@ class _YTThumbnailDownloadManager with PortsProvider<SendPort> {
         recievePort.close();
         streamSub?.cancel();
         return;
-      } else {
+      } else if (p is Map) {
         onThumbRequest(p);
+      } else if (p is NetworkProxyIsolateMessage) {
+        httpManager.replaceClients(p.rhttpSettings);
       }
     });
 
@@ -498,8 +561,8 @@ class _YTThumbnailDownloadManager with PortsProvider<SendPort> {
   }
 
   @override
-  IsolateFunctionReturnBuild<SendPort> isolateFunction(SendPort port) {
-    return IsolateFunctionReturnBuild(_prepareDownloadResources, port);
+  IsolateFunctionReturnBuild<(SendPort, ClientSettings?)> isolateFunction(SendPort port) {
+    return IsolateFunctionReturnBuild(_prepareDownloadResources, (port, rhttpSettingsForSpawn()));
   }
 
   void _onFileFinish(_VideoIdAndTemp mapKey, int token, File? downloadedFile, bool notfound) {

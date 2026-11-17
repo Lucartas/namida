@@ -20,48 +20,52 @@ class WaveformExtractor {
 
   static const _cacheExtension = '.wavef';
 
+  static String cacheFilePathFor(String source, {String? cacheKey}) {
+    final key = cacheKey ?? '${source.getFilename}_${source.toFastHashKey()}';
+    return FileParts.joinPath(AppDirs.WAVEFORMS_CACHE, '$key$_cacheExtension');
+  }
+
   final _isolate = _WaveformIsolateManager();
 
   void init() => _isolate.initialize();
 
   void dispose() => _isolate.dispose();
 
-  /// RMS amplitudes in the `0..100` range, [samplesPerSecond] entries per second
-  /// of audio. Empty when [source] could not be decoded.
-  Future<Float32List> extractWaveformData(
+  /// RMS amplitudes extracted at [samplesPerSecond], then resized to each of [targetSizes] and clamped around `64`.
+  /// Empty when [source] could not be decoded.
+  Future<List<Float32List>> extractDownscaledWaveforms(
     String source, {
     required int samplesPerSecond,
+    required List<int> targetSizes,
     bool useCache = true,
     String? cacheKey,
   }) {
-    String? cacheFilePath;
-    if (useCache) {
-      cacheKey ??= '${source.getFilename}_${source.toFastHashKey()}';
-      cacheFilePath = FileParts.joinPath(AppDirs.WAVEFORMS_CACHE, '$cacheKey$_cacheExtension');
-    }
+    final cacheFilePath = useCache ? cacheFilePathFor(source, cacheKey: cacheKey) : null;
     return _isolate.execute(
       source,
       samplesPerSecond: samplesPerSecond,
+      targetSizes: targetSizes,
       cacheFilePath: cacheFilePath,
     );
   }
 }
 
 class _WaveformIsolateManager with PortsProvider<SendPort> {
-  final _completers = <int, Completer<Float32List>>{};
+  final _completers = <int, Completer<List<Float32List>>>{};
   final _messageTokenWrapper = IsolateMessageTokenWrapper.create();
 
   void dispose() => disposePort();
 
-  Future<Float32List> execute(
+  Future<List<Float32List>> execute(
     String source, {
     required int samplesPerSecond,
+    required List<int> targetSizes,
     required String? cacheFilePath,
   }) async {
     if (!isInitialized) await initialize();
     final token = _messageTokenWrapper.getToken();
-    final completer = _completers[token] = Completer<Float32List>();
-    sendPort([token, source, samplesPerSecond, cacheFilePath]);
+    final completer = _completers[token] = Completer<List<Float32List>>();
+    sendPort([token, source, samplesPerSecond, targetSizes, cacheFilePath]);
     return completer.future;
   }
 
@@ -109,12 +113,14 @@ class _WaveformIsolateManager with PortsProvider<SendPort> {
       final token = p[0] as int;
       final source = p[1] as String;
       final samplesPerSecond = p[2] as int;
-      final cacheFilePath = p[3] as String?;
+      final targetSizes = p[3] as List<int>;
+      final cacheFilePath = p[4] as String?;
 
-      Float32List values;
+      var downscaled = const <TransferableTypedData>[];
       Object? error;
 
       try {
+        Float32List values;
         final cached = cacheFilePath == null ? null : _readCache(cacheFilePath);
         if (cached != null && cached.isNotEmpty) {
           values = cached;
@@ -127,14 +133,16 @@ class _WaveformIsolateManager with PortsProvider<SendPort> {
             error = '${data.error.name} for $source';
           }
         }
+        if (values.isNotEmpty) {
+          downscaled = targetSizes.map((targetSize) => _downscale(values, targetSize)).toFixedList();
+        }
       } catch (e) {
-        values = Float32List(0);
         error = e;
       }
 
       sendPort.send([
         token,
-        TransferableTypedData.fromList([values.buffer.asUint8List(values.offsetInBytes, values.lengthInBytes)]),
+        downscaled,
         ?error,
       ]);
     });
@@ -142,13 +150,30 @@ class _WaveformIsolateManager with PortsProvider<SendPort> {
     sendPort.send(PortsProviderMessages.prepared);
   }
 
+  static const _kMaxClamping = 64.0;
+
+  static TransferableTypedData _downscale(Float32List values, int targetSize) {
+    final downscaled = values.changeListSize(
+      targetSize: targetSize,
+      clampToMax: _kMaxClamping,
+      enforceClampToMax: _shouldEnforceClamping,
+    );
+    final downscaledFloats = Float32List.fromList(downscaled);
+    return TransferableTypedData.fromList([downscaledFloats]);
+  }
+
+  // -- clamping tries to normalize among all target sizes, so only enforced for really loud ones
+  static bool _shouldEnforceClamping(num minValue, num maxValue) => maxValue > _kMaxClamping * 2.0;
+
   @override
   void onResult(result) {
     result as List;
     final token = result[0] as int;
     final completer = _completers.remove(token);
     if (completer != null && !completer.isCompleted) {
-      completer.complete((result[1] as TransferableTypedData).materialize().asFloat32List());
+      final downscaled = result[1] as List<TransferableTypedData>;
+      final waveforms = downscaled.map((e) => e.materialize().asFloat32List()).toFixedList();
+      completer.complete(waveforms);
     }
     if (result.length > 2) {
       logger.error('WaveformExtractor', e: result[2]);

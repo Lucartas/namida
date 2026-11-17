@@ -71,7 +71,8 @@ class ScrollSearchController {
     MiniPlayerController.inst.snapToMini();
     MiniPlayerController.inst.ytMiniplayerKey.currentState?.animateToState(false);
     final shouldShow = this.toggleSearchMenu();
-    void openFn() => ScrollSearchController.inst.searchBarKey.currentState?.openCloseSearchBar(forceOpen: shouldShow);
+    if (!shouldShow) return;
+    void openFn() => ScrollSearchController.inst.searchBarKey.currentState?.openCloseSearchBar(forceOpen: true);
     if (instant) {
       openFn();
     } else {
@@ -81,6 +82,13 @@ class ScrollSearchController {
       });
     }
   }
+
+  // -- pages with their own controller, so re-pressing their tab scrolls them to top too
+  final _pageScrollControllers = <LibraryTab, List<ScrollController>>{};
+
+  void registerPageScrollController(LibraryTab tab, ScrollController controller) => (_pageScrollControllers[tab] ??= []).add(controller);
+
+  void unregisterPageScrollController(LibraryTab tab, ScrollController controller) => _pageScrollControllers[tab]?.remove(controller);
 
   void animatePageController(LibraryTab tab, {bool jumpToTopIfSamePage = true, bool restoreScrollPosition = true}) async {
     if (tab == LibraryTab.search) {
@@ -92,7 +100,8 @@ class ScrollSearchController {
     hideSearchMenu();
 
     if (NamidaNavigator.inst.currentRoute?.isSameRouteAs(w) == true) {
-      final tabScrollController = tab.scrollController;
+      final pageTab = tab == LibraryTab.youtube ? settings.extra.ytInitialHomePage.value.libraryTab : tab;
+      final tabScrollController = _pageScrollControllers[pageTab]?.lastOrNull ?? tab.scrollController;
       if (tabScrollController.hasClients) {
         MiniPlayerController.inst.snapToMini();
         if (jumpToTopIfSamePage) tabScrollController.animateToEff(0.0, duration: const Duration(milliseconds: 400), curve: Curves.easeInOutQuart);
@@ -179,11 +188,20 @@ class ScrollSearchController {
   void hideSearchMenu() {
     unfocusKeyboard();
     showSearchMenu(false);
+    searchBarKey.currentState?.closeSearchBar();
   }
 
   void showSearchMenu([bool show = true]) {
-    if (!show && isGlobalSearchMenuShown.value) saveCurrentSearchAsRecent();
+    final wasShown = isGlobalSearchMenuShown.value;
+    if (!show && wasShown) saveCurrentSearchAsRecent();
+    if (show && !wasShown) _selectAllSearchText();
     isGlobalSearchMenuShown.value = show;
+  }
+
+  void _selectAllSearchText() {
+    final text = searchTextEditingController.text;
+    if (text.isEmpty) return;
+    searchTextEditingController.selection = TextSelection(baseOffset: 0, extentOffset: text.length);
   }
 
   void saveCurrentSearchAsRecent() {
@@ -230,10 +248,14 @@ class ScrollSearchController {
     globalFocusNode?.unfocus();
   }
 
-  // -- requestFocus alone is a no-op on a focused field whose keyboard was dismissed
   void focusKeyboard() {
     final globalSearchState = searchBarKey.currentState;
     final focusNode = globalSearchState != null && isGlobalSearchMenuShown.value ? globalSearchState.focusNode : _searchFocusNodes.lastOrNull;
+    requestKeyboardOf(focusNode);
+  }
+
+  // -- requestFocus alone is a no-op on a focused field whose keyboard was dismissed
+  void requestKeyboardOf(FocusNode? focusNode) {
     final editableTextState = focusNode?.context?.findAncestorStateOfType<EditableTextState>();
     editableTextState?.requestKeyboard();
   }
@@ -266,7 +288,6 @@ class ScrollSearchController {
 
   void _openTextController(LibraryTab libraryTab) {
     _textSearchControllers[libraryTab] ??= TextEditingController();
-    focusKeyboard();
   }
 
   void clearSearchTextField(LibraryTab libraryTab) {

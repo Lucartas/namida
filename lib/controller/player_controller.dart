@@ -24,7 +24,7 @@ import 'package:namida/controller/indexer_controller.dart';
 import 'package:namida/controller/miniplayer_controller.dart';
 import 'package:namida/controller/navigator_controller.dart';
 import 'package:namida/controller/party/party_player_gate.dart';
-import 'package:namida/controller/platform/namida_channel/namida_channel.dart';
+import 'package:namida/controller/pip_controller.dart';
 import 'package:namida/controller/queue_controller.dart';
 import 'package:namida/controller/settings_controller.dart';
 import 'package:namida/controller/sync_manager/sync_manager.dart';
@@ -40,13 +40,13 @@ import 'package:namida/core/namida_converter_ext.dart';
 import 'package:namida/core/ntheme.dart';
 import 'package:namida/core/translations/language.dart';
 import 'package:namida/core/utils.dart';
+import 'package:namida/ui/dialogs/clear_cache_dialog.dart';
 import 'package:namida/ui/dialogs/common_dialogs.dart';
 import 'package:namida/ui/dialogs/general_popup_dialog.dart';
 import 'package:namida/ui/widgets/custom_widgets.dart';
 import 'package:namida/youtube/class/youtube_id.dart';
 import 'package:namida/youtube/controller/youtube_controller.dart';
 import 'package:namida/youtube/controller/youtube_info_controller.dart';
-import 'package:namida/youtube/yt_utils.dart';
 
 part 'player_controller.queue_replace.dart';
 
@@ -155,6 +155,7 @@ class Player {
   bool get isBufferingR => _audioHandler.currentState.valueR == ProcessingState.buffering;
   bool get isLoadingR => _audioHandler.currentState.valueR == ProcessingState.loading;
   RxBaseCore<bool> get isFetchingInfo => _audioHandler.isFetchingInfo;
+  RxBaseCore<bool> get isLoadingCurrentItem => _audioHandler.isLoadingCurrentItem;
   bool get shouldShowLoadingIndicatorR {
     if (isBufferingR || isLoadingR) return true;
     final state = _audioHandler.currentState.valueR;
@@ -170,6 +171,14 @@ class Player {
   /// null when the current item is not live.
   RxBaseCore<LiveWindow?> get currentLiveWindow => _audioHandler.currentLiveWindow;
   Duration? get liveJoinPosition => _audioHandler.liveJoinPosition;
+
+  /// unlike [currentLiveWindow], known once the item's streams are, before playback starts.
+  bool get isCurrentItemLive {
+    final video = currentVideo;
+    if (video == null) return false;
+    final info = YoutubeInfoController.current.currentYTStreams.value?.info;
+    return info != null && info.isLiveNow == true && info.id == video.id;
+  }
 
   ProgressSpan getProgressSpan(int durationMS) {
     final window = currentLiveWindow.value;
@@ -271,6 +280,8 @@ class Player {
           androidNotificationChannelName: 'Namida',
           androidNotificationChannelDescription: 'Namida Media Notification',
           androidNotificationIcon: 'drawable/ic_stat_musicnote',
+          artDownscaleWidth: 1024,
+          artDownscaleHeight: 1024,
           androidNotificationOngoing: false,
           androidStopForegroundOnPause: false,
         ),
@@ -283,11 +294,11 @@ class Player {
     void videoInfoListener() {
       final info = _audioHandler.videoPlayerInfo.value;
       VideoController.inst.onVideoInfoChanged(info);
+      PipController.inst.onVideoInfoChanged();
       if (info == null || info.width == -1 || info.height == -1) {
         WakelockController.inst.updateVideoStatus(false);
       } else {
         WakelockController.inst.updateVideoStatus(true);
-        NamidaChannel.inst.updatePipRatio(width: info.width, height: info.height);
         VideoController.inst.fillCurrentVideoInfoFromPlayer(info);
       }
     }
@@ -300,10 +311,17 @@ class Player {
       VideoController.inst.dropVideoFrameHold();
       if (e is PlatformException) {
         final itemId = currentVideo?.id ?? currentTrack?.track.youtubeID;
-        final button = itemId != null ? SnackbarButton(text: lang.clearVideoCache, function: () => const YTUtils().showVideoClearDialog(itemId)) : null;
+        final button = itemId != null ? SnackbarButton(text: lang.clearVideoCache, function: () => showClearCacheDialog(videoIds: [itemId])) : null;
         final details = e.details.toString();
         final detailsTrimmed = details.length > 600 ? details.substring(0, 600) : details;
-        snackyy(message: detailsTrimmed, title: '${lang.error}: ${e.message}', isError: true, top: false, button: button, maxLinesMessage: 8);
+        snackyy(
+          message: detailsTrimmed,
+          title: '${lang.error}: ${e.message}',
+          isError: true,
+          top: false,
+          button: button,
+          maxLinesMessage: 8,
+        );
       }
     };
 
@@ -427,19 +445,22 @@ class Player {
     await equalizerExtended?.apply(enabled, equalizer);
   }
 
-  double volumeUp() {
-    final val = settings.player.volume.value;
-    final newVal = (val + 0.05).withMaximum(1.0);
-    setVolume(newVal);
-    settings.player.volume.save(newVal);
-    return newVal;
-  }
+  double volumeUp() => _stepUserVolume(0.05);
 
-  double volumeDown() {
-    final val = settings.player.volume.value;
-    final newVal = (val - 0.05).withMinimum(0.0);
+  double volumeDown() => _stepUserVolume(-0.05);
+
+  /// steps the item's own volume when it has one, the global one wouldn't be heard.
+  double _stepUserVolume(double step) {
+    final val = userPlayerVolumeForItem;
+    final newVal = (val + step).withMinimum(0.0).withMaximum(1.0);
     setVolume(newVal);
-    settings.player.volume.save(newVal);
+    final itemKey = currentItem.value?.key;
+    final overrides = Player.audioConfigs.getForCurrentItem();
+    if (itemKey != null && overrides?.volume != null) {
+      Player.audioConfigs.updateProperty(itemKey, (current) => current.copyWith(volume: newVal));
+    } else {
+      settings.player.volume.save(newVal);
+    }
     return newVal;
   }
 
@@ -535,6 +556,10 @@ class Player {
   }
 
   Future<void> setVolume(double volume) async {
+    await _audioHandler.setUserVolumeForItem(volume);
+  }
+
+  Future<void> setTemporaryVolume(double volume) async {
     await _audioHandler.setVolumeWithMultiplier(volume);
   }
 
@@ -793,8 +818,16 @@ class Player {
     await _audioHandler.replaceAllItemsInQueue(oldTrack, newTrack);
   }
 
-  Future<void> replaceAllTracksInQueueBulk(Map<Playable, Playable> oldNewTrack) async {
-    await _audioHandler.replaceAllItemsInQueueBulk(oldNewTrack);
+  Future<void> replaceAllTracksInQueueBulk(Map<Track, Track> oldNewTrack) async {
+    if (oldNewTrack.isEmpty) return;
+    await _audioHandler.replaceWhereInQueue(
+      (e) => e is Selectable && oldNewTrack.containsKey(e.track),
+      (old) {
+        old as Selectable;
+        final newTrack = oldNewTrack[old.track]!;
+        return old is TrackWithDate ? old.copyWithTrack(newTrack) : newTrack;
+      },
+    );
   }
 
   Future<void> replaceTracksDirectoryInQueue(String normalizedOldDir, String normalizedNewDir, {Iterable<String>? forThesePathsOnly, bool ensureNewFileExists = false}) async {
@@ -813,11 +846,7 @@ class Player {
           final normalized = normalizedPathCache[old.track.path] ?? replaceFunctionNormalizePath(old.track.path);
           final newtr = Track.fromTypeParameter(old.track.runtimeType, replaceFunctionGetNewPath(normalized, normalizedOldDir, normalizedNewDir));
           if (old is TrackWithDate) {
-            return TrackWithDate(
-              dateAdded: old.dateAdded,
-              track: newtr,
-              source: old.source,
-            );
+            return old.copyWithTrack(newtr);
           } else {
             return newtr;
           }
@@ -970,6 +999,15 @@ class Player {
   }
 
   Future<void> seekToLiveEdge() => _audioHandler.userSeekToLiveEdge();
+
+  Future<void> seekToItemStart() {
+    final startMS = _audioHandler.getCurrentItemStartMS() ?? 0;
+    return seek(Duration(milliseconds: startMS));
+  }
+
+  void setItemPlaybackRange(Playable item, {required int? startMS, required int? endMS}) {
+    _audioHandler.setItemPlaybackRange(item, startMS: startMS, endMS: endMS);
+  }
 
   bool isCurrentItem(Playable item) {
     final current = _audioHandler.currentItem.value;
@@ -1156,15 +1194,19 @@ class Player {
       );
     }
 
+    var didAskBeforeReplacing = false;
     if (canAskBeforeReplacing && settings.askBeforeReplacingQueue.value && source != QueueSource.playerQueue && _audioHandler.partyGate == null && currentQueue.value.isNotEmpty) {
       final queueList = queue is List<Playable> ? queue : queue.toFixedList();
       queue = queueList;
       if (queueList.isNotEmpty && !_audioHandler.isSameAsOriginalQueue(queueList)) {
+        didAskBeforeReplacing = true;
         final shouldReplace = await _askBeforeReplacingQueue(queueList, index, source, shuffle: shuffle, startPlaying: startPlaying, startPosition: startPosition);
         if (!shouldReplace) return;
       }
     }
 
+    final previousSource = _audioHandler.latestQueueSource;
+    Future<void> Function()? restoreLatestQueue;
     _audioHandler.latestQueueSource = source;
     if (startPosition != null) _audioHandler.requestStartPosition(queue.elementAt(index), startPosition);
     await _audioHandler.assignNewQueue(
@@ -1173,6 +1215,7 @@ class Player {
       maximumItems: maximumItems,
       onIndexAndQueueSame: shouldToggleIfSame ? togglePlayPauseExclusive : null,
       onQueueDifferent: (finalizedQueue, originalIndices) {
+        restoreLatestQueue = QueueController.inst.createLatestQueueRestorer();
         if (updateQueue) {
           QueueController.inst.updateLatestQueue(
             finalizedQueue,
@@ -1182,6 +1225,11 @@ class Player {
           );
         }
       },
+      onRestructuringQueue: didAskBeforeReplacing
+          ? null
+          : (previousQueue) {
+              if (previousQueue != null) _showQueueRestructuredSnackbar(previousQueue, previousSource, restoreLatestQueue, source);
+            },
       onQueueEmpty: togglePlayPauseExclusive,
       startPlaying: startPlaying,
       shuffle: shuffle,
@@ -1291,8 +1339,8 @@ class Player {
   static AVPlayer createTempPlayer({bool disableVideo = true}) {
     return NamidaAudioVideoHandler.createPlayer(
       disableVideo: disableVideo,
-      exoplayerCreator: () => AudioPlayer(preferSWDecoders: false),
-      exoplayerSWCreator: () => AudioPlayer(preferSWDecoders: true),
+      exoplayerCreator: () => AudioPlayer(preferSWDecoders: false, isMainPlayer: false),
+      exoplayerSWCreator: () => AudioPlayer(preferSWDecoders: true, isMainPlayer: false),
     );
   }
 }
@@ -1356,7 +1404,7 @@ class _AudioConfigsManager {
     final dbEntries = <MapEntry<String, Map<String, dynamic>>>[];
     for (final e in incomingConfigs) {
       final incoming = e.value;
-      final key = SyncPathResolver.resolvePath(senderDeviceId, e.key) ?? e.key;
+      final key = SyncPathResolver.resolvePath(senderDeviceId, e.key, .audioConfigs) ?? e.key;
       final local = _mapRx.value[key];
       if (!incomingWins && local != null && local.modifiedDate >= incoming.modifiedDate) continue;
       _mapRx.value[key] = incoming;
@@ -1412,19 +1460,25 @@ class _AudioConfigsManager {
     await _dBManager.deleteBulk(keys);
   }
 
+  /// newer configs already under a new path are kept.
   Future<void> movePaths(Map<Track, Track> oldNewMap) async {
+    final map = _mapRx.value;
+    final dbEntries = <MapEntry<String, Map<String, dynamic>>>[];
     for (final entry in oldNewMap.entries) {
       final k = entry.key.path;
       final v = entry.value.path;
-      final oldValue = _mapRx.value.remove(k);
-      if (oldValue != null) {
-        _mapRx.value[v] = oldValue;
-        _mapRx.refresh();
-      }
-      final oldValueDB = await _dBManager.get(k);
-      await _dBManager.put(v, oldValueDB);
+      final oldValue = await get(k);
+      if (oldValue == null) continue;
+      final existing = await get(v);
+      if (existing != null && existing.modifiedDate >= oldValue.modifiedDate) continue;
+      map.remove(k);
+      map[v] = oldValue;
+      dbEntries.add(MapEntry(v, oldValue.toMap()));
       // await _dBManager.delete(k); // not so important ig, preserve just in case
     }
+    if (dbEntries.isEmpty) return;
+    _mapRx.refresh();
+    await _dBManager.putAll(dbEntries, (e) => e);
   }
 
   Future<void> moveDirectory(

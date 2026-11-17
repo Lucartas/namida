@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:basic_audio_handler/basic_audio_handler.dart';
+import 'package:flutter_scrollbar_modified/flutter_scrollbar_modified.dart';
 import 'package:history_manager/history_manager.dart';
 import 'package:nampack/nampack.dart';
 
@@ -190,6 +191,41 @@ void main() {
     await settings.tutorial.prepareSettingsFile();
     expect(settings.tutorial.lyricsFullscreenTipSeen.userValue, null);
     expect(settings.tutorial.buildJson(), {'_v': 2});
+  });
+
+  test('home items saved under an old name still load', () async {
+    File(AppPaths.SETTINGS).writeAsStringSync(jsonEncode({'_v': 2, 'homePageItems': ['mixes', 'pinnedPlaylists', 'nope']}));
+    await settings.prepareSettingsFile();
+    expect(settings.homePageItems.value, containsAllInOrder([HomePageItems.mixes, HomePageItems.pinned]));
+    expect(settings.homePageItems.value.map((e) => e.name), isNot(contains('nope')));
+
+    File(AppPaths.SETTINGS_YOUTUBE).writeAsStringSync(jsonEncode({'_v': 2, 'ytHomePageItems': ['pinnedPlaylists']}));
+    await settings.youtube.prepareSettingsFile();
+    expect(settings.youtube.ytHomePageItems.value, contains(HomePageItems.pinned));
+  });
+
+  test('a home item hidden under an old name stays hidden', () async {
+    final hiddenNames = HomePageItems.values.where((e) => e != HomePageItems.mixes).map((e) => e == HomePageItems.pinned ? 'pinnedPlaylists' : e.name).toList();
+    File(AppPaths.SETTINGS).writeAsStringSync(
+      jsonEncode({
+        '_v': 2,
+        'homePageItems': ['mixes'],
+        '_x': {'homePageItems': hiddenNames},
+      }),
+    );
+    await settings.prepareSettingsFile();
+    expect(settings.homePageItems.value, [HomePageItems.mixes]);
+
+    final hiddenNamesWithoutPinned = hiddenNames.where((e) => e != 'pinnedPlaylists').toList();
+    File(AppPaths.SETTINGS).writeAsStringSync(
+      jsonEncode({
+        '_v': 2,
+        'homePageItems': ['mixes'],
+        '_x': {'homePageItems': hiddenNamesWithoutPinned},
+      }),
+    );
+    await settings.prepareSettingsFile();
+    expect(settings.homePageItems.value, [HomePageItems.mixes, HomePageItems.pinned]);
   });
 
   test('syncable file: delta carries changed keys, newest wins, reset propagates', () async {
@@ -387,6 +423,26 @@ void main() {
 
     await loadFile(settings, {'_v': 2, 'ytMostPlayedCustomDateRange': DateRange.dummy().toJson()});
     expect(settings.ytMostPlayedCustomDateRange.userValue, null);
+  });
+
+  test('old scrollbar track toggles merge into one mode, easy grab becomes instant grab', () async {
+    await loadFile(settings, {'_v': 2, 'tapToScroll': true, 'enhancedDragToScroll': false, 'easyScrollbarGrab': true});
+    expect(settings.scrollbarTrackMode.value, ScrollbarTrackMode.jumpToTouch);
+    expect(settings.instantThumbGrab.value, true);
+    final json = settings.buildJson();
+    expect(json.containsKey('tapToScroll'), false);
+    expect(json.containsKey('enhancedDragToScroll'), false);
+    expect(json.containsKey('easyScrollbarGrab'), false);
+
+    await loadFile(settings, {'_v': 2, 'enhancedDragToScroll': false});
+    expect(settings.scrollbarTrackMode.value, ScrollbarTrackMode.thumbOnly);
+
+    await loadFile(settings, {'_v': 2, 'tapToScroll': false, 'enhancedDragToScroll': true});
+    expect(settings.scrollbarTrackMode.value, ScrollbarTrackMode.dragAnywhere);
+    expect(settings.buildJson().containsKey('scrollbarTrackMode'), false);
+
+    await loadFile(settings, {'_v': 2, 'tapToScroll': true, 'scrollbarTrackMode': ScrollbarTrackMode.thumbOnly.name});
+    expect(settings.scrollbarTrackMode.value, ScrollbarTrackMode.thumbOnly);
   });
 
   group('keys', () {
@@ -1135,7 +1191,7 @@ void main() {
       settings.extra.addRecentSearch('c');
       settings.extra.setRecentSearchesEnabled(false);
       expect(settings.extra.recentSearches.value, isEmpty);
-      expect(settings.extra.buildJson(), {'_v': 2, 'recentSearchesEnabled': false});
+      expect(settings.extra.buildJson(), {'_v': 2});
     });
 
     test('extra: window bounds round trip, broken bounds are dropped', () async {
@@ -1165,7 +1221,13 @@ void main() {
       final bassPreset = EqualizerPreset.allDefaults[1];
       final night = PlayerConfigPreset(
         name: 'Night',
-        config: defaults.copyWith(equalizerEnabled: true, equalizer: bassPreset.equalizer, preset: bassPreset, volume: 0.5, loudnessEnhancer: 2.5),
+        config: defaults.copyWith(
+          equalizerEnabled: true,
+          equalizer: bassPreset.equalizer,
+          preset: bassPreset,
+          volume: 0.5,
+          loudnessEnhancer: 2.5,
+        ),
       );
       final slowed = PlayerConfigPreset(name: 'Slowed', config: defaults.copyWith(speed: 0.85, pitch: 0.85));
       settings.equalizer.putConfigPreset(slowed);
@@ -1245,5 +1307,42 @@ void main() {
       settings.sync.updateManualServerAddress('s', '2');
       expect(settings.sync.manualServerAddresses.value, {'s': '2'});
     });
+  });
+
+  test('keys that were nullable load old values like their old read site fallbacks', () async {
+    final oldFallbacks = <SettingsFileWriter, Map<SettingsKey<Object?>, Object>>{
+      settings: {
+        settings.timeCapsuleYears: 0, settings.ytStyleButtonSwitcher: false, settings.keepVideoFrameOnSwitch: false, //
+        settings.scrollbarThumbLabel: false, settings.instantThumbGrab: false, settings.smoothScrolling: true,
+        settings.mediaWaveHaptic: false, settings.backgroundImages: false,
+      },
+      settings.extra: {
+        settings.extra.recentSearchesEnabled: false, settings.extra.floatingArtworkEffect: false, settings.extra.tiltingCardsEffect: false, //
+        settings.extra.reduceAnimations: false, settings.extra.jellysPalette: false, settings.extra.artistAlbumsExpanded: true,
+        settings.extra.artistSinglesExpanded: false, settings.extra.artistEpsExpanded: false, settings.extra.artistsMapGraphLayout: true,
+        settings.extra.audioConfigPageIndex: 0,
+      },
+    };
+    Object flipped(Object fallback) => fallback is bool ? !fallback : 3;
+    final storedVariants = <Object? Function(Object fallback)>[(_) => null, (fallback) => fallback, flipped];
+
+    for (final e in oldFallbacks.entries) {
+      final writer = e.key;
+      final fallbacks = e.value;
+      await loadFile(writer, {'_v': 2});
+      for (final k in fallbacks.entries) {
+        expect(k.key.value, k.value, reason: '${k.key.name} missing');
+      }
+      for (final storedOf in storedVariants) {
+        await loadFile(writer, {'_v': 2, for (final k in fallbacks.entries) k.key.name: storedOf(k.value)});
+        for (final k in fallbacks.entries) {
+          final key = k.key;
+          final oldFallback = k.value;
+          final stored = storedOf(oldFallback);
+          final expected = stored ?? oldFallback;
+          expect(key.value, expected, reason: '${key.name} = $stored');
+        }
+      }
+    }
   });
 }

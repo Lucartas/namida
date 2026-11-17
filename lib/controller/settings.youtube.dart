@@ -25,8 +25,9 @@ class _YoutubeSettings extends _SettingsKeysWriter {
 
   late final ytHomePageItems = _keyEnumList(
     'ytHomePageItems',
-    const [HomePageItems.mixes, HomePageItems.recentListens, HomePageItems.topRecentListens, HomePageItems.lostMemories],
+    const [HomePageItems.mixes, HomePageItems.recentListens, HomePageItems.topRecentListens, HomePageItems.lostMemories, HomePageItems.pinned],
     HomePageItems.values,
+    item: const _EnumCodec(HomePageItems.values, fromName: HomePageItems.fromName),
   );
   late final showChannelWatermarkFullscreen = _key('showChannelWatermarkFullscreen', true);
   late final showVideoEndcards = _key('showVideoEndcards', true);
@@ -36,7 +37,7 @@ class _YoutubeSettings extends _SettingsKeysWriter {
   late final preferMixRelatedVideos = _key('preferMixRelatedVideos', isKuru ? true : false);
   late final searchCleanup = _key('searchCleanup', true);
   late final showLikeStatusOnCards = _key('showLikeStatusOnCards', false);
-  late final useNewNotificationExtractor = _key('useNewNotificationExtractor', false);
+  late final useNewNotificationExtractor = _key('useNewNotificationExtractor_v2', true);
   late final preferLikeButtonOverFavourite = _key('preferLikeButtonOverFavourite', true);
 
   late final ytDownloadLocation = _key('ytDownloadLocation', AppDirs.YOUTUBE_DOWNLOADS_DEFAULT, sync: false);
@@ -85,6 +86,11 @@ class _YoutubeSettings extends _SettingsKeysWriter {
     _dropKey('innertubeClient');
     _dropKey('downloadParallelCount');
     _dropKey('maxPageCacheDurationMin');
+  }
+
+  @override
+  void _migrateKeys() {
+    _dropKey('useNewNotificationExtractor');
   }
 
   @override

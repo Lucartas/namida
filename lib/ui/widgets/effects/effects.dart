@@ -28,6 +28,7 @@ import 'package:namida/ui/widgets/animated_widgets.dart';
 import 'package:namida/ui/widgets/artwork.dart';
 import 'package:namida/ui/widgets/custom_widgets.dart';
 import 'package:namida/ui/widgets/floating_image.dart';
+import 'package:namida/ui/widgets/snapshot_blur.dart';
 import 'package:namida/ui/widgets/waveform.dart';
 import 'package:namida/youtube/class/youtube_id.dart';
 import 'package:namida/youtube/widgets/yt_thumbnail.dart';
@@ -106,7 +107,7 @@ class NamidaEffectsLayer extends StatelessWidget {
   Widget build(BuildContext context) {
     final layer = _layer;
     final choiceRx = layer == _Layer.background ? settings.effectsBackground : settings.effectsOverlay;
-    return ObxO(
+    final effectsWidget = ObxO(
       rx: choiceRx,
       builder: (context, choice) => ObxO(
         rx: NamidaEffects.season,
@@ -121,6 +122,36 @@ class NamidaEffectsLayer extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+    // -- background is already offstage under the fullscreen route
+    if (layer == _Layer.background) return effectsWidget;
+    return ObxO(
+      rx: NamidaNavigator.inst.isInFullScreenRx,
+      builder: (context, isInFullScreen) => isInFullScreen ? const SizedBox() : effectsWidget,
+    );
+  }
+}
+
+/// A theme drawn on its own, outside the effect settings.
+class NamidaThemedField extends StatelessWidget {
+  final _EffectPreset _preset;
+  final double opacity;
+  final ValueListenable<double> fade;
+
+  const NamidaThemedField.halloween({
+    super.key,
+    required this.opacity,
+    this.fade = kAlwaysCompleteAnimation,
+  }) : _preset = const _EffectPreset(_kHalloween);
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: _EffectFieldView(
+        preset: _preset,
+        opacity: opacity,
+        fade: fade,
       ),
     );
   }

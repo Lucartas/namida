@@ -86,7 +86,7 @@ class GenresPage extends StatelessWidget with NamidaRouteWidget {
             final sort = sorting.entries.first.type;
             final sortReverse = sorting.reverse;
 
-            final sortTextIsUseless = sort == GroupSortType.genresList || sort == GroupSortType.numberOfTracks || sort == GroupSortType.duration;
+            final sortTextIsUseless = sort == GroupSortType.genresList || sort == GroupSortType.stylesList || sort == GroupSortType.numberOfTracks || sort == GroupSortType.duration;
             final extraTextResolver = sortTextIsUseless ? null : SearchSortController.inst.getGenresExtraTextResolver(genreType, sort);
 
             final String Function({required int count}) countToText = switch (genreType) {
@@ -125,11 +125,9 @@ class GenresPage extends StatelessWidget with NamidaRouteWidget {
                   isCurrentlyReversed: sortReverse,
                   onReverseIconTap: () => SearchSortController.inst.sortMedia(settings.activeGenreType.value, reverse: !sortReverse),
                 ),
-                textField: CustomTextField(
-                  textFieldController: libraryTab.textSearchControllerR,
-                  textFieldHintText: lang.filterGenres,
-                  onTextFieldValueChanged: (value) => SearchSortController.inst.searchMedia(value, settings.activeGenreType.value),
-                ),
+                textFieldController: libraryTab.textSearchControllerR,
+                textFieldHintText: lang.filterGenres,
+                onTextFieldValueChanged: (value) => SearchSortController.inst.searchMedia(value, settings.activeGenreType.value),
               ),
               page: NamidaScrollbar(
                 controller: scrollController,

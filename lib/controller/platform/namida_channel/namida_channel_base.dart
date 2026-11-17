@@ -24,30 +24,29 @@ abstract class NamidaChannel {
 
   final isInPip = false.obs;
 
-  Future<NamidaAppIcons?> getEnabledAppIcon() async {
-    if (!supportsAppIcons) return null;
-    NamidaAppIcons? newEnabledIcon;
-    for (final e in NamidaAppIcons.values) {
-      final enabled = await NamidaChannel.inst.isAppIconEnabled(e) ?? false;
-      if (enabled) {
-        newEnabledIcon = e;
-        break;
-      }
-    }
-    return newEnabledIcon;
+  /// null until [refreshEnabledAppIcon] runs, and on platforms without app icons.
+  final enabledAppIcon = Rxn<NamidaAppIcons>();
+
+  Future<void> refreshEnabledAppIcon() async {
+    if (!supportsAppIcons) return;
+    final key = await _getEnabledAppIconKey();
+    enabledAppIcon.value = NamidaAppIcons.values.getEnum(key);
+  }
+
+  Future<void> changeAppIcon(NamidaAppIcons type) async {
+    await _changeAppIcon(type);
+    await refreshEnabledAppIcon();
   }
 
   bool get canOpenFileInExplorer;
   Future<void>? openFileInExplorer(String filePath, {bool isDirectory = false});
 
   bool get supportsAppIcons => false;
-  Future<bool?> isAppIconEnabled(NamidaAppIcons type) async => false;
+  Future<String?> _getEnabledAppIconKey() async => null;
+  Future<void> _changeAppIcon(NamidaAppIcons type) async {}
 
-  Future<void> changeAppIcon(NamidaAppIcons type) async {}
-
-  Future<void> updatePipRatio({int? width, int? height}) async {}
-
-  Future<void> setCanEnterPip(bool canEnter) async {}
+  /// null disables entering pip.
+  Future<void> setPipAspectRatio({required int? width, required int? height}) async {}
 
   /// an in-app snackbar where the system has no toasts.
   Future<void> showToast({required String message, required SnackDisplayDuration duration}) async {
@@ -93,7 +92,31 @@ abstract class NamidaChannel {
   /// lets android offer namida as a plugged usb dac's default app.
   Future<void> setUsbDacHandlerEnabled(bool enabled) async {}
 
+  /// android 12+: the wallpaper color. desktop: the accent color of the system settings.
+  Future<Color?> getSystemAccentColor() async => null;
+
+  /// [onChanged] re-reads [getSystemAccentColor], called only by native change events. null stops listening.
+  /// android needs none, the system recreates the activity when its palette changes.
+  void setSystemAccentColorListener(void Function()? onChanged) {}
+
+  static Future<Color?> _getSystemAccentColorFromChannel(MethodChannel channel) async {
+    final argb = await channel.invokeMethod<int>('getSystemAccentColor');
+    if (argb == null) return null;
+    return Color(argb);
+  }
+
+  /// the proxy set in the system settings. env proxies are read for every platform by [NetworkProxyController].
+  Future<NetworkProxy?> getSystemProxy() async => null;
+
+  /// [onChanged] re-reads [getSystemProxy], called only by native change events.
+  void listenSystemProxyChanges(Future<void> Function() onChanged) {}
+
+  /// the proxy for networking outside dart & rhttp (android player streams, notification artwork). null restores the system behavior.
+  Future<void> setAppProxy(NetworkProxy? proxy) async {}
+
   Future<bool> shareFiles(List<String> paths) async => false;
+
+  Future<void> scanMediaFilesTry(List<String> paths) async {}
 
   /// files and links the system opened namida with, ex: "open in" or an oauth redirect. file urls arrive as paths.
   /// android & desktop get them through intents and launch args instead.
@@ -111,10 +134,11 @@ abstract class NamidaChannel {
 
   Future<void> logPreviousAbnormalExits() async {}
 
-  /// wether the media command (play, next, etc) that woke the app was sent by us (home widget/quick settings tile).
+  /// wether the media command (play, next, etc) that woke the app was sent by us (home widget/quick settings tile)
+  /// or by an app browsing the library (android auto, wear).
   /// external commands (bluetooth, system media resumption, etc) can be sent without user intention,
   /// so they shouldn't start playback on a cold start.
-  Future<bool> consumeSelfSentMediaCommand() async => true;
+  Future<bool> consumeTrustedMediaCommand() async => true;
 
   final _onResume = <FutureOr<void> Function()>[];
   final _onSuspending = <FutureOr<void> Function()>[];
@@ -177,8 +201,13 @@ enum NamidaAppIcons {
   namida("assets/namida_icon.png", [AuthorInfo("شاكور", null, AuthorPlatform.discord, null), AuthorInfo("MSOB7YY", "MSOB7YY", AuthorPlatform.github, null)]),
   cutsie("assets/namida_icon_cutsie.webp", [AuthorInfo("smilez", null, AuthorPlatform.discord, AuthorAIModel.gpt4)]),
   jellyda("assets/namida_icon_jellyda.webp", [AuthorInfo("Tsuune", "tsuuneki", AuthorPlatform.discord, null), AuthorInfo("Tsuune", "TsunekiHouse", AuthorPlatform.telegram, null)]),
+  cutsieda("assets/namida_icon_cutsieda.webp", [AuthorInfo("Tsuune", "tsuuneki", AuthorPlatform.discord, null), AuthorInfo("Tsuune", "TsunekiHouse", AuthorPlatform.telegram, null)]),
+  kyunda("assets/namida_icon_kyunda.webp", [AuthorInfo("Tsuune", "tsuuneki", AuthorPlatform.discord, null), AuthorInfo("Tsuune", "TsunekiHouse", AuthorPlatform.telegram, null)]),
+  dokida("assets/namida_icon_dokida.webp", [AuthorInfo("Tsuune", "tsuuneki", AuthorPlatform.discord, null), AuthorInfo("Tsuune", "TsunekiHouse", AuthorPlatform.telegram, null)]),
+  namiween("assets/namida_icon_namiween.webp", [AuthorInfo("Tsuune", "tsuuneki", AuthorPlatform.discord, null), AuthorInfo("Tsuune", "TsunekiHouse", AuthorPlatform.telegram, null)]),
   eddy("assets/namida_icon_eddy.webp", [AuthorInfo(":𝟛𝓗𝓪𝓹𝓹𝔂", null, AuthorPlatform.discord, null)]),
   namichin("assets/namida_icon_namichin.webp", [AuthorInfo("Scarecloud", null, AuthorPlatform.discord, null)]),
+  tetoda("assets/namida_icon_tetoda.webp", [AuthorInfo("𝙆𝙖𝙢𝙨𝙘", null, AuthorPlatform.discord, AuthorAIModel.unknown)]),
   space("assets/namida_icon_space.webp", [AuthorInfo(":𝟛𝓗𝓪𝓹𝓹𝔂", null, AuthorPlatform.discord, null)]),
   retro("assets/namida_icon_retro.png", [AuthorInfo("sgfreak", null, AuthorPlatform.discord, null)]),
   ookami("assets/namida_icon_ookami.webp", [AuthorInfo("神 ᴛᴀᴋᴜᴍɪ", null, AuthorPlatform.discord, AuthorAIModel.unknown)]),
@@ -189,7 +218,6 @@ enum NamidaAppIcons {
   monet("assets/namida_icon_monet.png", [AuthorInfo("Sujal", null, AuthorPlatform.telegram, null)]),
   glowy("assets/namida_icon_glowy.webp", [AuthorInfo("Sujal", null, AuthorPlatform.telegram, null)]),
   spooky("assets/namida_icon_spooky.webp", [AuthorInfo("Miguquis", null, AuthorPlatform.discord, AuthorAIModel.gemini)]),
-  namiween("assets/namida_icon_namiween.webp", [AuthorInfo("𐔌 . ⋮ Reggie .ᐟ ֹ ₊ ꒱", null, AuthorPlatform.discord, AuthorAIModel.unknown)]),
   tired("assets/namida_icon_tired.webp", [AuthorInfo("Zephyr", null, AuthorPlatform.discord, AuthorAIModel.unknown)]),
   ;
 

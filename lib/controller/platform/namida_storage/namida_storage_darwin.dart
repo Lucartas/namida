@@ -28,10 +28,13 @@ class _NamidaStorageIOS extends NamidaStorage {
     return [dir.path];
   }
 
+  ({String documentsPath, String containerPath})? _displayRoots;
+
   /// documents first, the only folder of namida the files app shows, then the folders picked outside of it.
   @override
   Future<List<String>> getStorageDirectories() async {
     final documents = await _documentsDirectoryFuture;
+    _displayRoots = (documentsPath: documents.path, containerPath: documents.parent.path);
     final picked = await _pickedDirectoriesFuture;
     return [
       documents.path,
@@ -56,6 +59,18 @@ class _NamidaStorageIOS extends NamidaStorage {
 
   @override
   Future<String?> getRealPath(String? contentUri) async => contentUri;
+
+  /// the container path changes on every update. documents reads as the files app shows it (`On My iPhone > Namida`), the rest of the container as `~`.
+  @override
+  String displayPath(String path) {
+    final roots = _displayRoots;
+    if (roots == null) return path;
+    final documentsPath = roots.documentsPath;
+    if (path.startsWith(documentsPath)) return 'Namida${path.substring(documentsPath.length)}';
+    final containerPath = roots.containerPath;
+    if (path.startsWith(containerPath)) return '~${path.substring(containerPath.length)}';
+    return path;
+  }
 
   /// the system picker reaches every location the files app has, picked folders stay accessible across launches.
   @override
@@ -216,7 +231,7 @@ class _NamidaStorageIOS extends NamidaStorage {
     final documents = await _documentsDirectoryFuture;
     final containerRoot = documents.parent.path;
     final originFile = FileParts.join(directoryPath, _kStorageOriginFilename);
-    return originFile.writeAsJson({'containerRoot': containerRoot});
+    return originFile.writeAsJsonAtomic({'containerRoot': containerRoot});
   }
 
   /// only the container the backup was made in moves, paths into other apps' containers (folders picked there) stay.
@@ -451,17 +466,9 @@ class _StoragePathsState {
     if (retryFiles.isNotEmpty) 'retryFiles': retryFiles,
   };
 
-  /// written aside then renamed, a kill midway keeps the previous state whole.
   Future<bool> writeAtomic(File file) async {
-    final tempFile = File('${file.path}.tmp');
-    final writtenFile = await tempFile.writeAsJson(toJson(), flush: true);
-    if (writtenFile == null) return false;
-    try {
-      await writtenFile.rename(file.path);
-      return true;
-    } catch (_) {
-      return false;
-    }
+    final writtenFile = await file.writeAsJsonAtomic(toJson(), flush: true);
+    return writtenFile != null;
   }
 }
 

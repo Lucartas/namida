@@ -6,6 +6,7 @@ import 'package:namida/class/media_chapter.dart';
 import 'package:namida/class/media_info.dart';
 import 'package:namida/class/replay_gain_data.dart';
 import 'package:namida/class/split_config.dart';
+import 'package:namida/class/tag_rating.dart';
 import 'package:namida/class/taglib_res.dart';
 import 'package:namida/core/extensions.dart';
 
@@ -98,6 +99,10 @@ class FTags {
   final String? releaseType;
   final int? bpm;
   final String? musicalKey;
+
+  /// `ITUNESADVISORY`, `1` explicit and `2` clean. empty clears it when writing.
+  final String? itunesAdvisory;
+
   final String? mbAlbumId;
   final String? mbAlbumArtistId;
 
@@ -146,6 +151,7 @@ class FTags {
     required this.releaseType,
     required this.bpm,
     required this.musicalKey,
+    this.itunesAdvisory,
     this.mbAlbumId,
     this.mbAlbumArtistId,
     required this.ratingPercentage,
@@ -189,6 +195,7 @@ class FTags {
     this.releaseType,
     this.bpm,
     this.musicalKey,
+    this.itunesAdvisory,
     this.mbAlbumId,
     this.mbAlbumArtistId,
     this.ratingPercentage,
@@ -201,9 +208,9 @@ class FTags {
   // -- same as android's FAudioTagger, a prefix match pulls the huge ACOUSTID_FINGERPRINT
   static const _kExtraTagKeys = [
     'MUSICBRAINZ_TRACKID', 'MUSICBRAINZ_RELEASETRACKID', 'MUSICBRAINZ_ALBUMID', //
-    'MUSICBRAINZ_ALBUMARTISTID', 'MUSICBRAINZ_ARTISTID', 'MUSICBRAINZ_RELEASEGROUPID', //
-    'ACOUSTID_ID', 'ISRC', 'BARCODE', 'CATALOGNUMBER', //
+    'MUSICBRAINZ_RELEASEGROUPID', 'ACOUSTID_ID', 'ISRC', 'BARCODE', 'CATALOGNUMBER', //
   ];
+  static const _kExtraTagMultiValueKeys = ['MUSICBRAINZ_ARTISTID', 'MUSICBRAINZ_ALBUMARTISTID'];
 
   static Map<String, String>? pickExtraTags(Map<String, List<String>> properties) {
     Map<String, String>? picked;
@@ -211,6 +218,14 @@ class FTags {
       final values = properties[key];
       if (values == null) continue;
       final value = values.firstWhereEff((v) => v.isNotEmpty);
+      if (value == null) continue;
+      picked ??= <String, String>{};
+      picked[key] = value;
+    }
+    for (final key in _kExtraTagMultiValueKeys) {
+      final values = properties[key];
+      if (values == null) continue;
+      final value = values.joinText(separator: FTagsMultiValues.kJoiner).nullifyEmpty();
       if (value == null) continue;
       picked ??= <String, String>{};
       picked[key] = value;
@@ -239,11 +254,9 @@ class FTags {
 
   static double? ratingToPercentage(String? rating) {
     if (rating == null) return null;
-    final value = num.tryParse(rating);
-    if (value is double && value <= 1.0) return value;
-    if (value == null || value == 0) return null;
-    if (value <= 5) return value / 5.0; // 0-5
-    return value / 100.0; // 0-100
+    final percent = TagRating.percentFromText(rating);
+    if (percent == null) return null;
+    return percent / 100;
   }
 
   // static int ratingPercentageToUnsignedInt(double ratingPercentage) {
@@ -296,6 +309,7 @@ class FTags {
       releaseType: _listToString(map["releaseType"]) ?? map["RELEASETYPE"],
       bpm: MediaInfo.extractInt(map["bpm"]),
       musicalKey: map["musicalKey"],
+      itunesAdvisory: map["itunesAdvisory"] ?? map["ITUNESADVISORY"],
       mbAlbumId: map["mbAlbumId"] ?? map["MUSICBRAINZ_ALBUMID"] ?? map["MusicBrainz Album Id"],
       mbAlbumArtistId: map["mbAlbumArtistId"] ?? map["MUSICBRAINZ_ALBUMARTISTID"] ?? map["MusicBrainz Album Artist Id"],
       ratingPercentage: ratingToPercentage(ratingString),
@@ -338,6 +352,7 @@ class FTags {
       "releaseType": releaseType,
       "bpm": bpm,
       "musicalKey": musicalKey,
+      "itunesAdvisory": itunesAdvisory,
       "language": language,
       "mbAlbumId": mbAlbumId,
       "mbAlbumArtistId": mbAlbumArtistId,
@@ -351,6 +366,13 @@ class FTags {
 
   Map<String, List<String>> toTagLibMap() {
     final bpmText = bpm == 0 ? '' : bpm?.toString();
+    final itunesAdvisory = this.itunesAdvisory;
+    // -- no values removes the tag, an empty text would be written as `0` in mp4
+    final itunesAdvisoryList = itunesAdvisory == null
+        ? null
+        : itunesAdvisory.isEmpty
+        ? const <String>[]
+        : [itunesAdvisory];
     return <String, List<String>>{
       TagLibField.title: ?_createList(title),
       TagLibField.album: ?_createList(album),
@@ -371,7 +393,6 @@ class FTags {
       TagLibField.language: ?_createList(language),
       TagLibField.lyricist: ?_createList(lyricist),
       TagLibField.remixer: ?_createList(remixer),
-      TagLibField.rating: ?_createList(ratingPercentage?.toString()),
       TagLibField.mood: ?_createList(mood),
       TagLibField.tags: ?_createList(tags),
       TagLibField.country: ?_createList(country),
@@ -380,6 +401,7 @@ class FTags {
       TagLibField.tempo: ?_createList(tempo),
       TagLibField.bpm: ?_createList(bpmText),
       TagLibField.initialKey: ?_createList(musicalKey),
+      TagLibField.itunesAdvisory: ?itunesAdvisoryList,
       TagLibField.mixer: ?_createList(mixer),
       TagLibField.djmixer: ?_createList(djmixer),
       TagLibField.titleSort: ?_createList(sortInfo?.title),

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:namida/class/faudiomodel.dart';
@@ -13,6 +14,7 @@ import 'package:namida/class/track.dart';
 import 'package:namida/class/video.dart';
 import 'package:namida/controller/indexer_controller.dart';
 import 'package:namida/controller/json_to_history_parser.dart';
+import 'package:namida/controller/platform/zip_manager/zip_manager.dart';
 import 'package:namida/core/constants.dart';
 import 'package:namida/core/enums.dart';
 import 'package:namida/core/extensions.dart';
@@ -27,6 +29,7 @@ void main() {
     separators: const ['&', ',', ';', '//', ' ft. ', ' x '],
     separatorsBlacklist: const [],
   );
+  const listenCountRule = (minListenSeconds: 40, minListenPercentage: 40, seekSeconds: 5, seekPercentage: 2, isSeekPercentage: false);
   final splittersConfigs = SplitArtistGenreConfigsWrapper(
     dbPath: '',
     artistsConfig: splitConfig,
@@ -471,6 +474,25 @@ void main() {
       expect(await listenedPaths('Artist - Song', 'Label', tracks), [tracks[0].path]);
       expect(await listensOf('Artist - Song', 'Label', tracks, matchAll: true), 2);
     });
+
+    test('matchAll skips less specific titles held by the video title', () async {
+      final original = ytTrack('Shelter', 'Porter Robinson');
+      final remix = ytTrack('Shelter (Stessie Remix)', 'Porter Robinson');
+      final remixCopy = ytTrack('Shelter (Stessie Remix)', 'Porter Robinson', filename: 'copy.m4a');
+      final paths = await listenedPaths('Porter Robinson - Shelter (Stessie Remix)', 'Label', [original, remix, remixCopy], matchAll: true);
+      expect(paths.toSet(), {remix.path, remixCopy.path});
+    });
+
+    test('missing watches of a video are one entry with every watch date', () async {
+      final file = takeoutJson([
+        jsonWatch('dQw4w9WgXcQ', 'Unknown Song', 'Channel', '2022-02-04T14:20:56.789Z'),
+        jsonWatch('dQw4w9WgXcQ', 'Unknown Song', 'Channel', '2022-02-05T14:20:56.789Z'),
+      ]);
+      final res = await parseYT([file], [ytTrack('Song', 'Artist')]);
+      final missing = res!.missingEntriesSorted.entries.single;
+      expect(missing.key.youtubeID, 'dQw4w9WgXcQ');
+      expect(missing.value.toSet(), {utcMS(2022, 2, 4, 14, 20, 56) + 789, utcMS(2022, 2, 5, 14, 20, 56) + 789});
+    });
   });
 
   test('link matching reads the id from the comment, a v= filename or an id in brackets ending the filename, never a bare id filename', () async {
@@ -505,7 +527,7 @@ void main() {
   );
 
   group('lastfm csv', () {
-    addLastFm(List<String> lines, List<_Track> tracks, {SplayTreeMap<int, List<TrackWithDate>>? localHistory}) {
+    addLastFm(List<String> lines, List<_Track> tracks, {SplayTreeMap<int, List<TrackWithDate>>? localHistory, bool matchAll = false}) {
       final file = writeFile('csv', lines.join('\n'));
       return JsonToHistoryParser.debugAddLastFmSource((
         tracks: tracks,
@@ -513,9 +535,11 @@ void main() {
         newestDay: null,
         files: [file],
         favouriteFiles: const [],
+        lookupFiles: const [],
         addHistory: true,
-        matchAll: false,
+        matchAll: matchAll,
         artistsSplitConfig: splitConfig,
+        listenCountRule: listenCountRule,
         portProgressParsed: newPort(),
         portProgressMatched: newPort(),
         portLoadingProgress: newPort(),
@@ -546,10 +570,10 @@ void main() {
       final res = await addLastFm(lines, [tr]);
 
       expect(res!.localHistory.values.single.single.track.path, tr.path);
-      final missing = res.missingEntriesSorted.keys.single;
-      expect(missing.artistOrChannel, 'Say "Hi"');
-      expect(missing.title, 'Song, Pt. 2');
-      expect(missing.dateMSSE, utcMS(2026, 10, 5, 12, 40));
+      final missing = res.missingEntriesSorted.entries.single;
+      expect(missing.key.artistOrChannel, 'Say "Hi"');
+      expect(missing.key.title, 'Song, Pt. 2');
+      expect(missing.value, [utcMS(2026, 10, 5, 12, 40)]);
     });
 
     test('an unparsable date takes the previous one minus 30 seconds', () async {
@@ -558,8 +582,11 @@ void main() {
         'Artist,Album,Second,not a date',
       ], []);
 
-      final datesByTitle = {for (final e in res!.missingEntriesSorted.keys) e.title: e.dateMSSE};
-      expect(datesByTitle, {'First': utcMS(2026, 10, 5, 12, 34), 'Second': utcMS(2026, 10, 5, 12, 34) - 30000});
+      final datesByTitle = {for (final e in res!.missingEntriesSorted.entries) e.key.title: e.value};
+      expect(datesByTitle, {
+        'First': [utcMS(2026, 10, 5, 12, 34)],
+        'Second': [utcMS(2026, 10, 5, 12, 34) - 30000],
+      });
     });
 
     test('lines before any parsable date are skipped instead of landing at the epoch', () async {
@@ -601,6 +628,46 @@ void main() {
       final res = await addLastFm(['Camo & Crooked,Album,Song,05 Oct 2026 12:34'], [tr]);
       expect(res!.localHistory.values.single.single.track.path, tr.path);
     });
+
+    test('a whole library title goes before other versions of the same base title, matchAll keeps only the equal ones', () async {
+      final original = track('Shelter', 'Porter Robinson; Madeon');
+      final remix = track('Shelter (Stessie Remix)', 'Porter Robinson; Madeon; Stessie');
+      final otherRemix = track('Shelter (Other Remix)', 'Porter Robinson; Madeon; Other');
+      const lines = [
+        'Porter Robinson & Madeon,Album,Shelter,05 Oct 2026 12:34',
+        'Porter Robinson & Madeon,Album,Shelter (Stessie Remix),05 Oct 2026 12:40',
+      ];
+      for (final matchAll in [false, true]) {
+        for (final tracks in [
+          [original, remix, otherRemix],
+          [otherRemix, remix, original],
+        ]) {
+          final res = await addLastFm(lines, tracks, matchAll: matchAll);
+          final paths = res!.localHistory.values.expand((e) => e).map((e) => e.track.path);
+          expect(paths, [original.path, remix.path]);
+        }
+      }
+    });
+
+    test('any of the library artists matches, sources order collab artists differently', () async {
+      final tr = track('Trinite (Nasko Remix)', 'Skybreak; Sharks; Paper Skies; Nasko');
+      final res = await addLastFm(['"Sharks, Paper Skies & Nasko",Album,Trinite (Nasko Remix),05 Oct 2026 12:34'], [tr]);
+      expect(res!.localHistory.values.single.single.track.path, tr.path);
+    });
+
+    test('missing listens of the same track are one entry with every date, the most listened first', () async {
+      final res = await addLastFm([
+        'Artist,Album,Other,05 Oct 2026 12:30',
+        'Artist,Album,Missing,05 Oct 2026 12:34',
+        'Artist,Album,Missing,05 Oct 2026 12:40',
+      ], []);
+      final datesByTitle = {for (final e in res!.missingEntriesSorted.entries) e.key.title: e.value};
+      expect(datesByTitle, {
+        'Missing': [utcMS(2026, 10, 5, 12, 34), utcMS(2026, 10, 5, 12, 40)],
+        'Other': [utcMS(2026, 10, 5, 12, 30)],
+      });
+      expect(datesByTitle.keys.first, 'Missing');
+    });
   });
 
   group('spotify json', () {
@@ -611,9 +678,11 @@ void main() {
         newestDay: null,
         files: files,
         favouriteFiles: favouriteFiles,
+        lookupFiles: const [],
         addHistory: addHistory,
         matchAll: false,
         artistsSplitConfig: splitConfig,
+        listenCountRule: listenCountRule,
         portProgressParsed: newPort(),
         portProgressMatched: newPort(),
         portLoadingProgress: newPort(),
@@ -636,9 +705,9 @@ void main() {
       expect(twd.track.path, tr.path);
       expect(twd.dateAdded, utcMS(2023, 1, 15, 14, 32));
       expect(twd.source, TrackSource.spotify);
-      final missing = res.missingEntriesSorted.keys.single;
-      expect(missing.title, 'Unknown Song');
-      expect(missing.dateMSSE, utcMS(2023, 1, 15, 15, 0));
+      final missing = res.missingEntriesSorted.entries.single;
+      expect(missing.key.title, 'Unknown Song');
+      expect(missing.value, [utcMS(2023, 1, 15, 15, 0)]);
     });
 
     test('extended entries still import next to account data ones', () async {
@@ -710,9 +779,11 @@ void main() {
         newestDay: newestDay,
         files: files,
         favouriteFiles: favouriteFiles,
+        lookupFiles: const [],
         addHistory: addHistory,
         matchAll: false,
         artistsSplitConfig: splitConfig,
+        listenCountRule: listenCountRule,
         portProgressParsed: newPort(),
         portProgressMatched: portProgressMatched ?? newPort(),
         portLoadingProgress: newPort(),
@@ -844,6 +915,311 @@ void main() {
     });
   });
 
+  group('apple music export', () {
+    const playActivityHeader = [
+      'Album Name', 'Evaluation Variant', 'Song Name', 'Event Type', 'End Reason Type', 'Event Start Timestamp', 'Event End Timestamp', //
+      'Play Duration Milliseconds', 'Media Duration In Milliseconds', 'Start Position In Milliseconds', 'End Position In Milliseconds',
+    ];
+
+    String csvField(String value) => value.contains(RegExp('[",\n]')) ? '"${value.replaceAll('"', '""')}"' : value;
+
+    // -- bom & crlf like the real export
+    File writeCsv(List<String> header, Iterable<List<String>> rows) {
+      final lines = [header, ...rows].map((e) => e.map(csvField).join(','));
+      return writeFile('csv', '﻿${lines.join('\r\n')}\r\n');
+    }
+
+    // -- whole seconds are written without millis, both forms show up in exports
+    String iso(int ms) {
+      final text = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true).toIso8601String();
+      return ms % 1000 == 0 ? text.replaceFirst('.000', '') : text;
+    }
+
+    List<String> playRow(
+      String title,
+      String album,
+      int startMS, {
+      required int from,
+      required int to,
+      required int durationMS,
+      String reason = 'PLAYBACK_MANUALLY_PAUSED',
+      String eventType = 'PLAY_END',
+    }) {
+      final playedMS = to - from;
+      final endMS = startMS + playedMS.abs();
+      return [album, '[{"areaId":"x"},\n{"bucket":-2}]', title, eventType, reason, iso(startMS), iso(endMS), '$playedMS', '$durationMS', '$from', '$to'];
+    }
+
+    File writeLibrary(List<Map<String, Object>> tracks) => writeFile('json', jsonEncode(tracks));
+
+    Map<String, Object> libraryTrack(String title, String artist, String album, int durationMS) => {
+      'Title': title,
+      'Artist': artist,
+      'Album': album,
+      'Track Duration': durationMS,
+    };
+
+    addAppleMusic(List<File> files, List<_Track> tracks, {List<File> favouriteFiles = const [], List<File> lookupFiles = const [], bool addHistory = true}) {
+      return JsonToHistoryParser.debugAddAppleMusicSource((
+        tracks: tracks,
+        oldestDay: null,
+        newestDay: null,
+        files: files,
+        favouriteFiles: favouriteFiles,
+        lookupFiles: lookupFiles,
+        addHistory: addHistory,
+        matchAll: false,
+        artistsSplitConfig: splitConfig,
+        listenCountRule: listenCountRule,
+        portProgressParsed: newPort(),
+        portProgressMatched: newPort(),
+        portLoadingProgress: newPort(),
+        localHistory: SplayTreeMap(),
+      ));
+    }
+
+    test('paused and resumed rows are one listen dated when it reached the listen time, scrub jumps and lyrics are not listened time', () async {
+      final tr = track('Song, Pt. 2', 'Artist');
+      final library = writeLibrary([libraryTrack('Song, Pt. 2', 'Artist', 'Album', 200000)]);
+      final startMS = utcMS(2024, 9, 3, 22, 0) + 250;
+      final file = writeCsv(playActivityHeader, [
+        playRow('Song, Pt. 2', 'Album', startMS, from: 0, to: 0, durationMS: 200000, eventType: 'PLAY_START', reason: ''),
+        playRow('Song, Pt. 2', 'Album', startMS, from: 0, to: 60000, durationMS: 200000, eventType: 'LYRIC_DISPLAY'),
+        playRow('Song, Pt. 2', 'Album', startMS, from: 0, to: 30000, durationMS: 200000),
+        playRow('Song, Pt. 2', 'Album', startMS + 50000, from: 30000, to: 150000, durationMS: 200000, reason: 'SCRUB_END'),
+        playRow('Song, Pt. 2', 'Album', startMS + 60000, from: 150000, to: 170000, durationMS: 200000, reason: 'NATURAL_END_OF_TRACK'),
+      ]);
+      final res = await addAppleMusic([file], [tr], lookupFiles: [library]);
+
+      final twd = res!.localHistory.values.single.single;
+      expect(twd.track.path, tr.path);
+      expect(twd.source, TrackSource.appleMusic);
+      // -- 30s before the pause, 10s more after it
+      expect(twd.dateAdded, startMS + 60000 + 10000);
+    });
+
+    test('a natural end or going back to the start after a counted listen starts another one, a small seek back does not', () async {
+      final tr = track('Song', 'Artist');
+      final library = writeLibrary([libraryTrack('Song', 'Artist', 'Album', 200000)]);
+      final hourMS = utcMS(2024, 9, 3, 10, 0);
+      List<String> row(int minute, int from, int to, [String reason = 'PLAYBACK_MANUALLY_PAUSED']) {
+        return playRow(
+          'Song',
+          'Album',
+          hourMS + minute * 60000,
+          from: from,
+          to: to,
+          durationMS: 200000,
+          reason: reason,
+        );
+      }
+
+      final rows = [
+        row(0, 0, 50000),
+        row(1, 40000, 60000),
+        row(2, 0, 200000, 'NATURAL_END_OF_TRACK'),
+        row(6, 0, 45000),
+        row(7, 0, 20000),
+        playRow('Other', 'Album', hourMS + 20 * 60000, from: 0, to: 10000, durationMS: 200000),
+      ];
+      final file = writeCsv(playActivityHeader, rows.reversed);
+      final res = await addAppleMusic([file], [tr], lookupFiles: [library]);
+
+      final dates = res!.localHistory.values.expand((e) => e).map((e) => e.dateAdded);
+      expect(dates, [hourMS + 40000, hourMS + 2 * 60000 + 40000, hourMS + 6 * 60000 + 40000]);
+      expect(res.missingEntriesSorted, isEmpty);
+    });
+
+    test('the artist comes from the library by album then closest duration, then from the tracks played that day', () async {
+      final soffizlly = track('Zero', 'Soffizlly');
+      final fatRat = track('Fire', 'TheFatRat');
+      final zeroCode = track('Fire', 'ZerøCode');
+      final shirobon = track('Undertale - Spider Dance', 'Shirobon');
+      final library = writeLibrary([
+        libraryTrack('Zero', 'Teminite', 'Zero - Single', 180000),
+        libraryTrack('Zero', 'Soffizlly', 'Zero - Single', 196458),
+        libraryTrack('Fire', 'TheFatRat', 'Fire - Album', 200000),
+      ]);
+      final daily = writeCsv(
+        ['Country', 'Track Description', 'Date Played', 'Hours'],
+        [
+          ['United States', 'Someone - Fire', '20240901', '10'],
+          ['United States', 'ZerøCode - Fire', '20240903', '10'],
+          ['United States', 'Shirobon - Undertale - Spider Dance', '20240802', '3'],
+        ],
+      );
+      final hourMS = utcMS(2024, 9, 3, 10, 0);
+      List<String> fullPlay(String title, String album, int minute, int durationMS) {
+        return playRow(
+          title,
+          album,
+          hourMS + minute * 60000,
+          from: 0,
+          to: durationMS,
+          durationMS: durationMS,
+          reason: 'NATURAL_END_OF_TRACK',
+        );
+      }
+
+      final file = writeCsv(playActivityHeader, [
+        fullPlay('Zero', 'Zero - Single', 0, 196000),
+        fullPlay('Fire', 'Fire - Single', 10, 201000),
+        fullPlay('Fire', 'Another Album', 20, 150000),
+        fullPlay('Undertale - Spider Dance', 'Single', 30, 150000),
+        fullPlay('Unknown', 'Album', 40, 150000),
+      ]);
+      final res = await addAppleMusic([file], [soffizlly, fatRat, zeroCode, shirobon], lookupFiles: [library, daily]);
+
+      final paths = res!.localHistory.values.expand((e) => e).map((e) => e.track.path);
+      expect(paths, [soffizlly.path, fatRat.path, zeroCode.path, shirobon.path]);
+      final missing = res.missingEntriesSorted.keys.single;
+      expect((missing.artistOrChannel, missing.title), ('', 'Unknown'));
+    });
+
+    test('a song name without its version takes the library title of the same album and recording', () async {
+      final original = track('Snowblind', 'Au5; Tasha Baxter');
+      final remix = track('Snowblind (KERO Remix)', 'Au5; Tasha Baxter; KERO');
+      final postMalone = track('Sunflower', 'Post Malone; Swae Lee');
+      final vanatice = track('Sunflower', 'Vanatice');
+      const spiderVerse = 'Spider-Man: Into the Spider-Verse (Soundtrack)';
+      final library = writeLibrary([
+        libraryTrack('Snowblind', 'Au5 & Tasha Baxter', 'Snowblind Legacy', 347826),
+        libraryTrack('Snowblind (KERO Remix)', 'Au5, Tasha Baxter & KERO', 'Snowblind Legacy', 226667),
+        libraryTrack('Sunflower (Spider-Man: Into the Spider-Verse)', 'Post Malone & Swae Lee', spiderVerse, 158040),
+        libraryTrack('Sunflower', 'Vanatice', 'Sunflower - Single', 192000),
+      ]);
+      final daily = writeCsv(
+        ['Country', 'Track Description', 'Date Played', 'Hours'],
+        [
+          ['United States', 'Vanatice - Sunflower', '20240903', '10'],
+        ],
+      );
+      final hourMS = utcMS(2024, 9, 3, 10, 0);
+      List<String> fullPlay(String title, String album, int minute, int durationMS) {
+        return playRow(
+          title,
+          album,
+          hourMS + minute * 60000,
+          from: 0,
+          to: durationMS,
+          durationMS: durationMS,
+          reason: 'NATURAL_END_OF_TRACK',
+        );
+      }
+
+      final file = writeCsv(playActivityHeader, [
+        fullPlay('Snowblind', 'Snowblind Legacy', 0, 226666),
+        fullPlay('Snowblind', 'Snowblind Legacy', 10, 347826),
+        fullPlay('Sunflower', spiderVerse, 20, 159339),
+        fullPlay('Sunflower', 'Sunflower - Single', 30, 192000),
+      ]);
+      final res = await addAppleMusic([file], [original, remix, postMalone, vanatice], lookupFiles: [library, daily]);
+
+      final paths = res!.localHistory.values.expand((e) => e).map((e) => e.track.path);
+      expect(paths, [remix.path, original.path, postMalone.path, vanatice.path]);
+    });
+
+    test('without the library, the version played that day is taken only when it is the only one', () async {
+      final original = track('Jumpscare', 'Soffizlly');
+      final vip = track('Jumpscare (VIP)', 'Soffizlly');
+      final daily = writeCsv(
+        ['Country', 'Track Description', 'Date Played', 'Hours'],
+        [
+          ['United States', 'Soffizlly - Jumpscare (VIP)', '20240903', '10'],
+          ['United States', 'Soffizlly - Jumpscare (VIP)', '20240904', '10'],
+          ['United States', 'Soffizlly - Jumpscare (Remix)', '20240904', '11'],
+        ],
+      );
+      List<String> fullPlay(int day) {
+        return playRow(
+          'Jumpscare',
+          'Jumpscare (The Remixes)',
+          utcMS(2024, 9, day, 10, 0),
+          from: 0,
+          to: 146889,
+          durationMS: 146889,
+          reason: 'NATURAL_END_OF_TRACK',
+        );
+      }
+
+      final file = writeCsv(playActivityHeader, [fullPlay(3), fullPlay(4)]);
+      final res = await addAppleMusic([file], [original, vip], lookupFiles: [daily]);
+
+      expect(res!.localHistory.values.single.single.track.path, vip.path);
+      final missing = res.missingEntriesSorted.keys.single;
+      expect((missing.artistOrChannel, missing.title), ('', 'Jumpscare'));
+    });
+
+    test('library favourites keep their date, undated ones and older loves take the import time', () async {
+      final dated = track('First', 'Artist');
+      final undated = track('Second', 'Artist');
+      final loved = track('Third', 'Artist');
+      final library = writeLibrary([
+        {...libraryTrack('First', 'Artist', 'Album', 100000), 'Favorite Status - Track': true, 'Favorite Date - Track': '2022-11-21T05:44:37Z'},
+        {...libraryTrack('Second', 'Artist', 'Album', 100000), 'Favorite Status - Track': true},
+        {...libraryTrack('Third', 'Artist', 'Album', 100000), 'Track Like Rating': 'liked'},
+        {...libraryTrack('Fourth', 'Artist', 'Album', 100000), 'Track Like Rating': 'none'},
+      ]);
+      final before = DateTime.now().millisecondsSinceEpoch;
+      final res = await addAppleMusic([], [dated, undated, loved, track('Fourth', 'Artist')], favouriteFiles: [library], lookupFiles: [library], addHistory: false);
+      final after = DateTime.now().millisecondsSinceEpoch;
+
+      final favourites = res!.favourites;
+      expect(favourites.map((e) => e.track.path), [dated.path, undated.path, loved.path]);
+      expect(favourites.map((e) => e.source).toSet(), {TrackSource.appleMusic});
+      expect(favourites.first.dateAdded, utcMS(2022, 11, 21, 5, 44, 37));
+      expect(favourites.skip(1).map((e) => e.dateAdded), everyElement(inInclusiveRange(before, after)));
+      expect(res.localHistory, isEmpty);
+    });
+
+    test('play activity goes to history, the library to favourites, the library and daily tracks help finding artists', () async {
+      const names = [
+        'Apple Music Play Activity.csv', 'Apple Music Play Activity Trimmed.csv', 'Apple Music - Play History Daily Tracks.csv', //
+        'Apple Music Library Tracks.json', 'Apple Music Library Albums.json', 'Apple Music - Favorites.csv',
+      ];
+      final files = names.map((e) => File(trackPath(e))).toList();
+      final filtered = await JsonToHistoryParser.debugFilterFiles(files, TrackSource.appleMusic);
+      expect(filtered.history.map((e) => e.path), [files[0].path, files[1].path]);
+      expect(filtered.favourites.map((e) => e.path), [files[3].path]);
+      expect(filtered.lookups.map((e) => e.path), [files[2].path, files[3].path]);
+    });
+
+    test('zips inside zips are extracted, also when two of them share a name', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final zipManager = ZipManager.platform();
+      String join(List<String> parts) => parts.join(Platform.pathSeparator);
+      void writeAt(String path) => File(path)
+        ..createSync(recursive: true)
+        ..writeAsStringSync('x');
+      Future<File> zipDirectory(String sourcePath, String zipPath) async {
+        final source = Directory(sourcePath);
+        final files = source.listSync(recursive: true).whereType<File>().toList();
+        final zipFile = File(zipPath);
+        await zipManager.createZip(sourceDir: source, files: files, zipFile: zipFile);
+        return zipFile;
+      }
+
+      final root = join([dir.path, 'nested_zips']);
+      writeAt(join([root, 'library', 'Apple Music Library Tracks.json']));
+      writeAt(join([root, 'inner1', 'Apple Music Activity', 'Apple Music Play Activity.csv']));
+      await zipDirectory(join([root, 'library']), join([root, 'inner1', 'Apple Music Activity', 'Apple Music Library Tracks.json.zip']));
+      writeAt(join([root, 'inner2', 'Apple Music Activity', 'Apple Music - Play History Daily Tracks.csv']));
+      Directory(join([root, 'part1'])).createSync();
+      Directory(join([root, 'part2'])).createSync();
+      await zipDirectory(join([root, 'inner1']), join([root, 'part1', 'Apple_Media_Services.zip']));
+      await zipDirectory(join([root, 'inner2']), join([root, 'part2', 'Apple_Media_Services.zip']));
+      final part1 = await zipDirectory(join([root, 'part1']), join([root, 'Part 1 of 2.zip']));
+      final part2 = await zipDirectory(join([root, 'part2']), join([root, 'Part 2 of 2.zip']));
+
+      final filtered = await JsonToHistoryParser.debugFilterFiles([part1, part2], TrackSource.appleMusic);
+      expect(filtered.history.map((e) => e.path.getFilename), ['Apple Music Play Activity.csv']);
+      expect(filtered.favourites.map((e) => e.path.getFilename), ['Apple Music Library Tracks.json']);
+      expect(filtered.lookups.map((e) => e.path.getFilename).toSet(), {'Apple Music Library Tracks.json', 'Apple Music - Play History Daily Tracks.csv'});
+      expect(filtered.lookups.length, 2);
+    });
+  });
+
   group('youtube likes', () {
     test('likes match by link even when history link matching is off, history stays on its own matching', () async {
       final linked = ytTrack('A', 'X', comment: 'https://youtu.be/dQw4w9WgXcQ');
@@ -900,14 +1276,16 @@ void main() {
     });
   });
 
-  test('items added to the reverse matcher match haystacks that hold all of their tokens', () {
+  test('the reverse matcher keeps every item held whole by the haystack that has the most tokens', () {
     final matcher = ReverseSearchMatcher<String>()
       ..addItem('never gonna', 'Never Gonna')
       ..addItem('give you up', 'Give You Up!')
+      ..addItem('gonna give you', 'Gonna Give You')
       ..addItem('let you down', 'Let You Down');
 
-    final matched = matcher.matchContainedIn(SearchMatcher.tokenizeHaystack('Rick Astley - Never Gonna Give You Up'));
-    expect(matched.toSet(), {'never gonna', 'give you up'});
+    final haystackTokens = SearchMatcher.tokenizeHaystack('Rick Astley - Never Gonna Give You Up');
+    expect(matcher.matchMostSpecificAll(haystackTokens, (_) => true).toSet(), {'give you up', 'gonna give you'});
+    expect(matcher.matchMostSpecificAll(haystackTokens, (e) => e != 'give you up'), ['gonna give you']);
   });
 
   group('youtube stats buckets', () {

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:namida/class/faudiomodel.dart';
 import 'package:namida/class/split_config.dart';
@@ -7,6 +8,7 @@ import 'package:namida/class/taglib_res.dart';
 import 'package:namida/class/track.dart';
 import 'package:namida/class/video.dart';
 import 'package:namida/controller/indexer_controller.dart';
+import 'package:namida/controller/platform/namida_channel/namida_channel.dart';
 import 'package:namida/controller/platform/tags_extractor/tags_extractor.dart';
 import 'package:namida/controller/settings_controller.dart';
 import 'package:namida/core/constants.dart';
@@ -18,8 +20,6 @@ class NamidaTaggerController {
   NamidaTaggerController._internal();
 
   final _extractor = TagsExtractor.platform();
-
-  bool get _defaultKeepFileDates => settings.editTagsKeepFileDates.value;
 
   // RxDMap<int, String> get currentPathsBeingExtracted => _extractor.currentPathsBeingExtracted;
 
@@ -106,14 +106,17 @@ class NamidaTaggerController {
     required Map<TagField, String> editedTags,
     Map<Track, Map<TagField, String>>? editedTagsPerTrack,
     String imagePath = '',
+    bool removeArtwork = false,
     String commentToInsert = '',
     void Function(bool didUpdate, String? error, Track track)? onEdit,
     void Function()? onUpdatingTracksStart,
-    bool? keepFileDates,
     void Function(TrackStats newStats)? onStatsEdit,
     bool displayFFmpegFallbackWarning = true,
   }) async {
     final imageFile = imagePath.isNotEmpty ? File(imagePath) : null;
+    // -- empty bytes make taglib remove the cover
+    final artwork = removeArtwork ? FArtwork(bytes: Uint8List(0)) : FArtwork(file: imageFile);
+    final isArtworkEdited = imageFile != null || removeArtwork;
 
     String oldComment = '';
     if (commentToInsert.isNotEmpty) {
@@ -137,19 +140,20 @@ class NamidaTaggerController {
             comment: oldComment.isEmpty ? commentToInsert : '$commentToInsert\n$oldComment',
             artwork: FArtwork(),
           )
-        : _editedTagsToFTags(editedTags, imageFile);
+        : _editedTagsToFTags(editedTags, artwork);
 
     const kStatsFields = {TagField.mood, TagField.tags, TagField.rating};
 
     await _extractor.initializeForWrite();
     final splittersConfigs = SplitArtistGenreConfigsWrapper.settings();
+    final keepFileDates = settings.editTagsKeepFileDates.value;
     final tracksMap = <Track, TrackExtended>{};
     for (final track in tracks) {
       String? error;
 
       final trackOnlyEditedTags = editedTagsPerTrack?[track];
       final trackEditedTags = trackOnlyEditedTags == null ? editedTags : {...editedTags, ...trackOnlyEditedTags};
-      final trackNewTags = trackOnlyEditedTags == null ? newTags : _editedTagsToFTags(trackEditedTags, imageFile);
+      final trackNewTags = trackOnlyEditedTags == null ? newTags : _editedTagsToFTags(trackEditedTags, artwork);
       final shouldEditStats = kStatsFields.any((f) => trackEditedTags[f] != null);
 
       if (shouldEditStats && track.isNetwork) {
@@ -202,6 +206,10 @@ class NamidaTaggerController {
               final newTrExt = trExt.copyWithTag(tag: trackNewTags, splittersConfigs: splittersConfigs, generatePathHash: TagsExtractor.defaultUniqueArtworkHash);
               tracksMap[track] = newTrExt;
               if (imageFile != null) await imageFile.copy(newTrExt.pathToImage);
+              if (removeArtwork) {
+                final oldImageFile = File(trExt.pathToImage);
+                await oldImageFile.tryDeleting();
+              }
             }
             printo('Did Update Metadata: $error', isError: error != null);
             if (onEdit != null) onEdit(error == null, error, track);
@@ -217,7 +225,7 @@ class NamidaTaggerController {
               onStatsEdit?.call(newStats);
             }
           },
-          keepStats: keepFileDates ?? _defaultKeepFileDates,
+          keepStats: keepFileDates,
         );
 
         final newTrExt = tracksMap[track];
@@ -225,7 +233,13 @@ class NamidaTaggerController {
           // -- otherwise refreshing the library sees the file as modified
           final newStat = await file.stat();
           final newDateModified = newStat.modified.millisecondsSinceEpoch;
-          tracksMap[track] = newTrExt.copyWith(size: newStat.size, dateModified: newDateModified, generatePathHash: TagsExtractor.defaultUniqueArtworkHash);
+          final hasNoEmbeddedArtwork = removeArtwork ? true : null;
+          tracksMap[track] = newTrExt.copyWith(
+            size: newStat.size,
+            dateModified: newDateModified,
+            hasNoEmbeddedArtwork: hasNoEmbeddedArtwork,
+            generatePathHash: TagsExtractor.defaultUniqueArtworkHash,
+          );
         }
       }
     }
@@ -235,20 +249,23 @@ class NamidaTaggerController {
     if (onUpdatingTracksStart != null) onUpdatingTracksStart();
 
     if (tracksMap.isNotEmpty) {
+      final editedPaths = tracksMap.keys.map((e) => e.path).toFixedList();
+      NamidaChannel.inst.scanMediaFilesTry(editedPaths);
       await Indexer.inst.updateTrackMetadata(
         tracksMap: tracksMap,
-        artworkWasEdited: imageFile != null,
+        artworkWasEdited: isArtworkEdited,
       );
     }
   }
 
-  /// writes each [FTags] only into a file holding none of its fields yet, file dates are kept.
+  /// writes each [FTags] only into a file holding none of its fields yet.
   Future<void> writeTagsIfMissing({
     required Map<Track, FTags> tagsPerTrack,
     required void Function(Track track, WriteIfMissingResult result) onTrack,
   }) async {
     await _extractor.initializeForWrite();
     final splittersConfigs = SplitArtistGenreConfigsWrapper.settings();
+    final keepFileDates = settings.editTagsKeepFileDates.value;
     final tracksMap = <Track, TrackExtended>{};
     for (final e in tagsPerTrack.entries) {
       final track = e.key;
@@ -256,7 +273,7 @@ class NamidaTaggerController {
       final file = File(track.path);
       final res = await file.executeAndKeepStats(
         () => _extractor.writeTagsIfMissing(path: track.path, newTags: newTags),
-        keepStats: true,
+        keepStats: keepFileDates,
       );
       onTrack(track, res);
       if (!res.didWrite || res.error != null) continue;
@@ -270,6 +287,8 @@ class NamidaTaggerController {
     await _extractor.disposeForWrite();
 
     if (tracksMap.isNotEmpty) {
+      final editedPaths = tracksMap.keys.map((e) => e.path).toFixedList();
+      NamidaChannel.inst.scanMediaFilesTry(editedPaths);
       await Indexer.inst.updateTrackMetadata(
         tracksMap: tracksMap,
         artworkWasEdited: false,
@@ -277,10 +296,10 @@ class NamidaTaggerController {
     }
   }
 
-  FTags _editedTagsToFTags(Map<TagField, String> editedTags, File? imageFile) {
+  FTags _editedTagsToFTags(Map<TagField, String> editedTags, FArtwork artwork) {
     return FTags.edit(
       path: '',
-      artwork: FArtwork(file: imageFile),
+      artwork: artwork,
       title: editedTags[TagField.title],
       album: editedTags[TagField.album],
       artist: editedTags[TagField.artist],
@@ -306,6 +325,7 @@ class NamidaTaggerController {
       country: editedTags[TagField.country],
       bpm: _bpmStringToInt(editedTags[TagField.bpm]),
       musicalKey: editedTags[TagField.musicalKey],
+      itunesAdvisory: editedTags[TagField.explicit],
       tags: editedTags[TagField.tags],
       ratingPercentage: () {
         final ratingString = editedTags[TagField.rating];

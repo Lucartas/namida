@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import 'package:flutter_scrollbar_modified/flutter_scrollbar_modified.dart';
 import 'package:modern_titlebar_buttons/modern_titlebar_buttons.dart' as mtb;
 
 import 'package:namida/base/setting_subpage_provider.dart';
@@ -28,6 +29,7 @@ import 'package:namida/core/functions.dart';
 import 'package:namida/core/icon_fonts/broken_icons.dart';
 import 'package:namida/core/namida_converter_ext.dart';
 import 'package:namida/core/ntheme.dart';
+import 'package:namida/core/sort_key.dart';
 import 'package:namida/core/translations/language.dart';
 import 'package:namida/core/utils.dart';
 import 'package:namida/main.dart';
@@ -104,12 +106,13 @@ class ExtrasSettings extends SettingSubpageProvider {
         enabledWhen: () => !Dimensions.inst.showNavigationAtSide,
         onChanged: (isEnabled) => MiniPlayerController.inst.updateBottomNavBarRelatedDimensions(isEnabled),
       ),
-      SettingToggle(
-        settings.enablePip,
-        availability: NamidaFeaturesAvailablity.android,
-        icon: Broken.screenmirroring,
+      SettingCustom(
         title: () => lang.enablePictureInPicture,
-        onChanged: (isEnabled) => NamidaChannel.inst.setCanEnterPip(isEnabled),
+        availability: NamidaFeaturesAvailablity.android,
+        keys: [settings.pipContents],
+        tile: (args) => _PipContentsTile(
+          bgColor: args.bgColor,
+        ),
       ),
       SettingChoice(
         settings.floatingActionButton,
@@ -133,7 +136,7 @@ class ExtrasSettings extends SettingSubpageProvider {
     [
       SettingCustom(
         title: () => lang.filterTracksBy,
-        keys: [settings.trackSearchFilterDefault, settings.trackSearchFilterPresets],
+        keys: [settings.trackSearchFilterDefault, settings.trackSearchFilterPresets, settings.trackSearchListensBoost],
         onReset: SearchSortController.inst.onTrackSearchFilterChanged,
         tile: (args) => _FilterTracksByTile(
           bgColor: args.bgColor,
@@ -141,7 +144,7 @@ class ExtrasSettings extends SettingSubpageProvider {
       ),
       SettingCustom(
         title: () => lang.ignoreCommonPrefixesWhileSorting,
-        keys: [settings.ignoreCommonPrefixForTypes, settings.commonPrefixes],
+        keys: [settings.ignoreCommonPrefixForTypes, settings.commonPrefixes, settings.ignoreLeadingSymbols],
         tile: (args) => _CommonPrefixesTile(
           bgColor: args.bgColor,
         ),
@@ -490,6 +493,36 @@ class _ExtrasFlagsOptions extends StatelessWidget {
     );
   }
 
+  static Iterable<NamidaPopupItem> _getScrollbarTrackChildren() {
+    return [
+      ...ScrollbarTrackMode.values.map(
+        (e) => NamidaPopupItem(
+          icon: e.toIcon(),
+          title: e.toText(),
+          selected: e == settings.scrollbarTrackMode.value,
+          onTap: () => settings.scrollbarTrackMode.save(e),
+        ),
+      ),
+      NamidaPopupItem(
+        icon: Broken.flash,
+        title: 'instant thumb grab',
+        hasDividerAbove: true,
+        onTap: () {
+          final isInstantThumbGrab = settings.instantThumbGrab.value;
+          settings.instantThumbGrab.save(!isInstantThumbGrab);
+        },
+        trailing: ObxO(
+          rx: settings.instantThumbGrab,
+          builder: (context, instantThumbGrab) => CustomSwitch(
+            active: instantThumbGrab,
+            width: 37.0,
+            height: 20.0,
+          ),
+        ),
+      ),
+    ];
+  }
+
   static Iterable<NamidaPopupItem> _getSearchTypeChildren([void Function()? onSave]) {
     return SearchType.values.map(
       (e) => NamidaPopupItem(
@@ -536,7 +569,7 @@ class _ExtrasFlagsOptions extends StatelessWidget {
                   rx: settings.extra.floatingArtworkEffect,
                   builder: (context, floatingArtworkEffect) => CustomSwitchListTile(
                     icon: Broken.recovery_convert,
-                    value: floatingArtworkEffect ?? false,
+                    value: floatingArtworkEffect,
                     onChanged: (isTrue) => settings.extra.floatingArtworkEffect.save(!isTrue),
                     title: 'floating_artwork_effect'.toUpperCase(),
                     subtitle: "${lang.performanceNote}.\nMight affect battery usage.",
@@ -547,7 +580,7 @@ class _ExtrasFlagsOptions extends StatelessWidget {
                   rx: settings.extra.tiltingCardsEffect,
                   builder: (context, tiltingCardsEffect) => CustomSwitchListTile(
                     icon: Broken.d_rotate,
-                    value: tiltingCardsEffect ?? false,
+                    value: tiltingCardsEffect,
                     onChanged: (isTrue) => settings.extra.tiltingCardsEffect.save(!isTrue),
                     title: 'tilting_cards_effect'.toUpperCase(),
                     subtitle: "${lang.performanceNote}.\nMight affect battery usage.",
@@ -560,7 +593,7 @@ class _ExtrasFlagsOptions extends StatelessWidget {
               //   rx: settings.extra.reduceAnimations,
               //   builder: (context, reduceAnimations) => CustomSwitchListTile(
               //     icon: Broken.flash_1,
-              //     value: reduceAnimations ?? false,
+              //     value: reduceAnimations,
               //     onChanged: (isTrue) => settings.extra.reduceAnimations.save(!isTrue),
               //     title: 'reduce_animations'.toUpperCase(),
               //     subtitle: 'Transitions and animations finish almost instantly.',
@@ -571,7 +604,7 @@ class _ExtrasFlagsOptions extends StatelessWidget {
                   rx: settings.mediaWaveHaptic,
                   builder: (context, mediaWaveHaptic) => CustomSwitchListTile(
                     icon: Broken.watch_status,
-                    value: mediaWaveHaptic ?? false,
+                    value: mediaWaveHaptic,
                     onChanged: (isTrue) => settings.mediaWaveHaptic.save(!isTrue),
                     title: 'media_wave_haptic'.toUpperCase(),
                     subtitle: 'Haptic feedback following the rhythm.\nMight affect battery usage.',
@@ -584,7 +617,7 @@ class _ExtrasFlagsOptions extends StatelessWidget {
                   builder: (context, smoothScrolling) => CustomSwitchListTile(
                     icon: Broken.coin,
                     rotateIcon: 2,
-                    value: smoothScrolling ?? true,
+                    value: smoothScrolling,
                     onChanged: (isTrue) => settings.smoothScrolling.save(!isTrue),
                     title: 'smooth_scrolling'.toUpperCase(),
                   ),
@@ -597,52 +630,54 @@ class _ExtrasFlagsOptions extends StatelessWidget {
                     secondaryIcon: Broken.text,
                     secondaryIconSize: 12.0,
                   ),
-                  value: scrollbarThumbLabel ?? false,
+                  value: scrollbarThumbLabel,
                   onChanged: (isTrue) => settings.scrollbarThumbLabel.save(!isTrue),
                   title: 'scrollbar_thumb_label'.toUpperCase(),
                   subtitle: 'show the current letter/section next to the scrollbar while dragging it',
                 ),
               ),
-              ObxO(
-                rx: settings.enhancedDragToScroll,
-                builder: (context, enhancedDragToScroll) => CustomSwitchListTile(
-                  leading: const StackedIcon(
-                    baseIcon: Broken.row_vertical,
-                    secondaryIcon: Broken.arrow_swap,
-                    secondaryIconSize: 12.0,
-                  ),
-                  value: enhancedDragToScroll ?? true,
-                  onChanged: (isTrue) => settings.enhancedDragToScroll.save(!isTrue),
-                  title: 'enhanced_drag_to_scroll'.toUpperCase(),
-                  subtitle: 'drag anywhere on the scroll track to scroll',
-                ),
-              ),
-              ObxO(
-                rx: settings.easyScrollbarGrab,
-                builder: (context, easyScrollbarGrab) => CustomSwitchListTile(
-                  leading: const StackedIcon(
-                    baseIcon: Broken.row_vertical,
-                    secondaryIcon: Broken.flash,
-                    secondaryIconSize: 12.0,
-                  ),
-                  value: easyScrollbarGrab ?? false,
-                  onChanged: (isTrue) => settings.easyScrollbarGrab.save(!isTrue),
-                  title: 'easy_scrollbar_grab'.toUpperCase(),
-                  subtitle: 'drag the scrollbar thumb instantly and from a wider area',
-                ),
-              ),
-              ObxO(
-                rx: settings.tapToScroll,
-                builder: (context, tapToScroll) => CustomSwitchListTile(
-                  leading: const StackedIcon(
-                    baseIcon: Broken.row_vertical,
-                    secondaryIcon: Broken.cd,
-                    secondaryIconSize: 12.0,
-                  ),
-                  value: tapToScroll ?? false,
-                  onChanged: (isTrue) => settings.tapToScroll.save(!isTrue),
-                  title: 'tap_to_scroll'.toUpperCase(),
-                  subtitle: 'tap anywhere on the scroll track to scroll',
+              NamidaPopupWrapper(
+                childrenDefault: _getScrollbarTrackChildren,
+                childBuilder: (openMenu) => Obx(
+                  (context) {
+                    final trackMode = settings.scrollbarTrackMode.valueR;
+                    final isInstantThumbGrab = settings.instantThumbGrab.valueR;
+                    final trackModeSubtitle = trackMode.toSubtitle();
+                    final subtitle = isInstantThumbGrab ? '$trackModeSubtitle\nthe thumb can be dragged with no delay and from a wider area.' : trackModeSubtitle;
+                    final instantIcon = isInstantThumbGrab
+                        ? const Padding(
+                            padding: EdgeInsets.only(left: 4.0),
+                            child: Icon(
+                              Broken.flash,
+                              size: 16.0,
+                            ),
+                          )
+                        : null;
+                    return CustomListTile(
+                      leading: const StackedIcon(
+                        baseIcon: Broken.row_vertical,
+                        secondaryIcon: Broken.arrow_swap,
+                        secondaryIconSize: 12.0,
+                      ),
+                      title: 'scrollbar_behaviour'.toUpperCase(),
+                      subtitle: subtitle,
+                      trailing: NamidaPopupWrapper(
+                        childrenDefault: _getScrollbarTrackChildren,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            NamidaText(
+                              trackMode.toText(),
+                              style: NText.medium,
+                              textAlign: TextAlign.end,
+                            ),
+                            ?instantIcon,
+                          ],
+                        ),
+                      ),
+                      onTap: openMenu,
+                    );
+                  },
                 ),
               ),
               if (isDesktop) ...[
@@ -709,7 +744,7 @@ class _ExtrasFlagsOptions extends StatelessWidget {
                 rx: settings.extra.recentSearchesEnabled,
                 builder: (context, recentSearchesEnabled) => CustomSwitchListTile(
                   icon: Broken.search_status,
-                  value: recentSearchesEnabled ?? false,
+                  value: recentSearchesEnabled,
                   onChanged: (isTrue) => settings.extra.setRecentSearchesEnabled(!isTrue),
                   title: 'recent_searches'.toUpperCase(),
                   subtitle: 'saves searches and shows them in the search page',
@@ -738,7 +773,7 @@ class _ExtrasFlagsOptions extends StatelessWidget {
                 rx: settings.ytStyleButtonSwitcher,
                 builder: (context, ytStyleButtonSwitcher) => CustomSwitchListTile(
                   icon: Broken.video_octagon,
-                  value: ytStyleButtonSwitcher ?? false,
+                  value: ytStyleButtonSwitcher,
                   onChanged: (isTrue) => settings.ytStyleButtonSwitcher.save(!isTrue),
                   title: 'yt_style_player_button_switcher'.toUpperCase(),
                   subtitle: 'shows a button to switch between local style player and youtube style player',
@@ -748,7 +783,7 @@ class _ExtrasFlagsOptions extends StatelessWidget {
                 rx: settings.keepVideoFrameOnSwitch,
                 builder: (context, keepVideoFrameOnSwitch) => CustomSwitchListTile(
                   icon: Broken.video_play,
-                  value: keepVideoFrameOnSwitch ?? false,
+                  value: keepVideoFrameOnSwitch,
                   onChanged: (isTrue) => settings.keepVideoFrameOnSwitch.save(!isTrue),
                   title: 'keep_video_frame_on_switch'.toUpperCase(),
                   subtitle: 'Keep the last video frame while switching to an item whose video is already downloaded, instead of flashing the artwork in between.',
@@ -786,7 +821,6 @@ class _ExtrasFlagsOptions extends StatelessWidget {
               ObxO(
                 rx: settings.timeCapsuleYears,
                 builder: (context, timeCapsuleYears) {
-                  timeCapsuleYears ??= 0;
                   final now = DateTime.now();
                   const preferredYear = 2018;
 
@@ -984,7 +1018,7 @@ class JellysFlagsTiles extends StatelessWidget {
           rx: settings.extra.jellysPalette,
           builder: (context, jellysPalette) => CustomSwitchListTile(
             icon: Broken.color_swatch,
-            value: jellysPalette ?? false,
+            value: jellysPalette,
             onChanged: (isTrue) => NamidaJellys.setPaletteHijack(!isTrue),
             title: 'jellys_color_palette'.toUpperCase(),
           ),
@@ -1148,18 +1182,7 @@ class _CommonPrefixesTile extends StatelessWidget {
 
   const _CommonPrefixesTile({required this.bgColor});
 
-  static const _kUnsortableTypes = {
-    TrackSearchFilter.comment, TrackSearchFilter.description, TrackSearchFilter.year, //
-    TrackSearchFilter.moods, TrackSearchFilter.tags, TrackSearchFilter.lyrics, //
-  };
-
-  void _onTypeTap(TrackSearchFilter type) {
-    if (settings.ignoreCommonPrefixForTypes.value.contains(type)) {
-      settings.ignoreCommonPrefixForTypes.update((list) => list.remove(type));
-    } else {
-      settings.ignoreCommonPrefixForTypes.update((list) => list.addNoDuplicates(type));
-    }
-  }
+  static const _kSymbolsSample = '" ( ¿ … ♪';
 
   void _onPrefixRemoveTap(String prefix) {
     if (settings.commonPrefixes.value.length <= 1) return showMinimumItemsSnack(1);
@@ -1167,9 +1190,15 @@ class _CommonPrefixesTile extends StatelessWidget {
     settings.commonPrefixes.update((prefixes) => prefixes.remove(prefix));
   }
 
-  void _onRestorePrefixesTap() {
+  void _onSymbolsTap() {
+    final ignoreLeadingSymbols = settings.ignoreLeadingSymbols.value;
+    settings.ignoreLeadingSymbols.save(!ignoreLeadingSymbols);
+  }
+
+  void _onRestoreTap() {
+    settings.ignoreCommonPrefixForTypes.reset();
     settings.commonPrefixes.reset();
-    NamidaNavigator.inst.closeDialog();
+    settings.ignoreLeadingSymbols.reset();
   }
 
   void _showAddPrefixDialog() {
@@ -1184,11 +1213,6 @@ class _CommonPrefixesTile extends StatelessWidget {
       dialog: CustomBlurryDialog(
         title: lang.add,
         actions: [
-          IconButton(
-            tooltip: lang.restoreDefaults,
-            onPressed: _onRestorePrefixesTap,
-            icon: const Icon(Broken.refresh),
-          ),
           const CancelButton(),
           NamidaButton(
             text: lang.save,
@@ -1209,14 +1233,20 @@ class _CommonPrefixesTile extends StatelessWidget {
   }
 
   void _showDialog(ThemeData theme) {
-    final original = List<TrackSearchFilter>.from(settings.ignoreCommonPrefixForTypes.value);
-    final types = TrackSearchFilter.values.where((e) => !_kUnsortableTypes.contains(e)).toFixedList();
+    final originalTypes = List<TrackSearchFilter>.from(settings.ignoreCommonPrefixForTypes.value);
+    final originalPrefixes = List<String>.from(settings.commonPrefixes.value);
+    final originalIgnoreSymbols = settings.ignoreLeadingSymbols.value;
     final chipColor = theme.cardTheme.color;
     final addChipColor = chipColor?.withOpacityExt(1.0);
 
     void resortIfNecessary() {
-      final didChange = settings.ignoreCommonPrefixForTypes.value.didChangeFrom(original);
-      if (didChange) Indexer.inst.resortAllAfterSortKeysChange();
+      final ignoreCommonPrefixForTypes = settings.ignoreCommonPrefixForTypes.value;
+      final didChangeTypes = ignoreCommonPrefixForTypes.didChangeFrom(originalTypes);
+      final didChangePrefixes = settings.commonPrefixes.value.didChangeFrom(originalPrefixes);
+      final didChangeSymbols = settings.ignoreLeadingSymbols.value != originalIgnoreSymbols;
+      final didChangeMatching = didChangePrefixes || didChangeSymbols;
+      final shouldResort = didChangeTypes || (didChangeMatching && ignoreCommonPrefixForTypes.isNotEmpty);
+      if (shouldResort) Indexer.inst.resortAllAfterSortKeysChange();
     }
 
     NamidaNavigator.inst.navigateDialog(
@@ -1227,7 +1257,7 @@ class _CommonPrefixesTile extends StatelessWidget {
           IconButton(
             icon: const Icon(Broken.refresh),
             tooltip: lang.restoreDefaults,
-            onPressed: settings.ignoreCommonPrefixForTypes.reset,
+            onPressed: _onRestoreTap,
           ),
           DoneButton(
             additional: resortIfNecessary,
@@ -1236,11 +1266,22 @@ class _CommonPrefixesTile extends StatelessWidget {
         child: SmoothSingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _PrefixesSectionTitle(
+                title: lang.preview,
+              ),
+              const _PrefixesPreview(),
+              const SizedBox(height: 16.0),
+              _PrefixesSectionTitle(
+                title: lang.ignore,
+              ),
               ObxO(
                 rx: settings.commonPrefixes,
                 builder: (context, commonPrefixes) => Wrap(
                   crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 6.0,
+                  runSpacing: 6.0,
                   children: [
                     ...commonPrefixes.map(
                       (e) => _PrefixChip(
@@ -1250,34 +1291,31 @@ class _CommonPrefixesTile extends StatelessWidget {
                         onTap: () => _onPrefixRemoveTap(e),
                       ),
                     ),
-                    const NamidaContainerDivider(
-                      height: 24.0,
-                      width: 1.5,
-                      margin: EdgeInsets.symmetric(horizontal: 2.0),
-                    ),
-                    _PrefixChip(
-                      text: lang.add,
-                      icon: Broken.add_circle,
-                      color: addChipColor,
-                      onTap: _showAddPrefixDialog,
+                    NamidaTooltip(
+                      message: () => lang.add,
+                      child: _PrefixChip(
+                        text: null,
+                        icon: Broken.add_circle,
+                        color: addChipColor,
+                        onTap: _showAddPrefixDialog,
+                      ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 4.0),
-              const NamidaContainerDivider(),
-              ...types.map(
-                (e) => Padding(
-                  padding: const EdgeInsets.all(3.0),
-                  child: Obx(
-                    (context) => ListTileWithCheckMark(
-                      title: e.toText(),
-                      onTap: () => _onTypeTap(e),
-                      active: settings.ignoreCommonPrefixForTypes.valueR.contains(e),
-                    ),
-                  ),
-                ),
+              const SizedBox(height: 8.0),
+              ListTileWithCheckMark(
+                activeRx: settings.ignoreLeadingSymbols,
+                icon: Broken.omega_circle,
+                title: lang.symbols,
+                subtitle: _kSymbolsSample,
+                onTap: _onSymbolsTap,
               ),
+              const SizedBox(height: 16.0),
+              _PrefixesSectionTitle(
+                title: lang.applyTo,
+              ),
+              const _PrefixTypesTile(),
             ],
           ),
         ),
@@ -1289,7 +1327,11 @@ class _CommonPrefixesTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(
       (context) {
-        final prefixesText = settings.commonPrefixes.valueR.map((e) => e.addDQuotation()).join(', ');
+        final prefixesTexts = settings.commonPrefixes.valueR.map((e) => e.addDQuotation());
+        final prefixesText = [
+          if (settings.ignoreLeadingSymbols.valueR) lang.symbols,
+          ...prefixesTexts,
+        ].join(', ');
         final typesCount = settings.ignoreCommonPrefixForTypes.valueR.length;
         return CustomListTile(
           bgColor: bgColor,
@@ -1304,8 +1346,123 @@ class _CommonPrefixesTile extends StatelessWidget {
   }
 }
 
-class _PrefixChip extends StatelessWidget {
+class _PrefixesSectionTitle extends StatelessWidget {
+  final String title;
+
+  const _PrefixesSectionTitle({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
+      child: NamidaText(
+        title,
+        style: const NText(.small, weight: FontWeight.w600),
+        color: const NColors(.onSurface, opacity: 0.7),
+      ),
+    );
+  }
+}
+
+class _PrefixesPreview extends StatelessWidget {
+  const _PrefixesPreview();
+
+  /// plain ascii, so offsets in their sort keys match the text.
+  static const _kSamples = ['The Beatles', '...And Justice for All', '"A Perfect Circle"'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(
+      (context) {
+        final ignorer = SortKeyPrefixIgnorer(settings.commonPrefixes.valueR, ignoreSymbols: settings.ignoreLeadingSymbols.valueR, normalize: SortKey.of);
+        final isApplied = settings.ignoreCommonPrefixForTypes.valueR.isNotEmpty;
+        return AnimatedOpacity(
+          opacity: isApplied ? 1.0 : 0.4,
+          duration: const Duration(milliseconds: 200),
+          child: NDecoratedBox(
+            decoration: (colors) => BoxDecoration(
+              color: colors.cardTheme,
+              borderRadius: BorderRadius.circular(12.0.multipliedRadius),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
+              child: Column(
+                children: _kSamples
+                    .map(
+                      (e) => _PrefixesPreviewLine(
+                        text: e,
+                        ignoredLength: ignorer.ignoredLengthOf(SortKey.of(e)),
+                      ),
+                    )
+                    .toFixedList(),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PrefixesPreviewLine extends StatelessWidget {
   final String text;
+  final int ignoredLength;
+
+  const _PrefixesPreviewLine({
+    required this.text,
+    required this.ignoredLength,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ignoredText = text.substring(0, ignoredLength);
+    final keptText = text.substring(ignoredLength);
+    final sortLetter = keptText[0].toUpperCase();
+    final ignoredTextWidget = ignoredLength == 0
+        ? null
+        : NamidaText(
+            ignoredText,
+            style: NText.medium,
+            color: const NColors(.onSurface, opacity: 0.3),
+          );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        children: [
+          NDecoratedBox(
+            decoration: (colors) => BoxDecoration(
+              color: colors.secondaryContainer,
+              borderRadius: BorderRadius.circular(6.0.multipliedRadius),
+            ),
+            child: SizedBox(
+              width: 24.0,
+              height: 24.0,
+              child: Center(
+                child: NamidaText(
+                  sortLetter,
+                  style: const NText(.small, weight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10.0),
+          ?ignoredTextWidget,
+          Expanded(
+            child: NamidaText(
+              keptText,
+              style: NText.medium,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrefixChip extends StatelessWidget {
+  final String? text;
   final IconData icon;
   final Color? color;
   final void Function() onTap;
@@ -1319,29 +1476,104 @@ class _PrefixChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(2.0),
-      padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 10.0),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(16.0.multipliedRadius),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+    final text = this.text;
+    return NamidaInkWell(
+      borderRadius: 12.0,
+      padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 14.0),
+      bgColor: NColors.fixed(color),
+      onTap: onTap,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (text != null) ...[
             NamidaText(
               text,
               style: NText.medium,
             ),
-            const SizedBox(width: 6.0),
-            Icon(
-              icon,
-              size: 18.0,
-            ),
+            const SizedBox(width: 8.0),
           ],
-        ),
+          Icon(
+            icon,
+            size: 20.0,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrefixTypesTile extends StatelessWidget {
+  const _PrefixTypesTile();
+
+  static const _kUnsortableTypes = {
+    TrackSearchFilter.comment, TrackSearchFilter.description, TrackSearchFilter.year, //
+    TrackSearchFilter.moods, TrackSearchFilter.tags, TrackSearchFilter.lyrics, //
+  };
+
+  void _onTypeTap(TrackSearchFilter type) {
+    if (settings.ignoreCommonPrefixForTypes.value.contains(type)) {
+      settings.ignoreCommonPrefixForTypes.update((list) => list.remove(type));
+    } else {
+      settings.ignoreCommonPrefixForTypes.update((list) => list.addNoDuplicates(type));
+    }
+  }
+
+  Iterable<NamidaPopupItem> _getTypesItems() {
+    return TrackSearchFilter.values
+        .where((e) => !_kUnsortableTypes.contains(e))
+        .map(
+          (e) => NamidaPopupItem(
+            icon: e.toIcon(),
+            title: e.toText(),
+            popOnTap: false,
+            onTap: () => _onTypeTap(e),
+            trailing: _PrefixTypeCheckMark(
+              type: e,
+            ),
+          ),
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return NamidaPopupWrapper(
+      childrenDefault: _getTypesItems,
+      childBuilder: (openMenu) => ObxO(
+        rx: settings.ignoreCommonPrefixForTypes,
+        builder: (context, ignoreCommonPrefixForTypes) {
+          final isNoneSelected = ignoreCommonPrefixForTypes.isEmpty;
+          final selectedTypesTexts = TrackSearchFilter.values.where(ignoreCommonPrefixForTypes.contains).map((e) => e.toText());
+          final typesText = isNoneSelected ? lang.none : selectedTypesTexts.join(', ');
+          final colors = NColorsData.of(context);
+          final bgColor = isNoneSelected ? colors.secondaryContainer.withOpacityExt(0.6) : colors.cardTheme;
+          return CustomListTile(
+            bgColor: bgColor,
+            icon: Broken.task_square,
+            title: typesText,
+            trailing: const Icon(
+              Broken.arrow_down_2,
+              size: 20.0,
+            ),
+            onTap: openMenu,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PrefixTypeCheckMark extends StatelessWidget {
+  final TrackSearchFilter type;
+
+  const _PrefixTypeCheckMark({required this.type});
+
+  @override
+  Widget build(BuildContext context) {
+    return ObxO(
+      rx: settings.ignoreCommonPrefixForTypes,
+      builder: (context, ignoreCommonPrefixForTypes) => NamidaCheckMark(
+        size: 16.0,
+        active: ignoreCommonPrefixForTypes.contains(type),
       ),
     );
   }
@@ -1529,7 +1761,7 @@ class _LyricsSaveLocationTile extends StatelessWidget {
             ...LyricsSaveLocation.values.map(
               (e) => _LyricsSaveLocationOption(
                 location: e,
-                subtitle: e == LyricsSaveLocation.customFolder ? saveFolder : '',
+                subtitle: e == LyricsSaveLocation.customFolder ? saveFolder.toDisplayPath() : '',
                 onTap: () => _onLocationTap(e),
               ),
             ),
@@ -1663,7 +1895,7 @@ class _LyricsFoldersTile extends StatelessWidget {
               (e) => CustomListTile(
                 extraDense: true,
                 icon: Broken.folder,
-                title: e,
+                title: e.toDisplayPath(),
                 subtitle: e == saveFolder ? lang.lyricsSaveLocation : null,
                 trailingRaw: NamidaTextButton(
                   minHeight: NamidaTextButton.kDefaultMinHeight * 0.8,
@@ -2108,6 +2340,56 @@ class _IntegrationsFlagsOptions extends StatelessWidget {
   }
 }
 
+class _PipContentsTile extends StatelessWidget {
+  final Color? bgColor;
+
+  const _PipContentsTile({required this.bgColor});
+
+  static void _toggle(PipContent content) {
+    settings.pipContents.update((value) {
+      if (!value.remove(content)) value.add(content);
+    });
+  }
+
+  static List<NamidaPopupItem> _items() {
+    final enabled = settings.pipContents.value;
+    return PipContent.values
+        .map(
+          (e) => NamidaPopupItem(
+            selected: enabled.contains(e),
+            icon: e.toIcon(),
+            title: e.toText(),
+            onTap: () => _toggle(e),
+          ),
+        )
+        .toFixedList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return NamidaPopupWrapper(
+      childrenDefault: _items,
+      refreshListenable: settings.pipContents,
+      child: ObxO(
+        rx: settings.pipContents,
+        builder: (context, enabled) {
+          final enabledText = PipContent.values.where(enabled.contains).map((e) => e.toText()).join(', ');
+          return CustomListTile(
+            bgColor: bgColor,
+            icon: Broken.screenmirroring,
+            title: lang.enablePictureInPicture,
+            subtitle: enabledText,
+            trailing: NamidaText(
+              '${enabled.length}/${PipContent.values.length}',
+              style: NText.medium,
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _LyricsIntegrationsListTile extends StatelessWidget {
   const _LyricsIntegrationsListTile();
 
@@ -2274,4 +2556,27 @@ class _WebhookListTile extends StatelessWidget {
       ),
     );
   }
+}
+
+extension _ScrollbarTrackModeDisplay on ScrollbarTrackMode {
+  String toText() => switch (this) {
+    ScrollbarTrackMode.thumbOnly => 'thumb only',
+    ScrollbarTrackMode.dragAnywhere => 'drag anywhere',
+    ScrollbarTrackMode.jumpToTouch => 'jump to touch',
+    ScrollbarTrackMode.instantJump => 'instant jump',
+  };
+
+  String toSubtitle() => switch (this) {
+    ScrollbarTrackMode.thumbOnly => 'only the thumb can be dragged.',
+    ScrollbarTrackMode.dragAnywhere => 'drag anywhere on the scroll track to scroll (with a small delay).',
+    ScrollbarTrackMode.jumpToTouch => 'tap or drag (with a small delay) anywhere on the scroll track to jump there.',
+    ScrollbarTrackMode.instantJump => 'tap or drag anywhere on the scroll track to jump there instantly. list drags that start on the scroll track jump too.',
+  };
+
+  IconData toIcon() => switch (this) {
+    ScrollbarTrackMode.thumbOnly => Broken.lock_1,
+    ScrollbarTrackMode.dragAnywhere => Broken.arrow_swap,
+    ScrollbarTrackMode.jumpToTouch => Broken.finger_cricle,
+    ScrollbarTrackMode.instantJump => Broken.flash_circle,
+  };
 }

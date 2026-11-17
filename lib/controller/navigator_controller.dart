@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:native_device_orientation/native_device_orientation.dart';
 
 import 'package:namida/class/route.dart';
+import 'package:namida/controller/current_color.dart';
 import 'package:namida/controller/folders_controller.dart';
 import 'package:namida/controller/miniplayer_controller.dart';
 import 'package:namida/controller/playlist_controller.dart';
@@ -82,6 +83,25 @@ class NamidaNavigator {
   static const _defaultRouteAnimationDurMS = 400;
   static const kDefaultDialogDurationMS = 300;
   static const _kDialogDismissBlockDurationMS = 700;
+
+  final _dialogColorEntries = <_DialogColorEntry>[];
+
+  /// the color of the top open dialog, or the app color when it has none of its own.
+  Color get inheritedColor => _dialogColorEntries.lastOrNull?.color ?? CurrentColor.inst.color;
+
+  /// the color of the dialog [context] is in, null outside dialogs or when the dialog follows the app color.
+  static Color? dialogColorOf(BuildContext context) => context.getInheritedWidgetOfExactType<_DialogColorScope>()?.entry.color;
+
+  static Color inheritedColorOf(BuildContext context) => dialogColorOf(context) ?? CurrentColor.inst.color;
+
+  /// menus are pushed on the root navigator, this carries over the theme of the dialog they were opened from.
+  Widget captureDialogTheme(BuildContext context, Widget child) {
+    final dialogColor = dialogColorOf(context);
+    if (dialogColor == null) return child;
+    final navigatorContext = _rootNav.currentContext;
+    if (navigatorContext == null) return child;
+    return InheritedTheme.capture(from: context, to: navigatorContext).wrap(child);
+  }
 
   Future<T?> showMenu<T>({required PopupRoute<T> route}) async {
     ScrollSearchController.inst.unfocusKeyboard();
@@ -164,7 +184,7 @@ class NamidaNavigator {
   }
 
   Future<void> toggleFullScreen(Widget widget, {bool setOrientations = true, Future<void> Function()? onWillPop}) async {
-    if (_isInFullScreen) {
+    if (_isInFullScreen.value) {
       return await exitFullScreen();
     } else {
       return await enterFullScreen(widget, setOrientations: setOrientations, onWillPop: onWillPop);
@@ -268,11 +288,12 @@ class NamidaNavigator {
     }
   }
 
-  bool get isInFullScreen => _isInFullScreen;
-  bool _isInFullScreen = false;
+  bool get isInFullScreen => _isInFullScreen.value;
+  RxBaseCore<bool> get isInFullScreenRx => _isInFullScreen;
+  final _isInFullScreen = false.obs;
   Future<void> enterFullScreen(Widget widget, {bool setOrientations = true, Future<void> Function()? onWillPop}) async {
-    if (_isInFullScreen == true) return;
-    _isInFullScreen = true;
+    if (_isInFullScreen.value == true) return;
+    _isInFullScreen.value = true;
 
     WakelockController.inst.updateFullscreenStatus(true);
 
@@ -300,8 +321,8 @@ class NamidaNavigator {
   }
 
   Future<void> exitFullScreen() async {
-    if (_isInFullScreen == false) return;
-    _isInFullScreen = false;
+    if (_isInFullScreen.value == false) return;
+    _isInFullScreen.value = false;
 
     if (NamidaFeaturesVisibility.fullScreenChangesScreenSize) MiniPlayerController.inst.updateScreenValuesInitial(); // -- updates were dropped while in fullscreen
 
@@ -417,7 +438,11 @@ class NamidaNavigator {
       return true;
     }
 
-    theme ??= AppThemes.inst.getAppTheme(colorScheme, null, lighterDialogColor);
+    final ownColor = theme?.extension<NThemeAccent>()?.color ?? colorScheme;
+    final dialogColor = ownColor ?? _dialogColorEntries.lastOrNull?.color;
+    theme ??= AppThemes.inst.getAppTheme(dialogColor, null, lighterDialogColor);
+    final dialogColorEntry = _DialogColorEntry(dialogColor);
+    _dialogColorEntries.add(dialogColorEntry);
 
     final dialogWithBarrier = TapDetector(
       onTap: onWillPop,
@@ -425,9 +450,12 @@ class NamidaNavigator {
         color: Colors.black.withOpacityExt(blackBg ? 1.0 : 0.45),
         child: Transform.scale(
           scale: scale,
-          child: NTheme(
-            data: theme,
-            child: dialogBuilder == null ? dialog! : dialogBuilder(theme),
+          child: _DialogColorScope(
+            entry: dialogColorEntry,
+            child: NTheme(
+              data: theme,
+              child: dialogBuilder == null ? dialog! : dialogBuilder(theme),
+            ),
           ),
         ),
       ),
@@ -494,6 +522,7 @@ class NamidaNavigator {
     int closeCount = count.withMaximum(_openedNumbersManager._currentDialogNumber);
     while (closeCount > 0) {
       _openedNumbersManager.decrementDialogs();
+      _dialogColorEntries.removeLast();
       popRoot();
       closeCount--;
     }
@@ -519,11 +548,14 @@ class NamidaNavigator {
     final navigator = _rootNav.currentState;
     if (navigator == null) return null;
 
+    final dialogColor = _dialogColorEntries.lastOrNull?.color;
+
     _openedNumbersManager.incrementSheets();
     return navigator
         .push(
           _CustomModalBottomSheetRoute<T>(
             backgroundBlur: _openedNumbersManager._currentSheetNumber == 1 ? 3.0 : 0.0,
+            dialogColor: dialogColor,
             isScrollControlled: isScrollControlled,
             showDragHandle: showDragHandle,
             isDismissible: isDismissible,
@@ -819,10 +851,12 @@ class _OpenedNumbersManager {
 
 class _CustomModalBottomSheetRoute<T> extends ModalBottomSheetRoute<T> {
   final double backgroundBlur;
+  final Color? dialogColor;
   final bool Function()? hasUnsavedChanges;
 
   _CustomModalBottomSheetRoute({
     this.backgroundBlur = 0,
+    required this.dialogColor,
     required super.isScrollControlled,
     super.showDragHandle,
     super.isDismissible,
@@ -854,7 +888,17 @@ class _CustomModalBottomSheetRoute<T> extends ModalBottomSheetRoute<T> {
     Animation<double> animation,
     Animation<double> secondaryAnimation,
   ) {
-    final child = super.buildPage(context, animation, secondaryAnimation);
+    final sheet = super.buildPage(context, animation, secondaryAnimation);
+    final dialogColor = this.dialogColor;
+    final child = dialogColor == null
+        ? sheet
+        : _DialogColorScope(
+            entry: _DialogColorEntry(dialogColor),
+            child: NTheme(
+              data: AppThemes.inst.getAppTheme(dialogColor),
+              child: sheet,
+            ),
+          );
     final animationCompleter = Completer<void>();
 
     void animationStatusListener(AnimationStatus status) {
@@ -929,4 +973,67 @@ class _DialogOpenTapsBlockerState extends State<_DialogOpenTapsBlocker> {
       child: widget.child,
     );
   }
+}
+
+// by claude
+/// a dialog's own theme, menus, sheets and dialogs opened from that dialog inherit its color.
+class NamidaDialogTheme extends StatefulWidget {
+  final ThemeData data;
+  final Widget child;
+
+  const NamidaDialogTheme({
+    super.key,
+    required this.data,
+    required this.child,
+  });
+
+  @override
+  State<NamidaDialogTheme> createState() => _NamidaDialogThemeState();
+}
+
+class _NamidaDialogThemeState extends State<NamidaDialogTheme> {
+  late final _entry = context.getInheritedWidgetOfExactType<_DialogColorScope>()?.entry;
+
+  @override
+  void initState() {
+    super.initState();
+    _reportColor();
+  }
+
+  @override
+  void didUpdateWidget(NamidaDialogTheme oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(widget.data, oldWidget.data)) _reportColor();
+  }
+
+  void _reportColor() => _entry?.color = widget.data.extension<NThemeAccent>()?.color;
+
+  @override
+  Widget build(BuildContext context) {
+    return NTheme(
+      data: widget.data,
+      child: widget.child,
+    );
+  }
+}
+
+class _DialogColorScope extends InheritedTheme {
+  final _DialogColorEntry entry;
+
+  const _DialogColorScope({
+    required this.entry,
+    required super.child,
+  });
+
+  @override
+  Widget wrap(BuildContext context, Widget child) => _DialogColorScope(entry: entry, child: child);
+
+  @override
+  bool updateShouldNotify(_DialogColorScope oldWidget) => false;
+}
+
+class _DialogColorEntry {
+  Color? color;
+
+  _DialogColorEntry(this.color);
 }

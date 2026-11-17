@@ -6,7 +6,7 @@ class SyncUtils {
   static const kDefaultNamidaPort = 62310; // 2023-10, v1 of namida
 
   /// increment this only when introducing breaking changes
-  static const kSyncVersion = 6;
+  static const kSyncVersion = 7;
 
   /// if enabled, will directly edit library on receiving valid data
   /// if disabled, will only display a snackbar with the received info
@@ -27,6 +27,9 @@ class SyncUtils {
   }
 
   static final currentDeviceId = _fetchDeviceId();
+
+  /// apple blocks discovery until the user allows local network access, elsewhere it's mostly the adapter.
+  static String get discoveryFailedHint => Platform.isIOS || Platform.isMacOS ? lang.discoveryFailedAllowLocalNetworkAccess : lang.discoveryFailedTryReenablingNetworkAdapter;
 
   static Future<BaseMessageInfo> createMessageInfo(MessageActionType action) async {
     return BaseMessageInfo(
@@ -222,4 +225,28 @@ class SyncUtils {
 
     return localeInterfacesSet;
   }
+
+  static final _kConnectTimeoutErrorCode = Platform.isWindows ? 10060 : 110;
+
+  /// the timeout of [Socket.connect] itself, usually a firewall on the other device dropping the connection.
+  static bool isConnectTimeout(Object error) => error is SocketException && error.osError?.errorCode == _kConnectTimeoutErrorCode;
+
+  static Future<String> _runPowershell(String script, {Duration timeout = const Duration(seconds: 20)}) async {
+    final encodedScript = _encodePowershell(script);
+    final process = await Process.start('powershell', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encodedScript]);
+    final output = process.stdout.transform(systemEncoding.decoder).join();
+    process.stderr.drain<void>();
+    final exitCode = await process.exitCode.timeout(
+      timeout,
+      onTimeout: () {
+        process.kill();
+        return -1;
+      },
+    );
+    if (exitCode == -1) return 'timed out';
+    return (await output).trim();
+  }
+
+  /// what `-EncodedCommand` takes, no quoting needed.
+  static String _encodePowershell(String script) => base64.encode(Uint16List.fromList(script.codeUnits).buffer.asUint8List());
 }

@@ -46,6 +46,7 @@ import 'package:namida/core/ntheme.dart';
 import 'package:namida/core/translations/language.dart';
 import 'package:namida/core/utils.dart';
 import 'package:namida/packages/focused_menu.dart';
+import 'package:namida/packages/lyrics_lrc_parsed_view.dart';
 import 'package:namida/packages/miniplayer_raw.dart';
 import 'package:namida/packages/mp.dart';
 import 'package:namida/packages/three_arched_circle.dart';
@@ -54,15 +55,15 @@ import 'package:namida/ui/pages/sound_control_page.dart';
 import 'package:namida/ui/pages/wide_screen_player_page.dart';
 import 'package:namida/ui/widgets/animated_widgets.dart';
 import 'package:namida/ui/widgets/artwork.dart';
-import 'package:namida/ui/widgets/seekbar_bookmarks.dart';
-import 'package:namida/ui/widgets/seekbar_chapters.dart';
 import 'package:namida/ui/widgets/creative_animations.dart';
 import 'package:namida/ui/widgets/custom_widgets.dart';
-import 'package:namida/ui/widgets/live_progress.dart';
 import 'package:namida/ui/widgets/effects/effects.dart';
-import 'package:namida/ui/widgets/jellyfish.dart';
 import 'package:namida/ui/widgets/library/track_tile.dart';
+import 'package:namida/ui/widgets/live_progress.dart';
+import 'package:namida/ui/widgets/mascots/mascots.dart';
 import 'package:namida/ui/widgets/seek_magnet.dart';
+import 'package:namida/ui/widgets/seekbar_bookmarks.dart';
+import 'package:namida/ui/widgets/seekbar_chapters.dart';
 import 'package:namida/ui/widgets/settings/extra_settings.dart';
 import 'package:namida/ui/widgets/settings/playback_settings.dart';
 import 'package:namida/ui/widgets/settings/youtube_settings.dart';
@@ -316,18 +317,16 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
 
   Playable<Object> get _getcurrentItem => Player.inst.currentQueue.value[Player.inst.currentIndex.value];
 
-  /// what the last build used, the cache listener only rebuilds when it changes.
-  double? _lastArtworkAspectRatio;
+  final _previousImageRatio = _ImageSlotRatio();
+  final _currentImageRatio = _ImageSlotRatio();
+  final _nextImageRatio = _ImageSlotRatio();
 
   /// frozen while switching: the artwork keeps painting the outgoing frame, so the box keeps its ratio.
   double? _videoAspectRatio;
 
   void _artworkAspectRatiosListener() {
-    final item = Player.inst.currentItem.value;
-    if (item == null) return;
-    final ratio = ArtworkWidget.aspectRatioOf(playableArtworkCacheKey(item));
-    if (ratio == null || ratio == _lastArtworkAspectRatio) return;
-    refreshState();
+    final didChange = _currentImageRatio.didArtworkRatioChange() || _previousImageRatio.didArtworkRatioChange() || _nextImageRatio.didArtworkRatioChange();
+    if (didChange) refreshState();
   }
 
   @override
@@ -384,6 +383,8 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
   }
 
   static AnimationController get getsAnim => MiniPlayerController.inst.sAnim;
+
+  static LyricsLRCParsedViewState? get _visibleLyricsView => MiniPlayerController.inst.isMinimized ? null : Lyrics.inst.lrcViewKey.currentState;
 
   final leftOpacityAnim = Tween<double>(
     begin: 0.0,
@@ -507,49 +508,6 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
       ),
     );
 
-    final seekPositionTextChild = ObxO(
-      rx: MiniPlayerController.inst.seekValue,
-      builder: (context, seekNull) => NamidaAnimatedSwitcher(
-        key: const ValueKey('seek_switcher'),
-        firstChild: Obx(
-          (context) {
-            final seek = seekNull ?? 0;
-            final liveWindow = Player.inst.currentLiveWindow.valueR;
-            if (liveWindow != null && liveWindow.isAtEdge(seek)) {
-              return const Icon(
-                Broken.radar_1,
-                size: 16.0,
-              );
-            }
-            String finalText;
-            if (liveWindow != null) {
-              final behindMS = liveWindow.behindEdgeMS(seek);
-              finalText = '-${behindMS.milliSecondsLabel}';
-            } else if (settings.player.displayActualPositionWhenSeeking.valueR) {
-              final itemDur = Player.inst.currentItemDuration.valueR?.inMilliseconds;
-              int seekClamped = seek;
-              seekClamped = seekClamped.withMinimum(0);
-              if (itemDur != null) seekClamped = seekClamped.withMaximum(itemDur);
-              finalText = seekClamped.milliSecondsLabel;
-            } else {
-              final diffInMs = seek - Player.inst.nowPlayingPositionR;
-              final plusOrMinus = diffInMs < 0 ? '' : '+';
-              final seekText = diffInMs.milliSecondsLabel;
-              finalText = "$plusOrMinus$seekText";
-            }
-            return NamidaText(
-              finalText,
-              style: const NText(.small, size: .s13),
-            );
-          },
-        ),
-        secondChild: const SizedBox(),
-        showFirst: seekNull != null,
-        durationMS: 700,
-        allCurves: Curves.easeInOutQuart,
-      ),
-    );
-
     final positionTextChild = SeekBackwardsDetectorWidget(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12.0),
@@ -593,7 +551,7 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
       mainAxisAlignment: MainAxisAlignment.end,
       mainAxisSize: MainAxisSize.max,
       children: [
-        if (widget.videoTileConfigs != null && settings.ytStyleButtonSwitcher.value == true)
+        if (widget.videoTileConfigs != null && settings.ytStyleButtonSwitcher.value)
           MPCustomIconButton(
             tooltipCallback: () => lang.youtubeStyleMiniplayer,
             onPressed: () {
@@ -665,23 +623,19 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
 
     final maxQueueHeight = MiniPlayerController.inst.maxOffset - 100.0 - MiniPlayerController.inst.topInset - 12.0;
 
-    final colorScheme = CurrentColor.inst.color;
-
     Widget buildQueueColumn(Widget header, TrackTileProperties? trackTileProperties, VideoTileProperties? videoTileProperties) {
       return Column(
         children: [
           NBuilder(
             builder: (context, colors) {
-              final scaffoldBgColor = Color.alphaBlend(colors.scaffold.withOpacityExt(0.5), context.isDarkMode ? Colors.black : Colors.white);
+              final accentColor = colors.accent ?? CurrentColor.inst.color;
               return DecoratedBox(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color.alphaBlend(scaffoldBgColor.withOpacityExt(0.90), colorScheme).withOpacityExt(0.5),
-                      Color.alphaBlend(scaffoldBgColor.withOpacityExt(0.65), colorScheme).withOpacityExt(0.5),
-                    ],
+                  gradient: NamidaGradients.accentCard(
+                    scaffold: colors.scaffold,
+                    accent: accentColor,
+                    isDarkMode: context.isDarkMode,
+                    opacity: 0.5,
                   ),
                 ),
                 child: Column(
@@ -808,14 +762,7 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
                     child: QueueUtilsRow(
                       itemsKeyword: (number) => widget.itemsKeyword(number, _getcurrentItem),
                       onAddItemsTap: () => widget.onAddItemsTap(_getcurrentItem),
-                      scrollQueueWidget: ObxO(
-                        rx: MiniPlayerController.inst.queueFollower.arrowIcon,
-                        builder: (context, arrow) => NamidaButton(
-                          tooltip: () => lang.jump,
-                          onTap: MiniPlayerController.inst.queueFollower.animateToCurrentItem,
-                          icon: arrow,
-                        ),
-                      ),
+                      queueFollower: MiniPlayerController.inst.queueFollower,
                     ),
                   ),
                 ),
@@ -850,9 +797,11 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
             }
             final currentItem = queue[currentIndexReal];
             final currentItemAnimationUI = queue[currentIndexAnimationUI];
+            final prevItem = queue[indminusAnimationUI];
+            final nextItem = queue[indplusAnimationUI];
             final currentDefaultDurationInMS = widget.getDurationMS?.call(currentItem) ?? 0;
 
-            final videoInfo = Player.inst.videoPlayerInfo.valueR;
+            final videoInfo = VideoController.inst.displayedVideoInfo.valueR;
             final showSimpleLyricsLine = settings.enableSimpleLyricsLine.valueR && !settings.enableLyrics.valueR;
             final simpleLyricsLRC = showSimpleLyricsLine ? Lyrics.inst.currentLyricsLRC.valueR : null;
             final simpleLyricsBandHeight = simpleLyricsLRC != null
@@ -872,8 +821,10 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
               userScaleMultiplier: settings.animatingThumbnailScaleMultiplier.valueR,
             );
             if (override == null) _videoAspectRatio = videoInfo != null && videoInfo.isInitialized ? videoInfo.aspectRatio : null;
-            final imageAspectRatio = resolvePlayableImageAspectRatio(currentItem, _videoAspectRatio);
-            _lastArtworkAspectRatio = ArtworkWidget.aspectRatioOf(playableArtworkCacheKey(currentItem));
+            // -- adjacent cards never paint video
+            final imageAspectRatio = _currentImageRatio.resolve(currentItemAnimationUI, _videoAspectRatio);
+            final previousImageAspectRatio = _previousImageRatio.resolve(prevItem, null);
+            final nextImageAspectRatio = _nextImageRatio.resolve(nextItem, null);
 
             Widget? previousImageWidget;
             Widget? nextImageWidget;
@@ -883,9 +834,6 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
             widget.textRefreshRx?.valueR;
 
             if (queue.isNotEmpty) {
-              final prevItem = queue[indminusAnimationUI];
-              final nextItem = queue[indplusAnimationUI];
-
               prevText = widget.textBuilder(prevItem);
               nextText = widget.textBuilder(nextItem);
 
@@ -904,7 +852,7 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
               currentImage = TapDetector(
                 onTap: () {
                   // -- taps missing a lyrics line (gaps, mid-scroll, faded out) belong to the lyrics
-                  final isShowingLyricsView = Lyrics.inst.lrcViewKey.currentState != null;
+                  final isShowingLyricsView = _visibleLyricsView != null;
                   final hasLyrics = Lyrics.inst.currentLyricsLRC.value != null || Lyrics.inst.currentLyricsText.value.text.isNotEmpty;
                   if (isShowingLyricsView && hasLyrics) return;
                   settings.artworkTapAction.value.executePlayingItem(currentItemAnimationUI);
@@ -915,7 +863,7 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
 
             currentImage = LongPressDetector(
               onLongPress: () {
-                final lrcState = Lyrics.inst.lrcViewKey.currentState;
+                final lrcState = _visibleLyricsView;
                 if (lrcState != null) {
                   lrcState.enterFullScreen();
                   return;
@@ -1056,6 +1004,8 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
               (
                 navBarHeight: navBarHeight,
                 imageAspectRatio: imageAspectRatio,
+                previousImageAspectRatio: previousImageAspectRatio,
+                nextImageAspectRatio: nextImageAspectRatio,
                 simpleLyricsBandHeight: simpleLyricsBandHeight,
                 thumbnailBaseScale: thumbnailBaseScale,
                 panelBaseRadius: panelBaseRadius,
@@ -1068,7 +1018,7 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
             final isThemeAnimated = settings.animatedTheme.valueR;
             final isPartyModeEnabled = settings.enablePartyModeInMiniplayer.valueR;
             final hideStatusBarInExpanded = settings.hideStatusBarInExpandedMiniplayer.valueR;
-            final hasJellys = NamidaJellys.enabledRx.valueR;
+            final hasMascot = NamidaMascots.activeRx.valueR != null;
 
             return MiniplayerRaw(
               child: Stack(
@@ -1101,18 +1051,12 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
                                 child: Stack(
                                   alignment: Alignment.bottomLeft,
                                   children: [
-                                    if (hasJellys)
+                                    if (hasMascot)
                                       Positioned.fill(
                                         child: ClipRRect(
                                           clipper: _PanelShapeClipper(geometry),
-                                          child: NamidaJellyBackground(
-                                            count: 4,
-                                            opacity: 0.3,
+                                          child: NamidaMascotBackground.panel(
                                             fade: NamidaMiniPlayerBase.clampedAnimationCP,
-                                            minHeight: 70.0,
-                                            maxHeight: 210.0,
-                                            reactToPlayback: true,
-                                            seed: 7,
                                           ),
                                         ),
                                       ),
@@ -1149,6 +1093,7 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
                       offset: geometry.imageOffset,
                       child: _RawImageContainer(
                         geometry: geometry,
+                        constraints: geometry.imageConstraints,
                         child: NamidaVisualizer.aroundArtwork(
                           opacity: slowOpacityAnimation,
                           artworkScale: thumbnailBaseScale,
@@ -1208,11 +1153,11 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
                             child: _ScaleYIfNeeded(
                               alignment: Alignment.bottomCenter,
                               scale: waveformYScale,
-                              child: Align(
+                              child: const Align(
                                 alignment: Alignment.bottomCenter,
                                 child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                                  child: seekPositionTextChild,
+                                  padding: EdgeInsets.symmetric(horizontal: 16.0),
+                                  child: _SeekPositionText(),
                                 ),
                               ),
                             ),
@@ -1259,7 +1204,7 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
                                         geometry: geometry,
                                         icon: Broken.previous,
                                         onPressed: MiniPlayerController.inst.snapToPrev,
-                                        onLongPress: () => Player.inst.seek(Duration.zero),
+                                        onLongPress: Player.inst.seekToItemStart,
                                       ),
                                     ),
                                     _ScaleLayoutBox(
@@ -1364,6 +1309,7 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
                               offset: geometry.previousImageOffset,
                               child: _RawImageContainer(
                                 geometry: geometry,
+                                constraints: geometry.previousImageConstraints,
                                 child: ListenablePadding(
                                   padding: geometry.imageInnerPadding,
                                   child: previousImageWidget,
@@ -1377,6 +1323,7 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
                             offset: geometry.currentImageOffset,
                             child: _RawImageContainer(
                               geometry: geometry,
+                              constraints: geometry.imageConstraints,
                               child: ListenablePadding(
                                 padding: geometry.imageInnerPadding,
                                 child: ObxO(
@@ -1413,6 +1360,7 @@ class _NamidaMiniPlayerBaseState<E, S> extends State<NamidaMiniPlayerBase<E, S>>
                               offset: geometry.nextImageOffset,
                               child: _RawImageContainer(
                                 geometry: geometry,
+                                constraints: geometry.nextImageConstraints,
                                 child: ListenablePadding(
                                   padding: geometry.imageInnerPadding,
                                   child: nextImageWidget,
@@ -1516,9 +1464,11 @@ class _MiniplayerGeometry extends ChangeNotifier {
     notifyListeners();
   }
 
+  final _expandedLayout = _MiniplayerLayout();
+
   /// the space the lyrics get while fully expanded, so animating never relays them out.
   Size computeExpandedLyricsMaxSize() {
-    final expanded = _MiniplayerLayout()..update(1.0, _inputs);
+    final expanded = _expandedLayout..update(1.0, _inputs);
     final width = expanded.imageMaxWidthPre;
     return Size(width, expanded.imageMaxHeightPre.withMaximum(width));
   }
@@ -1548,13 +1498,15 @@ class _MiniplayerGeometry extends ChangeNotifier {
   late final nextPrevInnerPadding = _LayoutValue(this, (l) => EdgeInsets.symmetric(horizontal: l.nextPrevIconPadding / 2, vertical: l.nextPrevIconPadding));
   late final nextPrevIconScale = _LayoutValue(this, (l) => (21.0 + 11.0 * l.nextPrevMultiplier) / _kNextPrevMaxIconSize);
 
-  late final imageOffset = _LayoutValue(this, (l) => Offset(l.imageLeftOffset, l.vOffsetImage));
+  late final imageOffset = _LayoutValue(this, (l) => Offset(l.currentImage.leftOffset, l.currentImage.vOffset));
   late final imagePadding = _LayoutValue(this, (l) => EdgeInsets.fromLTRB(l.imagePaddingLeft, l.imagePaddingAll, l.imagePaddingAll, l.imagePaddingAll));
-  late final imageConstraints = _LayoutValue(this, (l) => BoxConstraints.tightFor(width: l.imageBoxWidth, height: l.imageBoxHeight));
+  late final imageConstraints = _LayoutValue(this, (l) => BoxConstraints.tightFor(width: l.currentImage.boxWidth, height: l.currentImage.boxHeight));
+  late final previousImageConstraints = _LayoutValue(this, (l) => BoxConstraints.tightFor(width: l.previousImage.boxWidth, height: l.previousImage.boxHeight));
+  late final nextImageConstraints = _LayoutValue(this, (l) => BoxConstraints.tightFor(width: l.nextImage.boxWidth, height: l.nextImage.boxHeight));
   late final imageInnerPadding = _LayoutValue(this, (l) => EdgeInsets.all(l.imagePaddingAll));
-  late final previousImageOffset = _SwipeLayoutValue(this, (l, s) => Offset(-s * l.imageSwitchSpacing - l.imageSwitchSpacing + l.imageLeftOffset, l.vOffsetImage));
-  late final currentImageOffset = _SwipeLayoutValue(this, (l, s) => Offset(-s * l.imageSwitchSpacing + l.imageLeftOffset, l.vOffsetImage));
-  late final nextImageOffset = _SwipeLayoutValue(this, (l, s) => Offset(-s * l.imageSwitchSpacing + l.imageSwitchSpacing + l.imageLeftOffset, l.vOffsetImage));
+  late final previousImageOffset = _SwipeLayoutValue(this, (l, s) => Offset(-s * l.imageSwitchSpacing - l.imageSwitchSpacing + l.previousImage.leftOffset, l.previousImage.vOffset));
+  late final currentImageOffset = _SwipeLayoutValue(this, (l, s) => Offset(-s * l.imageSwitchSpacing + l.currentImage.leftOffset, l.currentImage.vOffset));
+  late final nextImageOffset = _SwipeLayoutValue(this, (l, s) => Offset(-s * l.imageSwitchSpacing + l.imageSwitchSpacing + l.nextImage.leftOffset, l.nextImage.vOffset));
 
   late final previousTrackInfoOffset = _SwipeLayoutValue(this, (l, s) => Offset(-s * l.infoSwitchSpacing - l.infoSwitchSpacing, l.vOffsetTrackInfo));
   late final currentTrackInfoOffset = _SwipeLayoutValue(this, (l, s) => Offset(-s * l.sMaxOffset / MiniPlayerController.kStParallax + (12.0 * l.qp), l.vOffsetTrackInfo));
@@ -1574,7 +1526,7 @@ class _MiniplayerGeometry extends ChangeNotifier {
 
   late final simpleLyricsOffset = _LayoutValue(
     this,
-    (l) => Offset(0.0, l.vOffsetTrackInfo - l.trackInfoBoxHeight * l.bcp + 12.0 * l.heightFactor * l.bcp - l.imageExtraLift * 0.5),
+    (l) => Offset(0.0, l.vOffsetTrackInfo - l.trackInfoBoxHeight * l.bcp + 12.0 * l.heightFactor * l.bcp - l.currentImage.extraLift * 0.5),
   );
   late final progressBarOffset = _LayoutValue(
     this,
@@ -1607,7 +1559,6 @@ class _MiniplayerLayout {
   double vOffsetControls = 0.0;
   double vOffsetWaveform = 0.0;
   double vOffsetTrackInfo = 0.0;
-  double vOffsetImage = 0.0;
   double trackInfoBoxHeight = 0.0;
 
   double nextPrevMultiplier = 0.0;
@@ -1617,18 +1568,29 @@ class _MiniplayerLayout {
   double imageWidth = 0.0;
   double imageMaxWidthPre = 0.0;
   double imageMaxHeightPre = 0.0;
-  double imageBoxWidth = 0.0;
-  double imageBoxHeight = 0.0;
   double imagePaddingAll = 0.0;
   double imagePaddingLeft = 0.0;
-  double imageLeftOffset = 0.0;
   double imageSwitchSpacing = 0.0;
-  double imageExtraLift = 0.0;
+
+  double imageBaseVOffset = 0.0;
+  double imageSpaceAbove = 0.0;
+  double imageSpaceInPanel = 0.0;
+  double imageCenterLeft = 0.0;
+
+  final previousImage = _ImageSlotLayout();
+  final currentImage = _ImageSlotLayout();
+  final nextImage = _ImageSlotLayout();
 
   RRect panelShapeOf(Rect rect) {
     final topRadius = Radius.circular(panelTopRadius);
     final bottomRadius = Radius.circular(panelBottomRadius);
-    return RRect.fromRectAndCorners(rect, topLeft: topRadius, topRight: topRadius, bottomLeft: bottomRadius, bottomRight: bottomRadius);
+    return RRect.fromRectAndCorners(
+      rect,
+      topLeft: topRadius,
+      topRight: topRadius,
+      bottomLeft: bottomRadius,
+      bottomRight: bottomRadius,
+    );
   }
 
   void update(double p, _MiniplayerLayoutInputs inputs) {
@@ -1714,31 +1676,10 @@ class _MiniplayerLayout {
     // -- width, a fixed one only holds the overshoot inside the panel up to ~380 wide.
     final imageMaxWidthPre = sMaxOffset - (sMaxOffset * 0.2).withMinimum(76.0);
     final imageMaxHeightPre = maxOffset - -vOffsetImage - topRowHeight - topInset - 24.0 * heightFactor;
-    // -- the box follows the picture's ratio, so wide videos/thumbnails use the width
-    // -- instead of shrinking to whatever square fits the height.
-    final imageAspectRatio = inputs.imageAspectRatio;
-    final imageWidthBig = imageMaxWidthPre.withMaximum(imageMaxHeightPre * imageAspectRatio);
-    final imageHeightBig = imageWidthBig / imageAspectRatio;
-
-    // -- collapsed thumbnail stays square, the ratio only kicks in while expanding.
-    final imageBoxWidth = velpy(a: imageWidth, b: imageWidthBig, c: bcp);
-    final imageBoxHeight = velpy(a: imageWidth, b: imageHeightBig, c: bcp);
-    // -- the painted picture overshoots its box, adjacent items must clear it while sliding.
-    final imageSwitchSpacing = (sMaxOffset / MiniPlayerController.kSiParallax).withMinimum(imageBoxWidth * inputs.thumbnailBaseScale + 12.0);
-
-    final spaceLeftAboveImage = maxOffset - -vOffsetImage - imageBoxHeight - topInset - topRowHeight;
-    double imageExtraLift = 0.0;
-    if (spaceLeftAboveImage > 0) {
-      final spaceLeftInPanelAboveInfo = (panelFinal - -vOffsetTrackInfo - trackInfoBoxHeight); // dont remove too much that it goes above panel
-      imageExtraLift = ((spaceLeftInPanelAboveInfo * 0.5).withMaximum(spaceLeftAboveImage * 0.5)) * bcp;
-      vOffsetImage -= imageExtraLift; // re-adjust offset to make the image semi-centered
-    } else {
-      vOffsetImage += (-spaceLeftAboveImage / 2) * bcp;
-    }
+    final spaceLeftInPanelAboveInfo = (panelFinal - -vOffsetTrackInfo - trackInfoBoxHeight); // dont remove too much that it goes above panel
 
     final imagePaddingAll = 12.0 * (1 - bcp);
     final imagePaddingLeft = imagePaddingAll + 42.0 * bcp;
-    final imageEmptyRightSpace = screenWidth - imageBoxWidth;
 
     final panelBaseRadius = inputs.panelBaseRadius;
 
@@ -1762,7 +1703,6 @@ class _MiniplayerLayout {
     this.vOffsetControls = vOffsetControls;
     this.vOffsetWaveform = vOffsetWaveform;
     this.vOffsetTrackInfo = vOffsetTrackInfo;
-    this.vOffsetImage = vOffsetImage;
     this.trackInfoBoxHeight = trackInfoBoxHeight;
     this.nextPrevMultiplier = nextprevmultiplier;
     this.nextPrevIconPadding = nextPrevIconPadding;
@@ -1770,13 +1710,59 @@ class _MiniplayerLayout {
     this.imageWidth = imageWidth;
     this.imageMaxWidthPre = imageMaxWidthPre;
     this.imageMaxHeightPre = imageMaxHeightPre;
-    this.imageBoxWidth = imageBoxWidth;
-    this.imageBoxHeight = imageBoxHeight;
     this.imagePaddingAll = imagePaddingAll;
     this.imagePaddingLeft = imagePaddingLeft;
-    this.imageLeftOffset = ((imageEmptyRightSpace / 2) - imagePaddingLeft - rightInset) * bcp;
-    this.imageSwitchSpacing = imageSwitchSpacing;
-    this.imageExtraLift = imageExtraLift;
+    this.imageBaseVOffset = vOffsetImage;
+    this.imageSpaceAbove = maxOffset - -vOffsetImage - topInset - topRowHeight;
+    this.imageSpaceInPanel = spaceLeftInPanelAboveInfo;
+    this.imageCenterLeft = screenWidth / 2 - imagePaddingLeft - rightInset;
+
+    previousImage.update(inputs.previousImageAspectRatio, this);
+    currentImage.update(inputs.imageAspectRatio, this);
+    nextImage.update(inputs.nextImageAspectRatio, this);
+
+    // -- the painted picture overshoots its box, adjacent items must clear it while sliding.
+    final widestImageBoxWidth = currentImage.boxWidth.withMinimum(previousImage.boxWidth).withMinimum(nextImage.boxWidth);
+    this.imageSwitchSpacing = (sMaxOffset / MiniPlayerController.kSiParallax).withMinimum(widestImageBoxWidth * inputs.thumbnailBaseScale + 12.0);
+  }
+}
+
+/// One card's box, the incoming card follows its own picture instead of the outgoing one's.
+class _ImageSlotLayout {
+  double boxWidth = 0.0;
+  double boxHeight = 0.0;
+  double leftOffset = 0.0;
+  double vOffset = 0.0;
+  double extraLift = 0.0;
+
+  void update(double aspectRatio, _MiniplayerLayout layout) {
+    final bcp = layout.bcp;
+    final collapsedWidth = layout.imageWidth;
+
+    // -- the box follows the picture's ratio, so wide videos/thumbnails use the width
+    // -- instead of shrinking to whatever square fits the height.
+    final widthBig = layout.imageMaxWidthPre.withMaximum(layout.imageMaxHeightPre * aspectRatio);
+    final heightBig = widthBig / aspectRatio;
+
+    // -- collapsed thumbnail stays square, the ratio only kicks in while expanding.
+    final boxWidth = velpy(a: collapsedWidth, b: widthBig, c: bcp);
+    final boxHeight = velpy(a: collapsedWidth, b: heightBig, c: bcp);
+
+    final spaceLeftAboveImage = layout.imageSpaceAbove - boxHeight;
+    double vOffset = layout.imageBaseVOffset;
+    double extraLift = 0.0;
+    if (spaceLeftAboveImage > 0) {
+      extraLift = ((layout.imageSpaceInPanel * 0.5).withMaximum(spaceLeftAboveImage * 0.5)) * bcp;
+      vOffset -= extraLift; // re-adjust offset to make the image semi-centered
+    } else {
+      vOffset += (-spaceLeftAboveImage / 2) * bcp;
+    }
+
+    this.boxWidth = boxWidth;
+    this.boxHeight = boxHeight;
+    this.leftOffset = (layout.imageCenterLeft - boxWidth / 2) * bcp;
+    this.vOffset = vOffset;
+    this.extraLift = extraLift;
   }
 }
 
@@ -1822,10 +1808,12 @@ class _RawImageContainer extends StatelessWidget {
   const _RawImageContainer({
     super.key,
     required this.geometry,
+    required this.constraints,
     required this.child,
   });
 
   final _MiniplayerGeometry geometry;
+  final ValueListenable<BoxConstraints> constraints;
   final Widget child;
 
   @override
@@ -1835,7 +1823,7 @@ class _RawImageContainer extends StatelessWidget {
       child: ListenablePadding(
         padding: geometry.imagePadding,
         child: ListenableConstrainedBox(
-          constraints: geometry.imageConstraints,
+          constraints: constraints,
           child: child,
         ),
       ),
@@ -2552,6 +2540,68 @@ class _QueueListChildWrapper extends StatelessWidget {
   }
 }
 
+class _SeekPositionText extends StatefulWidget {
+  const _SeekPositionText();
+
+  @override
+  State<_SeekPositionText> createState() => _SeekPositionTextState();
+}
+
+class _SeekPositionTextState extends State<_SeekPositionText> {
+  Widget _frozenSeekChild = const SizedBox();
+
+  @override
+  Widget build(BuildContext context) {
+    return ObxO(
+      rx: MiniPlayerController.inst.seekValue,
+      builder: (context, seekMS) => NamidaAnimatedSwitcher(
+        key: const ValueKey('seek_switcher'),
+        firstChild: seekMS == null
+            ? _frozenSeekChild
+            : Obx(
+                (context) {
+                  final liveWindow = Player.inst.currentLiveWindow.valueR;
+                  final Widget child;
+                  if (liveWindow != null && liveWindow.isAtEdge(seekMS)) {
+                    child = const Icon(
+                      Broken.radar_1,
+                      size: 16.0,
+                    );
+                  } else {
+                    String finalText;
+                    if (liveWindow != null) {
+                      final behindMS = liveWindow.behindEdgeMS(seekMS);
+                      finalText = '-${behindMS.milliSecondsLabel}';
+                    } else if (settings.player.displayActualPositionWhenSeeking.valueR) {
+                      final itemDur = Player.inst.currentItemDuration.valueR?.inMilliseconds;
+                      int seekClamped = seekMS;
+                      seekClamped = seekClamped.withMinimum(0);
+                      if (itemDur != null) seekClamped = seekClamped.withMaximum(itemDur);
+                      finalText = seekClamped.milliSecondsLabel;
+                    } else {
+                      final diffInMs = seekMS - Player.inst.nowPlayingPositionR;
+                      final plusOrMinus = diffInMs < 0 ? '' : '+';
+                      final seekText = diffInMs.milliSecondsLabel;
+                      finalText = "$plusOrMinus$seekText";
+                    }
+                    child = NamidaText(
+                      finalText,
+                      style: const NText(.small, size: .s13),
+                    );
+                  }
+                  _frozenSeekChild = child;
+                  return child;
+                },
+              ),
+        secondChild: const SizedBox(),
+        showFirst: seekMS != null,
+        durationMS: 700,
+        allCurves: Curves.easeInOutQuart,
+      ),
+    );
+  }
+}
+
 /// Tap seeks backwards, long press rewinds.
 class SeekBackwardsDetectorWidget extends StatelessWidget {
   final Widget child;
@@ -3022,7 +3072,11 @@ class _AnimatedOrPadding extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return animated
-        ? AnimatedPadding(padding: padding, duration: duration, child: child)
+        ? AnimatedPadding(
+            padding: padding,
+            duration: duration,
+            child: child,
+          )
         : Padding(
             padding: padding,
             child: child,
@@ -3179,7 +3233,10 @@ class PlayerVideoAudioChip extends StatelessWidget {
                         ),
 
                       if (audioTracks != null && audioTracks.length > 1) ...[
-                        const NamidaContainerDivider(height: 2.0, margin: EdgeInsets.symmetric(vertical: 4.0)),
+                        const NamidaContainerDivider(
+                          height: 2.0,
+                          margin: EdgeInsets.symmetric(vertical: 4.0),
+                        ),
                         _MPQualityButton(
                           onTap: () => Player.inst.setAudioTrackAndSave(null),
                           icon: Broken.audio_square,
@@ -3212,7 +3269,10 @@ class PlayerVideoAudioChip extends StatelessWidget {
                         ),
                       ],
 
-                      const NamidaContainerDivider(height: 2.0, margin: EdgeInsets.symmetric(vertical: 4.0)),
+                      const NamidaContainerDivider(
+                        height: 2.0,
+                        margin: EdgeInsets.symmetric(vertical: 4.0),
+                      ),
 
                       ...availableVideos.map(
                         (element) {
@@ -3323,7 +3383,10 @@ class PlayerVideoAudioChip extends StatelessWidget {
                                   Widget getTextWidget(IconData icon, String title, double value) {
                                     return Row(
                                       children: [
-                                        NIcon(icon, color: NColors.defaultIcon(mainColor: CurrentColor.inst.miniplayerColor)),
+                                        NIcon(
+                                          icon,
+                                          color: NColors.defaultIcon(mainColor: CurrentColor.inst.miniplayerColor),
+                                        ),
                                         const SizedBox(width: 12.0),
                                         NamidaButtonText(
                                           title,
@@ -3501,14 +3564,53 @@ Object? playableArtworkCacheKey(Playable item) => item.execute<Object?>(
 /// The video's own ratio once initialized, else the decoded artwork ratio (known after
 /// it resolved once), else the 16:9 youtube thumbnails always are, else square.
 double resolvePlayableImageAspectRatio(Playable item, double? videoAspectRatio) {
+  final cached = ArtworkWidget.aspectRatioOf(playableArtworkCacheKey(item));
+  return _resolveImageAspectRatio(item, videoAspectRatio, cached);
+}
+
+double _resolveImageAspectRatio(Playable item, double? videoAspectRatio, double? artworkAspectRatio) {
   if (videoAspectRatio != null && videoAspectRatio > 0) return videoAspectRatio;
   if (settings.forceSquaredTrackThumbnail.value) return 1.0;
-  final cached = ArtworkWidget.aspectRatioOf(playableArtworkCacheKey(item));
-  if (cached != null && cached > 0) return cached;
+  if (artworkAspectRatio != null && artworkAspectRatio > 0) return artworkAspectRatio;
   if (item is YoutubeID) return 16 / 9;
   return 1.0;
 }
 
-typedef _MiniplayerLayoutInputs = ({double navBarHeight, double imageAspectRatio, double simpleLyricsBandHeight, double thumbnailBaseScale, double panelBaseRadius});
+/// A card's box ratio, keeping the artwork ratio it was built with so a later decode can be noticed.
+class _ImageSlotRatio {
+  Object? _artworkCacheKey;
+  double? _artworkAspectRatio;
 
-const _MiniplayerLayoutInputs _kDefaultLayoutInputs = (navBarHeight: 0.0, imageAspectRatio: 1.0, simpleLyricsBandHeight: 0.0, thumbnailBaseScale: 1.0, panelBaseRadius: 0.0);
+  double resolve(Playable item, double? videoAspectRatio) {
+    final artworkCacheKey = playableArtworkCacheKey(item);
+    final artworkAspectRatio = ArtworkWidget.aspectRatioOf(artworkCacheKey);
+    _artworkCacheKey = artworkCacheKey;
+    _artworkAspectRatio = artworkAspectRatio;
+    return _resolveImageAspectRatio(item, videoAspectRatio, artworkAspectRatio);
+  }
+
+  bool didArtworkRatioChange() {
+    final ratio = ArtworkWidget.aspectRatioOf(_artworkCacheKey);
+    return ratio != null && ratio != _artworkAspectRatio;
+  }
+}
+
+typedef _MiniplayerLayoutInputs = ({
+  double navBarHeight,
+  double imageAspectRatio,
+  double previousImageAspectRatio,
+  double nextImageAspectRatio,
+  double simpleLyricsBandHeight,
+  double thumbnailBaseScale,
+  double panelBaseRadius,
+});
+
+const _MiniplayerLayoutInputs _kDefaultLayoutInputs = (
+  navBarHeight: 0.0,
+  imageAspectRatio: 1.0,
+  previousImageAspectRatio: 1.0,
+  nextImageAspectRatio: 1.0,
+  simpleLyricsBandHeight: 0.0,
+  thumbnailBaseScale: 1.0,
+  panelBaseRadius: 0.0,
+);

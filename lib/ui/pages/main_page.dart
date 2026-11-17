@@ -33,6 +33,7 @@ import 'package:namida/core/translations/language.dart';
 import 'package:namida/core/utils.dart';
 import 'package:namida/main_page_wrapper.dart';
 import 'package:namida/packages/searchbar_animation.dart';
+import 'package:namida/ui/dialogs/queue_insertion_dialogs.dart';
 import 'package:namida/ui/pages/albums_page.dart';
 import 'package:namida/ui/pages/artists_page.dart';
 import 'package:namida/ui/pages/search_page.dart';
@@ -66,7 +67,7 @@ class MainPage extends StatelessWidget {
   });
 
   double _getReactiveBottomFabOffset(BuildContext context) {
-    final bottomNavHeight = settings.enableBottomNavBar.valueR && !Dimensions.inst.miniplayerIsWideScreen
+    final bottomNavHeight = settings.enableBottomNavBar.valueR && !Dimensions.inst.showNavigationAtSide
         ? kBottomNavigationBarHeight + MediaQuery.viewPaddingOf(context).bottom
         : 0.0;
     final fabBottomOffset = MediaQuery.viewInsetsOf(context).bottom - bottomNavHeight + 8.0;
@@ -418,20 +419,35 @@ class __MainPageFABButtonState extends State<_MainPageFABButton> {
         ScrollSearchController.inst.searchBarWidget.submit(ScrollSearchController.inst.searchTextEditingController.text);
         return;
       }
-      final isOpen = ScrollSearchController.inst.searchBarKey.currentState?.isOpen ?? false;
-      if (isOpen && !isMenuOpened) {
-        SearchSortController.inst.prepareResources();
-        ScrollSearchController.inst.showSearchMenu();
-        ScrollSearchController.inst.searchBarKey.currentState?.focusNode.requestFocus();
-      } else {
-        isMenuOpened ? SearchSortController.inst.disposeResources() : SearchSortController.inst.prepareResources();
-        ScrollSearchController.inst.toggleSearchMenu();
-        ScrollSearchController.inst.searchBarKey.currentState?.openCloseSearchBar();
+      if (isMenuOpened) {
+        SearchSortController.inst.disposeResources();
+        ScrollSearchController.inst.hideSearchMenu();
         ScrollSearchController.inst.resetSearch();
         ClipboardController.inst.updateTextInControllerEmpty(true);
+      } else {
+        SearchSortController.inst.prepareResources();
+        ScrollSearchController.inst.showSearchMenu();
+        ScrollSearchController.inst.searchBarKey.currentState?.openCloseSearchBar(forceOpen: true);
       }
-    } else if (fab == FABType.shuffle || fab == FABType.play) {
-      Player.inst.playOrPause(0, SelectedTracksController.inst.getCurrentAllTracks(), QueueSource.allTracksAll, shuffle: fab == FABType.shuffle);
+    } else {
+      final quickPlayMode = fab.quickPlayMode;
+      if (quickPlayMode == null) return;
+      final (tracks, source, _) = SelectedTracksController.inst.getCurrentActiveTracksList();
+      if (tracks == null || tracks.isEmpty || source == null) return;
+      quickPlayMode.execute(tracks, source);
+    }
+  }
+
+  void _onLongPress() {
+    final quickPlayMode = settings.floatingActionButton.value.quickPlayMode;
+    if (quickPlayMode == null) return;
+    final (tracks, source, _) = SelectedTracksController.inst.getCurrentActiveTracksList();
+    if (tracks == null || tracks.isEmpty || source == null) return;
+    switch (quickPlayMode) {
+      case QuickPlayMode.shuffle:
+        showAdvancedShuffleDialog(() => tracks, source);
+      case QuickPlayMode.play || QuickPlayMode.playNext || QuickPlayMode.playLast:
+        showAdvancedPlayDialog(() => tracks, source);
     }
   }
 
@@ -503,10 +519,12 @@ class __MainPageFABButtonState extends State<_MainPageFABButton> {
           );
         }
 
+        final fab = settings.floatingActionButton.valueR;
         return NamidaFABButton(
           tooltip: _tooltip,
           onTap: _onTap,
-          icon: settings.floatingActionButton.valueR.toIcon(),
+          onLongPress: fab.isPlayback ? _onLongPress : null,
+          icon: fab.toIcon(),
           animateText: true,
         );
       },
@@ -570,7 +588,11 @@ class MainPageFABResumeButton extends StatelessWidget {
     final targetItem = tracks[index];
     void jumpFn() {
       JumpHighlight.showBriefly(targetItem, index, inQueue: false);
-      MainPageFABResumeButton.jumpToItem(index, Dimensions.inst.trackTileItemExtent, routeType!);
+      MainPageFABResumeButton.jumpToItem(
+        index,
+        Dimensions.inst.trackTileItemExtent,
+        routeType!,
+      );
     }
 
     if (openTracksPage) {
@@ -799,12 +821,12 @@ class NamidaSearchBar extends StatelessWidget {
           },
           onPressButton: (isOpen) {
             ScrollSearchController.inst.showSearchMenu(isOpen);
-            ScrollSearchController.inst.resetSearch();
-            ClipboardController.inst.updateTextInControllerEmpty(true);
             if (isOpen) {
               SearchSortController.inst.prepareResources();
               ClipboardController.inst.setClipboardMonitoringStatus(settings.enableClipboardMonitoring.value);
             } else {
+              ScrollSearchController.inst.resetSearch();
+              ClipboardController.inst.updateTextInControllerEmpty(true);
               SearchSortController.inst.disposeResources();
               YTLocalSearchController.inst.cleanResources();
               ClipboardController.inst.setClipboardMonitoringStatus(false);
@@ -838,7 +860,6 @@ class AlbumSearchResultsPage extends StatelessWidget with NamidaRouteWidget {
     return AlbumsPage(
       albumIdentifiers: SearchSortController.inst.albumSearchTemp,
       countPerRow: settings.mediaGridCounts.value.get(LibraryTab.albums),
-      enableGridIconButton: false,
     );
   }
 }
@@ -846,6 +867,9 @@ class AlbumSearchResultsPage extends StatelessWidget with NamidaRouteWidget {
 class AlbumCustomResultsPage extends StatefulWidget with NamidaRouteWidget {
   @override
   RouteType get route => RouteType.SEARCH_albumCustomResults;
+
+  @override
+  List<AlbumIdentifierWrapper> get routeData => albumIdentifiers;
 
   final List<AlbumIdentifierWrapper> albumIdentifiers;
   const AlbumCustomResultsPage({super.key, required this.albumIdentifiers});
@@ -874,8 +898,6 @@ class _AlbumCustomResultsPageState extends State<AlbumCustomResultsPage> {
     return AlbumsPage(
       albumIdentifiers: _albumIdentifiersRx,
       countPerRow: settings.mediaGridCounts.value.get(LibraryTab.albums),
-      enableGridIconButton: false,
-      enableHeader: false,
     );
   }
 }
@@ -883,6 +905,9 @@ class _AlbumCustomResultsPageState extends State<AlbumCustomResultsPage> {
 class ArtistSearchResultsPage extends StatelessWidget with NamidaRouteWidget {
   @override
   RouteType get route => RouteType.SEARCH_artistResults;
+
+  @override
+  RxList<String> get routeData => artists;
 
   final RxList<String> artists;
   final MediaType type;
@@ -894,7 +919,6 @@ class ArtistSearchResultsPage extends StatelessWidget with NamidaRouteWidget {
       enableHero: false,
       artists: artists,
       countPerRow: settings.mediaGridCounts.value.get(LibraryTab.artists),
-      enableGridIconButton: false,
       customType: type,
     );
   }

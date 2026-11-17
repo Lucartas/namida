@@ -37,6 +37,7 @@ import 'package:namida/youtube/functions/yt_playlist_utils.dart';
 import 'package:namida/youtube/pages/youtube_main_page_fetcher_acc_base.dart';
 import 'package:namida/youtube/pages/yt_channel_subpage.dart';
 import 'package:namida/youtube/pages/yt_playlist_subpage.dart';
+import 'package:namida/youtube/widgets/yt_feedback_scope.dart';
 import 'package:namida/youtube/widgets/yt_shimmer.dart';
 import 'package:namida/youtube/widgets/yt_thumbnail.dart';
 import 'package:namida/youtube/yt_utils.dart';
@@ -75,6 +76,8 @@ class _YoutubeMusicHomePageState extends State<YoutubeMusicHomePage> {
       ),
       onChipTap: _onChipTap,
       onFormOptionTap: null,
+      libraryTab: LibraryTab.ytMusic,
+      hasFeedbackMenu: true,
     );
   }
 }
@@ -177,6 +180,10 @@ class _MusicBrowseView extends StatelessWidget {
   final Widget Function(Rxn<YoutiPieMusicBrowseResult> resultRx, Widget refreshIconWidget)? headerBuilder;
   final void Function(YoutiPieMusicChip chip) onChipTap;
   final void Function(YoutiPieMusicFormOption option)? onFormOptionTap;
+  final LibraryTab? libraryTab;
+
+  /// `Not interested` & co under a `More` entry of the items menu.
+  final bool hasFeedbackMenu;
 
   const _MusicBrowseView({
     super.key,
@@ -185,6 +192,8 @@ class _MusicBrowseView extends StatelessWidget {
     required this.headerBuilder,
     required this.onChipTap,
     required this.onFormOptionTap,
+    this.libraryTab,
+    this.hasFeedbackMenu = false,
   });
 
   @override
@@ -206,30 +215,41 @@ class _MusicBrowseView extends StatelessWidget {
       cacheReader: YoutiPie.cacheBuilder.forMusicBrowse(endpoint: endpoint),
       networkFetcher: (details) => YoutubeInfoController.music.browse(endpoint, details: details),
       fetchTimeMapKey: ValueKey(endpoint),
+      libraryTab: libraryTab,
       dummyCard: const _MusicShelfDummy(),
       itemExtent: null,
       itemBuilder: (shelf, index, result) => null,
-      sliverListBuilder: (result, itemBuilder, dummyCard) => SliverMainAxisGroup(
-        slivers: [
-          if (onFormOptionTap != null && result.formOptions.isNotEmpty)
-            SliverToBoxAdapter(
-              child: _MusicFormOptionsChip(
-                options: result.formOptions,
-                onTap: onFormOptionTap,
+      sliverListBuilder: (result, itemBuilder, dummyCard) {
+        final shelvesSliver = hasFeedbackMenu
+            ? YTFeedbackScope(
+                list: result,
+                builder: (context) => _MusicShelvesSliver(
+                  shelves: result.items,
+                ),
+              )
+            : _MusicShelvesSliver(
+                shelves: result.items,
+              );
+        return SliverMainAxisGroup(
+          slivers: [
+            if (onFormOptionTap != null && result.formOptions.isNotEmpty)
+              SliverToBoxAdapter(
+                child: _MusicFormOptionsChip(
+                  options: result.formOptions,
+                  onTap: onFormOptionTap,
+                ),
               ),
-            ),
-          if (result.chips.isNotEmpty)
-            SliverToBoxAdapter(
-              child: _MusicChipsRow(
-                chips: result.chips,
-                onTap: onChipTap,
+            if (result.chips.isNotEmpty)
+              SliverToBoxAdapter(
+                child: _MusicChipsRow(
+                  chips: result.chips,
+                  onTap: onChipTap,
+                ),
               ),
-            ),
-          _MusicShelvesSliver(
-            shelves: result.items,
-          ),
-        ],
-      ),
+            shelvesSliver,
+          ],
+        );
+      },
     );
   }
 }
@@ -306,7 +326,7 @@ class _MusicTopResultCard extends StatelessWidget {
             children: [
               NamidaPopupWrapper(
                 openOnTap: false,
-                childrenDefault: () => _MusicItemActions.menuItems(item, queueTitle),
+                childrenDefault: () => _MusicItemActions.menuItems(context, item, queueTitle),
                 child: NamidaInkWell(
                   borderRadius: 10.0,
                   padding: const EdgeInsets.all(6.0),

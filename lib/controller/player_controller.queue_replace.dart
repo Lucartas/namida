@@ -17,7 +17,12 @@ extension _QueueReplaceConfirmation on Player {
     final canKeepSingle = !shuffle && itemsCount > 1;
     final keepSingleSubtitle = canKeepSingle ? _getQueueItemTitle(queueList[index]) : null;
     final keepSubtitle = canKeepSingle ? itemsCountText : null;
-    final action = await _pickQueueReplaceAction(subtitle: subtitle, keepSubtitle: keepSubtitle, keepSingleSubtitle: keepSingleSubtitle, canShowMore: isTracks);
+    final action = await _pickQueueReplaceAction(
+      subtitle: subtitle,
+      keepSubtitle: keepSubtitle,
+      keepSingleSubtitle: keepSingleSubtitle,
+      canShowMore: isTracks,
+    );
 
     Iterable<Playable> getItems() {
       if (!shuffle) return queueList.skip(index);
@@ -60,6 +65,35 @@ extension _QueueReplaceConfirmation on Player {
         }
     }
     return false;
+  }
+
+  void _showQueueRestructuredSnackbar(
+    QueueSnapshot<Playable> previousQueue,
+    QueueSourceBase previousSource,
+    Future<void> Function()? restoreLatestQueue,
+    QueueSourceBase source,
+  ) {
+    final itemsCount = currentQueue.value.length;
+    final isTracks = currentItem.value is Selectable;
+    final itemsCountText = isTracks ? itemsCount.displayTrackKeyword : itemsCount.displayVideoKeyword;
+
+    Future<void> undo() async {
+      await restoreLatestQueue?.call();
+      _audioHandler.latestQueueSource = previousSource;
+      await _audioHandler.restoreQueue(previousQueue);
+    }
+
+    _latestSnacky?.close();
+    _latestSnacky = snackyy(
+      icon: Broken.row_vertical,
+      title: lang.queue,
+      message: [itemsCountText, source.title].joinText(),
+      top: false,
+      button: SnackbarButton(
+        text: lang.undo,
+        function: undo,
+      ),
+    );
   }
 
   String? _getQueueItemTitle(Playable item) {

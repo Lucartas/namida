@@ -11,10 +11,12 @@ import 'package:rhttp/rhttp.dart';
 
 import 'package:namida/base/loading_items_delay.dart';
 import 'package:namida/class/file_parts.dart';
+import 'package:namida/class/http_response_wrapper.dart';
 import 'package:namida/class/track.dart';
 import 'package:namida/controller/connectivity.dart';
 import 'package:namida/controller/current_color.dart';
 import 'package:namida/controller/indexer_controller.dart';
+import 'package:namida/controller/network_proxy_controller.dart';
 import 'package:namida/controller/playlist_controller.dart';
 import 'package:namida/controller/settings_controller.dart';
 import 'package:namida/controller/smart_playlists/smart_playlists_controller.dart';
@@ -25,6 +27,7 @@ import 'package:namida/core/icon_fonts/broken_icons.dart';
 import 'package:namida/core/namida_converter_ext.dart';
 import 'package:namida/core/ntheme.dart';
 import 'package:namida/core/utils.dart';
+import 'package:namida/ui/dialogs/artwork_source_menu.dart';
 import 'package:namida/ui/widgets/artwork.dart';
 import 'package:namida/youtube/class/download_task_base.dart';
 
@@ -32,11 +35,15 @@ class CustomArtworkManager {
   final File Function() getArtworkFile;
   final Future<void> Function(File? file, Uint8List? bytes) setArtworkFile;
   final Future<List<String>?> Function(CancelToken? cancelToken)? fetchPossibleArtworks;
+  final String? Function()? getLastfmPageUrl;
+  final String Function() getSearchQuery;
 
   const CustomArtworkManager({
     required this.getArtworkFile,
     required this.setArtworkFile,
     required this.fetchPossibleArtworks,
+    required this.getLastfmPageUrl,
+    required this.getSearchQuery,
   });
 
   static CustomArtworkManager playlist(String playlistName) {
@@ -44,6 +51,8 @@ class CustomArtworkManager {
       getArtworkFile: () => PlaylistController.inst.getArtworkFileForPlaylist(playlistName),
       setArtworkFile: (file, bytes) => PlaylistController.inst.setArtworkForPlaylist(playlistName, artworkFile: file, artworkBytes: bytes),
       fetchPossibleArtworks: null,
+      getLastfmPageUrl: null,
+      getSearchQuery: () => playlistName,
     );
   }
 
@@ -52,6 +61,8 @@ class CustomArtworkManager {
       getArtworkFile: () => SmartPlaylistsController.inst.getArtworkFileForPlaylist(smartPlaylistWrapper.value),
       setArtworkFile: (file, bytes) => SmartPlaylistsController.inst.setArtworkForPlaylist(smartPlaylistWrapper.value, artworkFile: file, artworkBytes: bytes),
       fetchPossibleArtworks: null,
+      getLastfmPageUrl: null,
+      getSearchQuery: () => smartPlaylistWrapper.value.name,
     );
   }
 
@@ -62,8 +73,6 @@ class CustomArtworkManager {
     required Uint8List? artworkBytes,
     void Function()? onSuccess,
   }) async {
-    imageCache.clear();
-    imageCache.clearLiveImages();
     if (artworkFile != null) {
       await destinationFile.create(recursive: true);
       await artworkFile.copy(destinationFile.path);
@@ -73,6 +82,7 @@ class CustomArtworkManager {
     } else {
       await destinationFile.deleteIfExists();
     }
+    ArtworkWidget.refreshImageFiles([destinationFile.path]);
     onSuccess?.call();
   }
 }
@@ -263,9 +273,15 @@ class _NetworkArtworkState extends State<NetworkArtwork> with LoadingItemsDelayM
     final url = info.toLastfmUrl();
     if (url == null) return null;
 
+    final proxySettings = NetworkProxyController.inst.rhttpSettings;
     HttpTextResponse response;
     try {
-      response = await Rhttp.get(url, headers: _defaultHeaders, cancelToken: cancelToken).timeout(_pageTimeout);
+      response = await NamidaHttp.get(
+        url,
+        settings: proxySettings,
+        headers: _defaultHeaders,
+        cancelToken: cancelToken,
+      ).timeout(_pageTimeout);
     } catch (_) {
       return null;
     }
@@ -303,7 +319,13 @@ class _NetworkArtworkState extends State<NetworkArtwork> with LoadingItemsDelayM
       newBytes = Uint8List.fromList([]); // write empty bytes
     } else {
       try {
-        final body = await Rhttp.getBytes(url, headers: _defaultHeaders, cancelToken: request.cancelToken).timeout(_imageTimeout);
+        final proxySettings = NetworkProxyController.inst.rhttpSettings;
+        final body = await NamidaHttp.getBytes(
+          url,
+          settings: proxySettings,
+          headers: _defaultHeaders,
+          cancelToken: request.cancelToken,
+        ).timeout(_imageTimeout);
         newBytes = body.body;
       } catch (_) {
         return null;
@@ -440,6 +462,9 @@ final class _NetworkArtworkInfoAlbum extends NetworkArtworkInfo {
   }
 
   @override
+  String toSearchQuery() => ArtworkSourceMenu.buildSearchQuery(artist: artist, album: name, title: null, fallback: name);
+
+  @override
   int get hashCode => Object.hash(name, artist, fileIdentifier);
 
   @override
@@ -468,6 +493,9 @@ final class _NetworkArtworkInfoArtist extends NetworkArtworkInfo {
     final url = '${NetworkArtworkInfo._baseLastfmUrl}/$encodedArtist/+images';
     return url;
   }
+
+  @override
+  String toSearchQuery() => name;
 
   @override
   int get hashCode => name.hashCode;
@@ -501,6 +529,8 @@ sealed class NetworkArtworkInfo {
   static final _lastfmAnyImageRegexWithGif = RegExp('${_lastfmAnyImageRegex.pattern}(?=[^>]*?alt="gif")');
 
   String? toLastfmUrl();
+
+  String toSearchQuery();
 
   RxBaseCore<List<LibraryImageSource>> get settingsKey;
 
@@ -552,9 +582,15 @@ sealed class NetworkArtworkInfo {
         if (url == null) return null;
 
         const defaultHeaders = HttpHeaders.map({HttpHeaderName.userAgent: 'namida'});
+        final proxySettings = NetworkProxyController.inst.rhttpSettings;
         HttpTextResponse response;
         try {
-          response = await Rhttp.get(url, headers: defaultHeaders, cancelToken: cancelToken);
+          response = await NamidaHttp.get(
+            url,
+            settings: proxySettings,
+            headers: defaultHeaders,
+            cancelToken: cancelToken,
+          );
         } on RhttpCancelException catch (_) {
           return null;
         }
@@ -573,6 +609,8 @@ sealed class NetworkArtworkInfo {
         }
         return urls;
       },
+      getLastfmPageUrl: toLastfmUrl,
+      getSearchQuery: toSearchQuery,
     );
   }
 

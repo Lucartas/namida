@@ -1,13 +1,18 @@
 // by claude
 import AVFoundation
+import CFNetwork
 import Flutter
+import Network
 import UIKit
 
-/// the `namida` channel: files & links the app was opened with, app icons, background work and the audio session rate.
+/// the `namida` channel: files & links the app was opened with, app icons, background work, the audio session rate and the system proxy.
 final class NamidaPlugin: NSObject, FlutterPlugin, FlutterSceneLifeCycleDelegate {
+  private let channel: FlutterMethodChannel
   private let openedUrls: NamidaOpenedUrls
+  private var pathMonitor: NWPathMonitor?
 
   private init(channel: FlutterMethodChannel) {
+    self.channel = channel
     openedUrls = NamidaOpenedUrls(channel: channel)
   }
 
@@ -28,10 +33,8 @@ final class NamidaPlugin: NSObject, FlutterPlugin, FlutterSceneLifeCycleDelegate
     case "consumeOpenedUrls":
       result(openedUrls.consume())
 
-    case "isAppIconEnabled":
-      let key = args?["key"] as? String
-      let current = UIApplication.shared.alternateIconName
-      result(key == Self.primaryIconKey ? current == nil : current == key)
+    case "getEnabledAppIcon":
+      result(UIApplication.shared.alternateIconName ?? Self.primaryIconKey)
 
     case "changeAppIcon":
       changeAppIcon(key: args?["key"] as? String, result: result)
@@ -59,9 +62,49 @@ final class NamidaPlugin: NSObject, FlutterPlugin, FlutterSceneLifeCycleDelegate
       openInFiles(path: path, isDirectory: isDirectory)
       result(nil)
 
+    case "getSystemProxy":
+      result(Self.systemProxy())
+
+    case "listenSystemProxy":
+      listenSystemProxy()
+      result(nil)
+
     default:
       result(FlutterMethodNotImplemented)
     }
+  }
+
+  // MARK: - system proxy
+
+  /// the http proxy of the system settings as `{host, port, bypass}`, pac setups aren't read.
+  private static func systemProxy() -> [String: Any]? {
+    guard let settings = CFNetworkCopySystemProxySettings()?.takeRetainedValue() as? [String: Any] else { return nil }
+    let host: String
+    let port: Int
+    if settings["HTTPSEnable"] as? Int == 1, let httpsHost = settings["HTTPSProxy"] as? String, let httpsPort = settings["HTTPSPort"] as? Int {
+      host = httpsHost
+      port = httpsPort
+    } else if settings["HTTPEnable"] as? Int == 1, let httpHost = settings["HTTPProxy"] as? String, let httpPort = settings["HTTPPort"] as? Int {
+      host = httpHost
+      port = httpPort
+    } else {
+      return nil
+    }
+    var bypass = settings["ExceptionsList"] as? [String] ?? []
+    if settings["ExcludeSimpleHostnames"] as? Int == 1 { bypass.append("<local>") }
+    return ["host": host, "port": port, "bypass": bypass]
+  }
+
+  /// network path changes (a network switch) are the only proxy hint ios gives, dart skips updates that change nothing.
+  private func listenSystemProxy() {
+    if pathMonitor != nil { return }
+    let channel = self.channel
+    let monitor = NWPathMonitor()
+    monitor.pathUpdateHandler = { _ in
+      channel.invokeMethod("onSystemProxyChanged", arguments: nil)
+    }
+    monitor.start(queue: .main)
+    pathMonitor = monitor
   }
 
   // MARK: - opened urls
@@ -82,18 +125,41 @@ final class NamidaPlugin: NSObject, FlutterPlugin, FlutterSceneLifeCycleDelegate
   private func addOpenedUrls(_ contexts: Set<UIOpenURLContext>) {
     var urls: [URL] = []
     for context in contexts {
-      let url = context.url
+      var url = context.url
       if let sharedTexts = NamidaShareUrl.parse(url) {
         openedUrls.add(items: sharedTexts)
         continue
       }
-      if url.isFileURL && context.options.openInPlace {
-        // -- opened in place from another app's folder, readable only while access is held, which is the whole session
-        _ = url.startAccessingSecurityScopedResource()
+      if url.isFileURL {
+        if context.options.openInPlace {
+          // -- opened in place from another app's folder, readable only while access is held, which is the whole session
+          _ = url.startAccessingSecurityScopedResource()
+        } else {
+          url = Self.moveOutOfInbox(url)
+        }
       }
       urls.append(url)
     }
     if !urls.isEmpty { openedUrls.add(urls) }
+  }
+
+  /// a file that can't be opened in place arrives as a copy in Documents/Inbox, which the files app shows and the library scans.
+  /// it goes to the caches folder instead, its files are cleared on the next launch like the ones android shares.
+  private static func moveOutOfInbox(_ url: URL) -> URL {
+    let inboxPath = NamidaPaths.inboxPath
+    let fileManager = FileManager.default
+    guard (url.namidaStandardPath as NSString).deletingLastPathComponent == inboxPath,
+          let caches = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else { return url }
+    let destination = caches.appendingPathComponent(url.lastPathComponent)
+    try? fileManager.removeItem(at: destination)
+    do {
+      try fileManager.moveItem(at: url, to: destination)
+    } catch {
+      return url
+    }
+    // -- only goes once empty
+    rmdir(inboxPath)
+    return destination
   }
 
   // MARK: - app icons
@@ -138,6 +204,10 @@ final class NamidaPlugin: NSObject, FlutterPlugin, FlutterSceneLifeCycleDelegate
 enum NamidaPaths {
   static var containerPath: String {
     return (NSHomeDirectory() as NSString).standardizingPath
+  }
+
+  static var inboxPath: String {
+    return containerPath + "/Documents/Inbox"
   }
 
   static func isInsideContainer(_ path: String) -> Bool {

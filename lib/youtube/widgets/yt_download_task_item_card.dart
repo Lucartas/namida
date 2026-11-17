@@ -72,14 +72,24 @@ class _YTDownloadTaskItemCardState extends State<YTDownloadTaskItemCard> {
     final iconSize = (displayTitle ? 16.0 : 17.0);
     return NamidaInkWell(
       borderRadius: 6.0,
-      padding: const EdgeInsets.only(left: 6.0, right: 6.0, top: 6.0, bottom: 6.0),
+      padding: const EdgeInsets.only(
+        left: 6.0,
+        right: 6.0,
+        top: 6.0,
+        bottom: 6.0,
+      ),
       onTap: onTap,
       child: Tooltip(
         message: title,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            iconWidget?.call(iconSize) ?? NIcon(icon, size: iconSize, color: iconColor),
+            iconWidget?.call(iconSize) ??
+                NIcon(
+                  icon,
+                  size: iconSize,
+                  color: iconColor,
+                ),
             if (displayTitle) ...[
               const SizedBox(width: 4.0),
               textWidget,
@@ -127,7 +137,12 @@ class _YTDownloadTaskItemCardState extends State<YTDownloadTaskItemCard> {
   }
 
   void _onCancelDeleteDownloadTap(List<YoutubeItemDownloadConfig> itemsConfig, {bool keepInList = false, required bool delete}) {
-    YoutubeController.inst.cancelDownloadTask(itemsConfig: itemsConfig, groupName: widget.groupName, keepInList: keepInList, delete: delete);
+    YoutubeController.inst.cancelDownloadTask(
+      itemsConfig: itemsConfig,
+      groupName: widget.groupName,
+      keepInList: keepInList,
+      delete: delete,
+    );
   }
 
   void _showInfoDialog(
@@ -161,7 +176,10 @@ class _YTDownloadTaskItemCardState extends State<YTDownloadTaskItemCard> {
     Widget getRow({required IconData icon, required List<String> texts}) {
       return Row(
         children: [
-          Icon(icon, size: 18.0),
+          Icon(
+            icon,
+            size: 18.0,
+          ),
           const SizedBox(width: 6.0),
           Expanded(
             child: NamidaText(
@@ -174,7 +192,7 @@ class _YTDownloadTaskItemCardState extends State<YTDownloadTaskItemCard> {
     }
 
     return [
-      if (file != null) getRow(icon: Broken.location, texts: [file.parent.path]),
+      if (file != null) getRow(icon: Broken.location, texts: [file.parent.path.toDisplayPath()]),
       if (file != null && await file.exists()) ...[
         const SizedBox(height: 6.0),
         getRow(
@@ -309,7 +327,7 @@ class _YTDownloadTaskItemCardState extends State<YTDownloadTaskItemCard> {
           final parentDirPath = FileParts.joinPath(AppDirs.YOUTUBE_DOWNLOADS, groupName.groupName);
           final filenameClean = DownloadTaskFilename.cleanupFilename(value, parentDirPath: parentDirPath);
           if (value != filenameClean) {
-            final baddies = value.split('').where(DownloadTaskFilename.cleanupFilenameRegex.hasMatch).toSet().join();
+            final baddies = DownloadTaskFilename.badCharactersIn(value);
             return "${lang.nameContainsBadCharacter} $baddies";
           }
 

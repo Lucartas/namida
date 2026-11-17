@@ -59,9 +59,11 @@ mixin TracksSearchWidgetMixin<W extends StatefulWidget> on State<W>, PortsProvid
   /// used as is and never disposed, a new one is created otherwise.
   ScrollController? get providedScrollController => null;
 
+  /// less relevant matches are dropped, they would sit among the best ones.
+  bool get showsMatchesInOwnOrder => false;
+
   ScrollController get scrollController => _scrollController;
   TextEditingController get textEditingController => _textEditingController;
-  FocusNode? get focusNode => _focusNode;
 
   /// original indices of the matching tracks.
   List<int>? get searchResults => _searchResults;
@@ -71,7 +73,6 @@ mixin TracksSearchWidgetMixin<W extends StatefulWidget> on State<W>, PortsProvid
   late ScrollController _scrollController;
   late bool _ownsScrollController;
   late TextEditingController _textEditingController;
-  FocusNode? _focusNode;
   // bool _showSearchBox = false;
   String? _currentSearch;
 
@@ -81,7 +82,6 @@ mixin TracksSearchWidgetMixin<W extends StatefulWidget> on State<W>, PortsProvid
     _ownsScrollController = providedScrollController == null;
     _scrollController = providedScrollController ?? NamidaScrollController.create();
     _textEditingController = TextEditingController();
-    _focusNode = FocusNode();
     _ofRoute[widget] = this;
     for (final l in _listChangesListenersInstantRx()) {
       l.addListener(_restartSearchPortIfNecessary);
@@ -99,7 +99,6 @@ mixin TracksSearchWidgetMixin<W extends StatefulWidget> on State<W>, PortsProvid
     }
     listChangesListenerRx()?.removeListener(_closeSearchPortIfNecessary);
     listChangesListenerAltRx()?.removeListener(_closeSearchPortIfNecessary);
-    _focusNode?.dispose();
     if (_ownsScrollController) _scrollController.dispose();
     _textEditingController.dispose();
     disposePort();
@@ -108,11 +107,9 @@ mixin TracksSearchWidgetMixin<W extends StatefulWidget> on State<W>, PortsProvid
 
   bool onSearchBoxVisibilityChange(bool newShow) {
     if (newShow) {
-      _focusNode?.requestFocus();
       return true;
     } else if (_currentSearch?.isEmpty ?? true) {
       // -- only if not searching
-      _focusNode?.unfocus();
       searchTracks(null);
       return true;
     }
@@ -153,7 +150,8 @@ mixin TracksSearchWidgetMixin<W extends StatefulWidget> on State<W>, PortsProvid
     _currentSearch = value;
     if (value != null && value.isNotEmpty) {
       if (!isInitialized) await initialize();
-      await sendPort(value);
+      final dropLessRelevant = showsMatchesInOwnOrder && !settings.tracksSearchShowLessRelevant.value;
+      await sendPort((value, dropLessRelevant));
     } else {
       if (_searchResults != null) setState(() => _searchResults = null);
     }
@@ -174,8 +172,8 @@ mixin TracksSearchWidgetMixin<W extends StatefulWidget> on State<W>, PortsProvid
         streamSub?.cancel();
         return;
       }
-      final text = p as String;
-      final result = searchWrapper.filterIndicesAsList(text);
+      final (text, dropLessRelevant) = p as (String, bool);
+      final result = dropLessRelevant ? searchWrapper.filterRelevantIndicesAsList(text) : searchWrapper.filterIndicesAsList(text);
       sendPort.send((result, text));
     });
 
@@ -199,8 +197,8 @@ mixin TracksSearchWidgetMixin<W extends StatefulWidget> on State<W>, PortsProvid
   Future<IsolateFunctionReturnBuild<TracksSearchParams>> isolateFunction(SendPort port) async {
     await HistoryController.inst.waitForHistoryAndMostPlayedLoad;
     final topTracksMapListens = HistoryController.inst.topTracksMapListens.value;
-    final tracksExtended = getSearchableTracks().map((e) => e.track.toTrackExt());
-    final params = TracksSearchWrapper.generateParams(port, tracksExtended, topTracksMapListens, filters: settings.trackSearchFilterDefault.value);
+    final tracks = getSearchableTracks().tracks;
+    final params = TracksSearchWrapper.generateParams(port, tracks, topTracksMapListens, filters: settings.trackSearchFilterDefault.value);
     return IsolateFunctionReturnBuild(_searchTracksIsolate, params);
   }
 }
@@ -399,12 +397,9 @@ class TracksSearchWidgetBoxBase extends StatelessWidget {
         onCloseButtonPressed: state.clearSearch,
         onFilterIconLongPress: onFilterIconLongPress,
         sortByMenuWidget: sortByMenu,
-        textField: CustomTextField(
-          focusNode: state.focusNode,
-          textFieldController: state._textEditingController,
-          textFieldHintText: lang.search,
-          onTextFieldValueChanged: state.searchTracks,
-        ),
+        textFieldController: state._textEditingController,
+        textFieldHintText: lang.search,
+        onTextFieldValueChanged: state.searchTracks,
       ),
     );
   }

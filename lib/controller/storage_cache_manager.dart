@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -32,6 +33,11 @@ enum _CacheSorting { recommended, size, listenCount, accessTime }
 
 class StorageCacheManager {
   const StorageCacheManager();
+
+  static const _kListensHalfLifeDays = 90;
+  static const _kListensDecayPerMS = math.ln2 / (_kListensHalfLifeDays * Duration.millisecondsPerDay);
+
+  static final trimmedImageDirs = (videos: AppDirs.YT_THUMBNAILS, channels: AppDirs.YT_THUMBNAILS_CHANNELS);
 
   Future<void> trimExtraFiles() async {
     final priorityDbFileInfo = VideoController.inst.videosPriorityManager.cacheVideosPriorityDB.fileInfo;
@@ -81,14 +87,6 @@ class StorageCacheManager {
   Future<void> deleteAllAudios() async {
     await Directory(AppDirs.AUDIOS_CACHE).delete(recursive: true).catchError((_) => Directory(''));
     await Directory(AppDirs.AUDIOS_CACHE).create(recursive: true);
-  }
-
-  Future<Map<File, int>> getTempVideosForID(String videoId) async {
-    return _VideoTrimmer._getTempVideosForID.thready((id: videoId, tempDir: AppDirs.VIDEOS_CACHE_TEMP, normalDir: AppDirs.VIDEOS_CACHE));
-  }
-
-  Future<Map<File, int>> getTempAudiosForID(String videoId) async {
-    return _AudioTrimmer._getTempAudiosForID.thready((id: videoId, dirPath: AppDirs.AUDIOS_CACHE));
   }
 
   String getDeleteSizeSubtitleText(int length, int totalSize) {
@@ -167,32 +165,55 @@ class StorageCacheManager {
 
     final prioritiesMap = await VideoController.inst.videosPriorityManager.getAllVideosPriorities();
     final itemsPerPriority = <CacheVideoPriority, List<T>>{};
+    final priorityByPath = <String, CacheVideoPriority>{};
     for (final item in allFiles.value) {
       final id = itemToYtId(item);
-      itemsPerPriority.addForce((id == null ? null : prioritiesMap[id]) ?? CacheVideoPriority.normal, item);
+      final priority = (id == null ? null : prioritiesMap[id]) ?? CacheVideoPriority.normal;
+      itemsPerPriority.addForce(priority, item);
+      priorityByPath[itemToPath(item)] = priority;
     }
     final prioritiesWithItems = CacheVideoPriority.values.where(itemsPerPriority.containsKey).toFixedList();
     final selectedPriorities = <CacheVideoPriority>{}.obs;
 
     final localIdTrackMap = includeLocalTracksListens ? Indexer.inst.allTracksMappedByYTID : <String, List<Track>>{};
+    final localListensMap = HistoryController.inst.topTracksMapListens.value;
+    final ytListensMap = YoutubeHistoryController.inst.topTracksMapListens.value;
+    final nowMS = DateTime.now().millisecondsSinceEpoch;
 
-    int getTotalListensForIDLength(String id) {
-      final correspondingTracks = localIdTrackMap[id];
-      int localCount = 0;
-      int ytCount = 0;
-      if (correspondingTracks != null && correspondingTracks.isNotEmpty) {
-        for (final t in correspondingTracks) {
-          localCount += HistoryController.inst.topTracksMapListens.value[t]?.length ?? 0;
-        }
+    double decayedListensOf(List<int> listens) {
+      double decayed = 0.0;
+      for (final listenMS in listens) {
+        decayed += math.exp((listenMS - nowMS) * _kListensDecayPerMS);
       }
-      ytCount = YoutubeHistoryController.inst.topTracksMapListens.value[id]?.length ?? 0;
-      return localCount + ytCount;
+      return decayed;
     }
 
     final listensMap = <String?, int>{};
+    final decayedListensMap = <String, double>{};
+
+    void fillListensForID(String id) {
+      int listensCount = 0;
+      double decayedListens = 0.0;
+      final correspondingTracks = localIdTrackMap[id];
+      if (correspondingTracks != null) {
+        for (final t in correspondingTracks) {
+          final listens = localListensMap[t];
+          if (listens == null) continue;
+          listensCount += listens.length;
+          decayedListens += decayedListensOf(listens);
+        }
+      }
+      final ytListens = ytListensMap[id];
+      if (ytListens != null) {
+        listensCount += ytListens.length;
+        decayedListens += decayedListensOf(ytListens);
+      }
+      listensMap[id] = listensCount;
+      decayedListensMap[id] = decayedListens;
+    }
+
     final sizesMap = <String, int>{};
     final accessTimeMap = <String, int>{};
-    int maxListenCount = 0;
 
     await allFiles.value.loopConcurrent((e) async {
       final path = itemToPath(e);
@@ -204,32 +225,51 @@ class StorageCacheManager {
       accessTimeMap[path] = finalMS;
 
       final videoId = itemToYtId(e);
-      if (videoId != null) {
-        final listensCount = getTotalListensForIDLength(videoId);
-        listensMap[videoId] = listensCount;
-        if (maxListenCount < listensCount) maxListenCount = listensCount;
-      }
+      if (videoId != null) fillListensForID(videoId);
     });
+
+    final hasVipItems = itemsPerPriority.containsKey(CacheVideoPriority.VIP);
+
+    int priorityIndexOf(T e) => priorityByPath[itemToPath(e)]!.index;
+    int vipLastKeyOf(T e) => priorityByPath[itemToPath(e)] == CacheVideoPriority.VIP ? 1 : 0;
+    int sizeOf(T e) => sizesMap[itemToPath(e)] ?? 0;
+
+    double keepScoreOf(T e) {
+      final id = itemToYtId(e);
+      final decayedListens = id == null ? 0.0 : decayedListensMap[id] ?? 0.0;
+      final sizeInMB = sizeOf(e) / (1024 * 1024);
+      final sizeWeight = 1 + LogScaledRatio.logScaleOf(sizeInMB);
+      return LogScaledRatio.logScaleOf(decayedListens) / sizeWeight;
+    }
+
+    void sortKeepingVipLast(List<T> files, Comparable Function(T e) key, {bool reverse = false}) {
+      if (hasVipItems) {
+        files.sortByAltsPrecomputed(
+          [vipLastKeyOf, key],
+          alternativesReverse: [false, reverse],
+        );
+      } else {
+        files.sortByPrecomputed(key, reverse: reverse);
+      }
+    }
 
     void sortBy(_CacheSorting type) {
       currentSort.value = type;
+      final files = allFiles.value;
       switch (type) {
         case _CacheSorting.recommended:
-          final maxLastAccess = DateTime.now().millisecondsSinceEpoch;
-          allFiles.sortBy((e) {
-            final accessTime = accessTimeMap[itemToPath(e)] ?? 0;
-            final listenCount = listensMap[itemToYtId(e)] ?? 0;
-            final normalizedAccessTime = (accessTime / maxLastAccess);
-            final normalizedListenCount = maxListenCount > 0 ? listenCount / maxListenCount : 0.0;
-            return normalizedAccessTime * 0.3 + normalizedListenCount * 0.7;
-          });
+          files.sortByAltsPrecomputed(
+            [priorityIndexOf, keepScoreOf, sizeOf],
+            alternativesReverse: [true, false, true],
+          );
         case _CacheSorting.size:
-          allFiles.sortByReverse((e) => sizesMap[itemToPath(e)] ?? 0);
+          sortKeepingVipLast(files, sizeOf, reverse: true);
         case _CacheSorting.accessTime:
-          allFiles.sortBy((e) => accessTimeMap[itemToPath(e)] ?? 0);
+          sortKeepingVipLast(files, (e) => accessTimeMap[itemToPath(e)] ?? 0);
         case _CacheSorting.listenCount:
-          allFiles.sortBy((e) => listensMap[itemToYtId(e)] ?? 0);
+          sortKeepingVipLast(files, (e) => listensMap[itemToYtId(e)] ?? 0);
       }
+      allFiles.refresh();
     }
 
     Widget getChipButton({
@@ -250,14 +290,20 @@ class StorageCacheManager {
         onTap: () => sortBy(sort),
         child: Row(
           children: [
-            Icon(icon, size: 18.0),
+            Icon(
+              icon,
+              size: 18.0,
+            ),
             const SizedBox(width: 4.0),
             NamidaText(
               title,
               style: NText.medium,
             ),
             const SizedBox(width: 4.0),
-            const Icon(Broken.arrow_down_2, size: 14.0),
+            const Icon(
+              Broken.arrow_down_2,
+              size: 14.0,
+            ),
           ],
         ),
       );
@@ -770,34 +816,6 @@ class _VideoTrimmer {
     _Trimmer._sortFiles(videosFinal, priorityMap, stats);
     return _Trimmer._trimExcessCache(videosFinal, maxBytes, stats);
   }
-
-  static Map<File, int> _getTempVideosForID(({String id, String tempDir, String normalDir}) params) {
-    final id = params.id;
-    final tempDir = params.tempDir;
-    final normalDir = params.normalDir;
-
-    final sep = Platform.pathSeparator;
-
-    final filesMap = <File, int>{};
-    void checkFileAndAdd(FileSystemEntity e) {
-      if (e is File) {
-        final filename = e.path.splitLast(sep);
-        if (filename.startsWith(id)) {
-          filesMap[e] = e.fileSizeSync() ?? 0;
-        }
-      }
-    }
-
-    for (final e in Directory(tempDir).listSyncSafe()) {
-      checkFileAndAdd(e);
-    }
-    for (final e in Directory(normalDir).listSyncSafe()) {
-      if (e.path.endsWith('.part')) {
-        checkFileAndAdd(e);
-      }
-    }
-    return filesMap;
-  }
 }
 
 class _AudioTrimmer {
@@ -827,28 +845,6 @@ class _AudioTrimmer {
     _Trimmer._sortFiles(audios, priorityMap, stats);
     return _Trimmer._trimExcessCache(audios, maxBytes, stats);
   }
-
-  static Map<File, int> _getTempAudiosForID(({String id, String dirPath}) params) {
-    final id = params.id;
-    final dirPath = params.dirPath;
-
-    final sep = Platform.pathSeparator;
-
-    final filesMap = <File, int>{};
-
-    final files = Directory(dirPath).listSyncSafe();
-    for (var e in files) {
-      if (e.path.endsWith('.part')) {
-        if (e is File) {
-          final filename = e.path.splitLast(sep);
-          if (filename.startsWith(id)) {
-            filesMap[e] = e.fileSizeSync() ?? 0;
-          }
-        }
-      }
-    }
-    return filesMap;
-  }
 }
 
 class _ImageTrimmer {
@@ -859,10 +855,11 @@ class _ImageTrimmer {
     final maxMB = _imagesMaxCacheInMB;
     if (maxMB < 0) return 0;
     final totalMaxBytes = maxMB * 1024 * 1024;
+    final trimmedDirs = StorageCacheManager.trimmedImageDirs;
     final paramters = (
       maxBytes: totalMaxBytes,
-      dirPath: AppDirs.YT_THUMBNAILS,
-      extraDirPath: AppDirs.YT_THUMBNAILS_CHANNELS,
+      dirPath: trimmedDirs.videos,
+      extraDirPath: trimmedDirs.channels,
       priorityDbInfo: priorityDbInfo,
     );
     return await _trimExcessImageCacheIsolate.thready(paramters);
@@ -890,7 +887,8 @@ class _ImageTrimmer {
   }
 
   Future<void> _trimExcessImageCacheTemp(DbWrapperFileInfo priorityDbInfo) async {
-    final dirPath = FileParts.joinPath(AppDirs.YT_THUMBNAILS, 'temp');
+    final trimmedVideosDir = StorageCacheManager.trimmedImageDirs.videos;
+    final dirPath = FileParts.joinPath(trimmedVideosDir, 'temp');
     if (!await Directory(dirPath).exists()) return;
     final params = (
       dirPath: dirPath,

@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
@@ -19,6 +20,7 @@ import 'package:namida/class/file_parts.dart';
 import 'package:namida/class/folder.dart';
 import 'package:namida/class/route.dart';
 import 'package:namida/class/track.dart';
+import 'package:namida/class/video.dart';
 import 'package:namida/controller/bookmarks_controller.dart';
 import 'package:namida/controller/connectivity.dart';
 import 'package:namida/controller/current_color.dart';
@@ -53,6 +55,7 @@ import 'package:namida/main_page_wrapper.dart';
 import 'package:namida/packages/miniplayer.dart';
 import 'package:namida/ui/dialogs/add_to_playlist_dialog.dart';
 import 'package:namida/ui/dialogs/bookmarks_sheet.dart';
+import 'package:namida/ui/dialogs/clear_cache_dialog.dart';
 import 'package:namida/ui/dialogs/common_dialogs.dart';
 import 'package:namida/ui/dialogs/create_smart_playlist_dialog.dart';
 import 'package:namida/ui/dialogs/edit_tags_dialog.dart';
@@ -61,13 +64,13 @@ import 'package:namida/ui/dialogs/queue_insertion_dialogs.dart';
 import 'package:namida/ui/dialogs/set_lrc_dialog.dart';
 import 'package:namida/ui/dialogs/setting_dialog_with_text_field.dart';
 import 'package:namida/ui/dialogs/track_advanced_dialog.dart';
-import 'package:namida/ui/dialogs/track_clear_dialog.dart';
 import 'package:namida/ui/dialogs/track_info_dialog.dart';
 import 'package:namida/ui/dialogs/track_listens_dialog.dart';
 import 'package:namida/ui/dialogs/track_stats_dialog.dart';
 import 'package:namida/ui/pages/about_page.dart';
 import 'package:namida/ui/pages/artists_map_page.dart';
 import 'package:namida/ui/pages/discover_page.dart';
+import 'package:namida/ui/pages/home_page.dart';
 import 'package:namida/ui/pages/lyrics_editor_page.dart';
 import 'package:namida/ui/pages/party_page.dart';
 import 'package:namida/ui/pages/settings_page.dart';
@@ -79,6 +82,7 @@ import 'package:namida/ui/pages/wide_screen_player_page.dart';
 import 'package:namida/ui/widgets/settings/indexer_settings.dart';
 import 'package:namida/ui/widgets/settings/youtube_settings.dart';
 import 'package:namida/ui/widgets/eggs/eggs.dart';
+import 'package:namida/ui/widgets/jellyfish.dart';
 import 'package:namida/ui/widgets/settings_search_bar.dart';
 import 'package:namida/ui/widgets/stats.dart';
 import 'package:namida/ui/widgets/stats_widgets.dart';
@@ -126,6 +130,31 @@ class ScreenshotsDriver {
   bool get hidesSystemBars => _hidesSystemBars;
   bool _hidesSystemBars = false;
 
+  /// the home mixes pick at random, each scene showing home gets its own picks from `mixesSeed` and its id.
+  math.Random newMixesRandom() => math.Random(_sceneMixesSeed);
+  int _mixesSeed = 1;
+  int _sceneMixesSeed = 1;
+
+  /// a scene's `recommendedFirst` is its recommended mix's cover, the mix's tracks follow the run's hour so a seed
+  /// alone can't pick it. a track the mix doesn't hold comes from the library.
+  void pinRecommendedFirst<E>(List<E> items, String? Function(E item) titleOf, List<E> libraryItems) {
+    final title = _recommendedFirst;
+    if (title == null) return;
+    final index = items.indexWhere((e) => titleOf(e) == title);
+    if (index == 0) return;
+    if (index > 0) {
+      items.insert(0, items.removeAt(index));
+      return;
+    }
+    final libraryIndex = libraryItems.indexWhere((e) => titleOf(e) == title);
+    if (libraryIndex >= 0) items.insert(0, libraryItems[libraryIndex]);
+  }
+
+  String? _recommendedFirst;
+
+  /// set by the `jellys` step, the invasion stops again after the scene.
+  bool _isJellysInvading = false;
+
   Future<void> run() async {
     if (isInteractive) {
       HardwareKeyboard.instance.addHandler(_onInteractiveKey);
@@ -140,6 +169,8 @@ class ScreenshotsDriver {
       final config = await scenesFile.readAsJson() as Map<String, dynamic>;
       final platformOverrides = (config['platformOverrides'] as Map<String, dynamic>?)?[Platform.operatingSystem] as Map<String, dynamic>?;
       if (platformOverrides != null) config.addAll(platformOverrides);
+      _mixesSeed = config['mixesSeed'] as int? ?? _mixesSeed;
+      _sceneMixesSeed = _mixesSeed;
       await _logFile.create(recursive: true);
       await _waitForLibrary();
 
@@ -158,6 +189,9 @@ class ScreenshotsDriver {
         await _runStep(step);
       }
       _sceneSettingsToRestore.clear();
+      // -- home filled its mixes at launch, before the tracks were indexed (added dates read as now) and before the
+      // -- setup's last track played (supremacy follows it)
+      HomePageRefresher.requestRefresh();
       await _resetUi();
 
       for (final themeName in themes) {
@@ -174,6 +208,7 @@ class ScreenshotsDriver {
             await _applyWindow(window);
             await _resetUi();
             final steps = (scene['steps'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
+            _applySceneMixes(scene, steps);
             for (final step in steps) {
               await _runStep(step);
             }
@@ -196,8 +231,11 @@ class ScreenshotsDriver {
             errors.add('$themeName/$id: $e');
             await _log('error $themeName/$id: $e\n$st');
           } finally {
+            await _releaseHeldSwipe();
+            _restoreScrolledRows();
             await _party.leave();
             _restoreSceneSettings();
+            _stopJellys();
           }
         }
       }
@@ -207,7 +245,7 @@ class ScreenshotsDriver {
     }
 
     final doneFile = File(FileParts.joinPath(_rootDir, 'out', 'done.json'));
-    await doneFile.writeAsJson({'shots': shots, 'errors': errors});
+    await doneFile.writeAsJsonAtomic({'shots': shots, 'errors': errors});
     await Namida.disposeAllResourcesAndExit();
   }
 
@@ -312,6 +350,8 @@ class ScreenshotsDriver {
     final search = ScrollSearchController.inst;
     if (search.isGlobalSearchMenuShown.value) search.toggleSearch(instant: true);
     if (search.searchTextEditingController.text.isNotEmpty) search.resetSearch();
+    // -- the search page opens on the last search type, a youtube search would take the next local one
+    search.currentSearchType.value = SearchType.localTracks;
     SettingsSearchController.inst.closeSearch();
     SelectedTracksController.inst.clearEverything();
     MiniPlayerController.inst.snapToMini(haptic: false);
@@ -444,11 +484,11 @@ class ScreenshotsDriver {
   Future<void> _saveCaptureRegions(String outPathWithoutExtension, _CaptureRegions regions) async {
     if (regions.tiles.isNotEmpty) {
       final tilesJson = regions.tiles.map((tile) => tile.toJson(labelKey: 'title')).toList();
-      await File('$outPathWithoutExtension.tiles.json').writeAsJson({'tiles': tilesJson});
+      await File('$outPathWithoutExtension.tiles.json').writeAsJsonAtomic({'tiles': tilesJson});
     }
     if (regions.texts.isNotEmpty) {
       final textsJson = regions.texts.map((text) => text.toJson(labelKey: 'text')).toList();
-      await File('$outPathWithoutExtension.texts.json').writeAsJson({'texts': textsJson});
+      await File('$outPathWithoutExtension.texts.json').writeAsJsonAtomic({'texts': textsJson});
     }
   }
 
@@ -522,6 +562,10 @@ class ScreenshotsDriver {
         search.searchBarKey.currentState?.openCloseSearchBar(forceOpen: true);
         search.searchLocal(query);
         await _hideKeyboard();
+      case 'ytSearch':
+        final query = step['text'] as String? ?? '';
+        ScrollSearchController.inst.openYoutubeSearch(query);
+        await _hideKeyboard();
       case 'select':
         final from = step['from'] as int? ?? 0;
         final to = step['to'] as int? ?? 5;
@@ -577,13 +621,15 @@ class ScreenshotsDriver {
         await _tapText(step, holdMS);
       case 'longPress':
         await _tapText(step, _kLongPressHoldMS);
+      case 'swipe':
+        await _swipe(step);
       case 'scrollTo':
         final element = await _scrollUntilTextBuilt(step);
         final alignment = (step['alignment'] as num?)?.toDouble() ?? 0.15;
         await Scrollable.ensureVisible(element, alignment: alignment);
       case 'scrollBy':
         final pixels = (step['pixels'] as num).toDouble();
-        final position = _findScrollPosition();
+        final position = _findScrollPositionFor(step);
         final target = (position.pixels + pixels).withMaximum(position.maxScrollExtent);
         position.jumpTo(target);
       case 'bookmark':
@@ -593,6 +639,12 @@ class ScreenshotsDriver {
       case 'wait':
         final waitMS = step['ms'] as int? ?? 500;
         await Future.delayed(Duration(milliseconds: waitMS));
+      case 'jellys':
+        NamidaJellys.setInvasion(true);
+        _isJellysInvading = true;
+      case 'waitVideoCached':
+        final timeoutMS = step['timeoutMS'] as int? ?? _kVideoCacheTimeoutMS;
+        await _waitForVideoCached(step['id'] as String, timeoutMS);
       default:
         throw ArgumentError.value(action, 'do', 'unknown step');
     }
@@ -645,7 +697,7 @@ class ScreenshotsDriver {
       case 'trackClear':
         final track = _resolveTrack(step);
         final colorScheme = CurrentColor.inst.color;
-        showTrackClearDialog([track], colorScheme);
+        showClearCacheDialog(tracks: [track], colorScheme: colorScheme);
       case 'addFolder':
         const IndexerSettings().promptAddFolderType();
       case 'fontScale':
@@ -694,7 +746,12 @@ class ScreenshotsDriver {
       case 'trackAdvanced':
         final track = _resolveTrack(step);
         final colorScheme = CurrentColor.inst.color;
-        showTrackAdvancedDialog(tracks: [track], networkArtworkInfo: null, colorScheme: colorScheme, source: QueueSource.allTracks);
+        showTrackAdvancedDialog(
+          tracks: [track],
+          networkArtworkInfo: null,
+          colorScheme: colorScheme,
+          source: QueueSource.allTracks,
+        );
       case 'trackListens':
         final track = _resolveTrack(step);
         showTrackListensDialog(track);
@@ -773,10 +830,16 @@ class ScreenshotsDriver {
         NamidaMiniPlayerYoutubeID.openInfoMenu(rootContext, video);
       case 'ytClearVideo':
         final videoId = step['id'] as String;
-        const YTUtils().showVideoClearDialog(videoId);
+        showClearCacheDialog(videoIds: [videoId]);
       case 'ytDownload':
         final videoId = step['id'] as String;
-        showDownloadVideoBottomSheet(videoId: videoId, playlistId: null, originalIndex: null, totalLength: null, streamInfoItem: null);
+        showDownloadVideoBottomSheet(
+          videoId: videoId,
+          playlistId: null,
+          originalIndex: null,
+          totalLength: null,
+          streamInfoItem: null,
+        );
       case 'ytAddToPlaylist':
         final videoId = step['id'] as String;
         showAddToPlaylistSheet(ids: [videoId], idsNamesLookup: const {});
@@ -796,6 +859,31 @@ class ScreenshotsDriver {
     final storedJson = _getStoredSettingsJson(file);
     final previousValues = {for (final key in keys) key: storedJson[key]};
     _sceneSettingsToRestore.add((file: file, values: previousValues));
+  }
+
+  /// only a scene that shows home refills it, its tab step lets the new mixes settle before the capture.
+  void _applySceneMixes(Map<String, dynamic> scene, List<Map<String, dynamic>> steps) {
+    final recommendedFirst = scene['recommendedFirst'] as String?;
+    final showsHome = recommendedFirst != null || steps.any((step) => step['do'] == 'tab' && step['name'] == 'home');
+    if (!showsHome) return;
+    _sceneMixesSeed = _mixesSeed + _stableHashOf(scene['id'] as String);
+    _recommendedFirst = recommendedFirst;
+    HomePageRefresher.requestRefresh();
+  }
+
+  /// fnv-1a, String.hashCode isn't promised to stay the same between dart versions.
+  static int _stableHashOf(String text) {
+    var hash = 0x811c9dc5;
+    for (final codeUnit in text.codeUnits) {
+      hash = ((hash ^ codeUnit) * 0x01000193) & 0xffffffff;
+    }
+    return hash;
+  }
+
+  void _stopJellys() {
+    if (!_isJellysInvading) return;
+    NamidaJellys.setInvasion(false);
+    _isJellysInvading = false;
   }
 
   void _restoreSceneSettings() {
@@ -832,10 +920,67 @@ class ScreenshotsDriver {
 
   static const _kTapHoldMS = 60;
   static const _kLongPressHoldMS = 800;
+  static const _kSwipeMoveSteps = 12;
+  static const _kSwipeReleaseStillMS = 120;
   int _nextPointer = 1;
+
+  /// a `swipe` stays held through the capture, the scene releases it after.
+  _HeldSwipe? _heldSwipe;
 
   /// taps through the gesture arena directly, no os input is involved.
   Future<void> _tapText(Map<String, dynamic> step, int holdMS) async {
+    final target = _findPointerTarget(step);
+    final position = target.position;
+    final label = step['text'] ?? step['icon'];
+    await _log('tap $label at ${position.dx.round()},${position.dy.round()}');
+    final pointer = _nextPointer++;
+    final downEvent = PointerDownEvent(viewId: target.viewId, pointer: pointer, position: position);
+    GestureBinding.instance.handlePointerEvent(downEvent);
+    await Future.delayed(Duration(milliseconds: holdMS));
+    final upEvent = PointerUpEvent(viewId: target.viewId, pointer: pointer, position: position);
+    GestureBinding.instance.handlePointerEvent(upEvent);
+  }
+
+  /// drags the text or icon horizontally by `dx` and keeps holding it, so the capture shows the swipe midway.
+  Future<void> _swipe(Map<String, dynamic> step) async {
+    final target = _findPointerTarget(step);
+    final dx = (step['dx'] as num).toDouble();
+    final label = step['text'] ?? step['icon'];
+    await _log('swipe $label by ${dx.round()}');
+    final pointer = _nextPointer++;
+    final downEvent = PointerDownEvent(viewId: target.viewId, pointer: pointer, position: target.position);
+    GestureBinding.instance.handlePointerEvent(downEvent);
+    final position = await _movePointer(target.viewId, pointer, target.position, Offset(dx, 0.0));
+    _heldSwipe = (pointer: pointer, viewId: target.viewId, start: target.position, position: position);
+  }
+
+  /// one move per frame, so the drag recognizer wins the arena and the dragged widget follows like a finger.
+  Future<Offset> _movePointer(int viewId, int pointer, Offset from, Offset offset) async {
+    final delta = offset / _kSwipeMoveSteps.toDouble();
+    var position = from;
+    for (var i = 0; i < _kSwipeMoveSteps; i++) {
+      position += delta;
+      final moveEvent = PointerMoveEvent(viewId: viewId, pointer: pointer, position: position, delta: delta);
+      GestureBinding.instance.handlePointerEvent(moveEvent);
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    return position;
+  }
+
+  /// back to where it started and still for a moment before lifting, so the swipe settles without running its action.
+  Future<void> _releaseHeldSwipe() async {
+    final heldSwipe = _heldSwipe;
+    if (heldSwipe == null) return;
+    _heldSwipe = null;
+    final backOffset = heldSwipe.start - heldSwipe.position;
+    await _movePointer(heldSwipe.viewId, heldSwipe.pointer, heldSwipe.position, backOffset);
+    await Future.delayed(const Duration(milliseconds: _kSwipeReleaseStillMS));
+    final upEvent = PointerUpEvent(viewId: heldSwipe.viewId, pointer: heldSwipe.pointer, position: heldSwipe.start);
+    GestureBinding.instance.handlePointerEvent(upEvent);
+  }
+
+  /// the center of a step's `text` or `icon`, where its pointer events land.
+  _PointerTarget _findPointerTarget(Map<String, dynamic> step) {
     final isIcon = step.containsKey('icon');
     final element = isIcon ? _findIconElement(step) : _findTextElement(step, onlyHittable: true);
     final renderObject = element.renderObject;
@@ -843,14 +988,7 @@ class ScreenshotsDriver {
     final center = renderObject.size.center(Offset.zero);
     final position = renderObject.localToGlobal(center);
     final viewId = View.of(element).viewId;
-    final label = step['text'] ?? step['icon'];
-    await _log('tap $label at ${position.dx.round()},${position.dy.round()}');
-    final pointer = _nextPointer++;
-    final downEvent = PointerDownEvent(viewId: viewId, pointer: pointer, position: position);
-    GestureBinding.instance.handlePointerEvent(downEvent);
-    await Future.delayed(Duration(milliseconds: holdMS));
-    final upEvent = PointerUpEvent(viewId: viewId, pointer: pointer, position: position);
-    GestureBinding.instance.handlePointerEvent(upEvent);
+    return (position: position, viewId: viewId);
   }
 
   Element _findTextElement(Map<String, dynamic> step, {required bool onlyHittable}) {
@@ -858,11 +996,13 @@ class ScreenshotsDriver {
     return _pickMatch(step, matches, step['text'] as String);
   }
 
-  /// lazy lists only build what is near the viewport, so the topmost list pages down until the text is built.
+  /// lazy lists only build what is near the viewport, so the topmost list (or the `within` row) pages on until the text is built.
   Future<Element> _scrollUntilTextBuilt(Map<String, dynamic> step) async {
+    // -- a row is found first so it goes back after the capture, ensureVisible scrolls it even when the text was built
+    final rowPosition = step['within'] == null ? null : _findScrollPositionFor(step);
     var matches = _collectTextMatches(step, onlyHittable: false);
     if (matches.isEmpty) {
-      final position = _findScrollPosition();
+      final position = rowPosition ?? _findScrollPosition();
       while (matches.isEmpty && position.pixels < position.maxScrollExtent) {
         position.jumpTo((position.pixels + position.viewportDimension).withMaximum(position.maxScrollExtent));
         await WidgetsBinding.instance.endOfFrame;
@@ -927,6 +1067,29 @@ class ScreenshotsDriver {
   /// the topmost scrollable big enough to be a page or a dialog's list, small ones are chips rows and text fields.
   ScrollPosition _findScrollPosition() => _findPageScrollable().position;
 
+  /// rows a scene scrolled go back after its capture, a kept alive page would show them scrolled in the next scenes.
+  final _scrolledRows = <_ScrolledRow>[];
+
+  /// the page, or with `within` the list holding that text (like a horizontal row on the page).
+  ScrollPosition _findScrollPositionFor(Map<String, dynamic> step) {
+    final rowText = step['within'] as String?;
+    if (rowText == null) return _findScrollPosition();
+    final anchorStep = {'text': rowText};
+    final anchor = _findTextElement(anchorStep, onlyHittable: true);
+    final row = Scrollable.maybeOf(anchor);
+    if (row == null) throw StateError('no list holds $rowText');
+    _scrolledRows.add((row: row, pixels: row.position.pixels));
+    return row.position;
+  }
+
+  void _restoreScrolledRows() {
+    for (final scrolledRow in _scrolledRows.reversed) {
+      final row = scrolledRow.row;
+      if (row.mounted) row.position.jumpTo(scrolledRow.pixels);
+    }
+    _scrolledRows.clear();
+  }
+
   _PageScrollable _findPageScrollable() {
     final matches = _collectVisibleElements((element) => element is StatefulElement && element.state is ScrollableState);
     for (final element in matches.reversed) {
@@ -977,9 +1140,10 @@ class ScreenshotsDriver {
     return smartPlaylists.firstWhereEff((e) => e.value.name == name) ?? smartPlaylists.firstOrNull;
   }
 
+  /// roles name songs, a loop video tagged like its song never stands in for it.
   Track? _findTrack(String? title) {
     if (title == null) return null;
-    return allTracksInLibrary.firstWhereEff((e) => e.title == title);
+    return allTracksInLibrary.firstWhereEff((e) => e is! Video && e.title == title);
   }
 
   Track _resolveTrack(Map<String, dynamic> step) {
@@ -1051,8 +1215,11 @@ class ScreenshotsDriver {
     await _playTracks(step, tracks, source);
   }
 
+  /// a named track missing from the library fails the scene, any other track would be shot in its place.
   Future<void> _playTracks(Map<String, dynamic> step, List<Track> tracks, QueueSource source) async {
-    final track = _findTrack(step['track'] as String?);
+    final trackTitle = step['track'] as String?;
+    final track = _findTrack(trackTitle);
+    if (trackTitle != null && track == null) throw StateError('no track titled $trackTitle');
     final trackIndex = track == null ? -1 : tracks.indexOf(track);
     final stepIndex = step['index'] as int? ?? 0;
     final index = trackIndex >= 0 ? trackIndex : stepIndex;
@@ -1088,6 +1255,29 @@ class ScreenshotsDriver {
     final videoPath = VideoController.inst.currentVideo.value?.path;
     await _log('video after ${waitedMS}ms: $videoPath');
   }
+
+  static const _kVideoCacheTimeoutMS = 20 * 60 * 1000;
+  static const _kVideoCachePollMS = 1000;
+
+  /// a finished cache is `<id>_<quality>.mp4`, an unfinished one still ends in `.part`.
+  Future<void> _waitForVideoCached(String videoId, int timeoutMS) async {
+    final prefix = '${videoId}_';
+    final videosDirectory = Directory(AppDirs.VIDEOS_CACHE);
+    var waitedMS = 0;
+    while (waitedMS < timeoutMS) {
+      final isCached = videosDirectory.listSyncSafe().any((e) {
+        final filename = e.path.getFilename;
+        return filename.startsWith(prefix) && filename.endsWith('.mp4');
+      });
+      if (isCached) {
+        await _log('$videoId cached after ${waitedMS}ms');
+        return;
+      }
+      await Future.delayed(const Duration(milliseconds: _kVideoCachePollMS));
+      waitedMS += _kVideoCachePollMS;
+    }
+    throw StateError('$videoId not cached after ${timeoutMS}ms');
+  }
 }
 
 /// the app's root in screenshots mode: the capture boundary, and a full page capture's taller layout. the tree stays the
@@ -1108,12 +1298,16 @@ class ScreenshotsRoot extends StatelessWidget {
       builder: (context, tallHeight, boundary) {
         final mediaQuery = MediaQuery.of(context);
         final size = tallHeight == null ? mediaQuery.size : Size(mediaQuery.size.width, tallHeight);
+        // -- hidden bars still leave a camera cutout's inset, the shots have no system ui so the emulator's cutout goes too
+        final hidesSystemBars = driver.hidesSystemBars;
+        final padding = hidesSystemBars ? mediaQuery.padding.copyWith(top: 0.0) : mediaQuery.padding;
+        final viewPadding = hidesSystemBars ? mediaQuery.viewPadding.copyWith(top: 0.0) : mediaQuery.viewPadding;
         return OverflowBox(
           alignment: Alignment.topCenter,
           minHeight: tallHeight,
           maxHeight: tallHeight,
           child: MediaQuery(
-            data: mediaQuery.copyWith(size: size),
+            data: mediaQuery.copyWith(size: size, padding: padding, viewPadding: viewPadding),
             child: boundary!,
           ),
         );
@@ -1147,3 +1341,6 @@ typedef _SettingsValues = ({String? file, Map<String, dynamic> values});
 typedef _CaptureRegions = ({List<_CaptureRegion> tiles, List<_CaptureRegion> texts});
 typedef _TallPage = ({double windowHeight, RenderObject page});
 typedef _PageScrollable = ({ScrollPosition position, RenderBox box});
+typedef _PointerTarget = ({Offset position, int viewId});
+typedef _HeldSwipe = ({int pointer, int viewId, Offset start, Offset position});
+typedef _ScrolledRow = ({ScrollableState row, double pixels});

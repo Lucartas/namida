@@ -76,6 +76,15 @@ class TrackWithDate extends Selectable<Map<String, dynamic>> with ItemWithDate, 
   @override
   int get dateAddedMS => dateAdded;
 
+  TrackWithDate copyWithTrack(Track track) {
+    return TrackWithDate(
+      dateAdded: dateAdded,
+      track: track,
+      queueSource: queueSource,
+      source: sourceNull,
+    );
+  }
+
   @override
   bool operator ==(other) {
     if (other is! TrackWithDate) return false;
@@ -135,6 +144,19 @@ class TrackStats extends PlayableItemStats {
       lastPositionInMs: track.lastPlayedPositionInMs ?? 0,
       audioTrackId: track.effectiveAudioTrackId,
       bookmarks: track.statsRaw?.bookmarks,
+    );
+  }
+
+  TrackStats copyWithTrack(Track track) {
+    return TrackStats(
+      track: track,
+      rating: rating,
+      tags: tags,
+      moods: moods,
+      lastPositionInMs: lastPositionInMs,
+      audioTrackId: audioTrackId,
+      bookmarks: bookmarks,
+      modifiedDate: modifiedDate,
     );
   }
 
@@ -236,23 +258,37 @@ class PlayableItemStats {
 class PlayableBookmark {
   final int positionMS;
   final String? title;
+  final PlayableBookmarkRole? role;
 
   const PlayableBookmark({
     required this.positionMS,
     required this.title,
+    required this.role,
   });
 
   factory PlayableBookmark.fromJson(Map<String, dynamic> json) {
     return PlayableBookmark(
       positionMS: json['p'] ?? 0,
       title: json['t'],
+      role: PlayableBookmarkRole.values.getEnum(json['r']),
     );
   }
 
   Map<String, dynamic> toJson() => {
     'p': positionMS,
     't': ?title,
+    'r': ?role?.name,
   };
+
+  static int? findRolePositionMS(List<PlayableBookmark>? bookmarks, PlayableBookmarkRole role) {
+    return bookmarks?.firstWhereEff((e) => e.role == role)?.positionMS;
+  }
+}
+
+/// where an item starts and finishes playing.
+enum PlayableBookmarkRole {
+  start,
+  end,
 }
 
 enum PlayableType {
@@ -394,6 +430,7 @@ class TrackExtended {
   final String releaseType;
   final int? bpm;
   final String musicalKey;
+  final ExplicitStatus? explicitStatus;
   final double rating;
   final String? originalTags;
   final List<String> tagsList;
@@ -414,6 +451,9 @@ class TrackExtended {
 
   /// `/` separated, relative to [server].
   final String? serverFolder;
+
+  /// videos named after this track next to it on the server, they aren't tracks of their own. null when it has none.
+  final List<NamidaVideo>? serverVideos;
 
   /// set while indexing, false also means unknown.
   final bool hasNoEmbeddedArtwork;
@@ -468,6 +508,7 @@ class TrackExtended {
     required this.releaseType,
     required this.bpm,
     required this.musicalKey,
+    required this.explicitStatus,
     required this.rating,
     required this.originalTags,
     required this.tagsList,
@@ -481,8 +522,9 @@ class TrackExtended {
     required this.isVideo,
     required this.server,
     required this.serverFolder,
+    required List<NamidaVideo>? serverVideos,
     required this.hasNoEmbeddedArtwork,
-  });
+  }) : serverVideos = serverVideos == null || serverVideos.isEmpty ? null : serverVideos;
 
   late final String yearPreferyyyyMMdd = _computeYearPreferyyyyMMdd();
 
@@ -631,6 +673,7 @@ class TrackExtended {
     required String releaseType,
     required int? bpm,
     required String musicalKey,
+    required ExplicitStatus? explicitStatus,
     required double rating,
     required String? originalTags,
     required ReplayGainData? gainData,
@@ -642,6 +685,7 @@ class TrackExtended {
     required bool isVideo,
     required String? server,
     required String? serverFolder,
+    required List<NamidaVideo>? serverVideos,
     required bool hasNoEmbeddedArtwork,
   }) {
     final artistsConfig = splitConfig.artistsConfig;
@@ -653,7 +697,12 @@ class TrackExtended {
     return TrackExtended(
       title: title,
       originalArtist: originalArtist,
-      artistsList: Indexer.splitArtist(title: title, originalArtist: originalArtist, tagged: multiValues?.artists, config: artistsConfig),
+      artistsList: Indexer.splitArtist(
+        title: title,
+        originalArtist: originalArtist,
+        tagged: multiValues?.artists,
+        config: artistsConfig,
+      ),
       originalAlbum: originalAlbum,
       albumsList: albumsList,
       albumArtist: albumArtist,
@@ -693,6 +742,7 @@ class TrackExtended {
       releaseType: releaseType,
       bpm: bpm,
       musicalKey: musicalKey,
+      explicitStatus: explicitStatus,
       rating: rating,
       originalTags: originalTags,
       tagsList: Indexer.splitGeneral(originalTags, tagged: multiValues?.tags, config: generalConfig),
@@ -712,6 +762,7 @@ class TrackExtended {
       isVideo: isVideo,
       server: server,
       serverFolder: serverFolder,
+      serverVideos: serverVideos,
       hasNoEmbeddedArtwork: hasNoEmbeddedArtwork,
     );
   }
@@ -770,6 +821,7 @@ class TrackExtended {
       releaseType: json['releaseType'] ?? '',
       bpm: json['bpm'] as int?,
       musicalKey: json['musicalKey'] ?? '',
+      explicitStatus: ExplicitStatus.values.getEnum(json['explicit']),
       rating: json['rating'] ?? 0.0,
       originalTags: json['originalTags'],
       gainData: json['gainData'] == null ? null : ReplayGainData.fromMap(json['gainData']),
@@ -781,8 +833,14 @@ class TrackExtended {
       isVideo: json['v'] ?? false,
       server: json['server'],
       serverFolder: json['serverFolder'],
+      serverVideos: _serverVideosFromJson(json['serverVideos']),
       hasNoEmbeddedArtwork: json['noArt'] ?? false,
     );
+  }
+
+  static List<NamidaVideo>? _serverVideosFromJson(dynamic json) {
+    if (json is! List || json.isEmpty) return null;
+    return json.map((e) => NamidaVideo.fromJson((e as Map).cast<String, dynamic>())).toFixedList();
   }
 
   static Map<String, String>? _extraTagsFromJson(dynamic json) {
@@ -826,6 +884,7 @@ class TrackExtended {
       if (releaseType.isNotEmpty) 'releaseType': releaseType,
       if (bpm != null && bpm! > 0) 'bpm': bpm,
       if (musicalKey.isNotEmpty) 'musicalKey': musicalKey,
+      'explicit': ?explicitStatus?.name,
       if (rating > 0) 'rating': rating,
       if (originalTags?.isNotEmpty == true) 'originalTags': originalTags,
       if (gainData != null) 'gainData': ?gainData?.toMap(),
@@ -837,6 +896,7 @@ class TrackExtended {
       if (isVideo) 'v': isVideo,
       if (server != null) 'server': server,
       if (serverFolder != null) 'serverFolder': serverFolder,
+      'serverVideos': ?serverVideos?.map((e) => e.toJson()).toFixedList(),
       if (hasNoEmbeddedArtwork) 'noArt': hasNoEmbeddedArtwork,
     };
   }
@@ -944,6 +1004,9 @@ extension TrackExtUtils on TrackExtended {
     }
     return '';
   }
+
+  // -- keep in sync with what [youtubeLink] reads
+  bool hasSameYoutubeLinkSources(TrackExtended other) => comment == other.comment && path == other.path;
 
   String get youtubeID => youtubeLink.getYoutubeID;
 
@@ -1065,6 +1128,8 @@ extension TrackExtUtils on TrackExtended {
 
     final yearText = tag.year;
     final year = yearText == null ? this.year : TrackExtended.enforceYearFormat(yearText) ?? 0;
+    final itunesAdvisory = tag.itunesAdvisory;
+    final explicitStatus = itunesAdvisory == null ? this.explicitStatus : ExplicitStatus.fromTagValue(itunesAdvisory);
     final firstWrapper = albumsIdentifiersWrappers.firstOrNull;
 
     return TrackExtended.derive(
@@ -1096,6 +1161,7 @@ extension TrackExtUtils on TrackExtended {
       releaseType: tag.releaseType ?? releaseType,
       bpm: tag.bpm ?? bpm,
       musicalKey: tag.musicalKey ?? musicalKey,
+      explicitStatus: explicitStatus,
       rating: tag.ratingPercentage ?? rating,
       originalTags: tag.tags ?? originalTags,
       gainData: tag.gainData ?? gainData,
@@ -1119,6 +1185,7 @@ extension TrackExtUtils on TrackExtended {
       hashKey: newHashKey,
       server: server ?? this.server,
       serverFolder: serverFolder,
+      serverVideos: serverVideos,
     );
   }
 
@@ -1162,6 +1229,7 @@ extension TrackExtUtils on TrackExtended {
       releaseType: releaseType,
       bpm: bpm,
       musicalKey: musicalKey,
+      explicitStatus: explicitStatus,
       rating: rating,
       originalTags: originalTags,
       gainData: gainData,
@@ -1173,6 +1241,7 @@ extension TrackExtUtils on TrackExtended {
       isVideo: isVideo,
       server: server,
       serverFolder: serverFolder,
+      serverVideos: serverVideos,
       hasNoEmbeddedArtwork: hasNoEmbeddedArtwork,
     );
   }
@@ -1234,6 +1303,7 @@ extension TrackExtUtils on TrackExtended {
     required bool generatePathHash,
     String? server,
     String? serverFolder,
+    List<NamidaVideo>? serverVideos,
     bool? hasNoEmbeddedArtwork,
   }) {
     final newPath = path ?? this.path;
@@ -1281,6 +1351,7 @@ extension TrackExtUtils on TrackExtended {
       releaseType: releaseType ?? this.releaseType,
       bpm: bpm ?? this.bpm,
       musicalKey: musicalKey ?? this.musicalKey,
+      explicitStatus: this.explicitStatus,
       rating: rating ?? this.rating,
       originalTags: originalTags ?? this.originalTags,
       tagsList: tagsList ?? this.tagsList,
@@ -1294,6 +1365,7 @@ extension TrackExtUtils on TrackExtended {
       isVideo: isVideo ?? this.isVideo,
       server: server ?? this.server,
       serverFolder: serverFolder ?? this.serverFolder,
+      serverVideos: serverVideos ?? this.serverVideos,
       hasNoEmbeddedArtwork: hasNoEmbeddedArtwork ?? this.hasNoEmbeddedArtwork,
     );
   }
@@ -1346,6 +1418,7 @@ extension TrackUtils on Track {
   int get sampleRate => toTrackExt().sampleRate;
   int get bits => toTrackExt().bits;
   bool? get isLossless => toTrackExt().isLossless;
+  ExplicitStatus? get explicitStatus => toTrackExt().explicitStatus;
   String get format => toTrackExt().format;
   String get channels => toTrackExt().channels;
   int get discNo => toTrackExt().discNo;

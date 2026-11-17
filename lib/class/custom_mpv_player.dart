@@ -12,6 +12,7 @@ import 'package:media_kit/media_kit.dart' as mk;
 import 'package:media_kit_video/media_kit_video.dart';
 
 import 'package:namida/controller/audio_output_controller.dart';
+import 'package:namida/controller/network_proxy_controller.dart';
 import 'package:namida/controller/platform/namida_channel/namida_channel.dart';
 import 'package:namida/core/extensions.dart';
 import 'package:namida/core/utils.dart';
@@ -38,6 +39,9 @@ class CustomMPVPlayer implements AVPlayer {
     _setMpvProperty('audio-fallback-to-null', 'yes');
     final nativePlayer = _player.platform as mk.NativePlayer;
     nativePlayer.observeProperty('current-ao', _onAudioDriverChanged).ignoreError();
+    final networkProxyController = NetworkProxyController.inst;
+    networkProxyController.addOnChanged(_onProxyChanged);
+    if (networkProxyController.current != null) nativePlayer.onLoadHooks.add(_applyProxyForLoadingFile);
     _playerHeightStreamSub = _player.stream.height.listen((event) {
       final resolved = _dimensionResolver(event, null);
       if (resolved != null) _videoControllerListener(height: resolved);
@@ -165,7 +169,7 @@ class CustomMPVPlayer implements AVPlayer {
   late final _liveWindowTracker = _MPVLiveWindowTracker(_player);
   final _playbackEventStreamController = StreamController<PlaybackEvent>();
   final _playerProcessingStateStreamController = StreamController<ProcessingState>();
-  final _playerPositionStreamController = StreamController<Duration>();
+  final _playerPositionStreamController = StreamController<Duration>.broadcast();
 
   final _audioTracksStreamController = StreamController<List<AudioTrack>>();
   final _textTracksStreamController = StreamController<List<TextTrack>?>();
@@ -424,6 +428,42 @@ class CustomMPVPlayer implements AVPlayer {
       completeDuration(dur > Duration.zero ? dur : null);
     });
     return await durationCompleter.future;
+  }
+
+  String _appliedHttpProxy = '';
+
+  /// the load hook is only there while a proxy is active.
+  void _onProxyChanged(NetworkProxy? proxy) {
+    final onLoadHooks = (_player.platform as mk.NativePlayer).onLoadHooks;
+    onLoadHooks.remove(_applyProxyForLoadingFile);
+    if (proxy != null) {
+      onLoadHooks.add(_applyProxyForLoadingFile);
+    } else if (_appliedHttpProxy.isNotEmpty) {
+      _appliedHttpProxy = '';
+      _setMpvProperty('http-proxy', '');
+    }
+  }
+
+  /// runs inside mpv's on_load hook, before each file opens. files from the local cache server or the lan stay direct, mpv has no bypass list.
+  Future<void> _applyProxyForLoadingFile() async {
+    final proxy = NetworkProxyController.inst.current;
+    if (proxy == null) return;
+    final nativePlayer = _player.platform as mk.NativePlayer;
+    try {
+      // -- no initialization wait, the hook holds the file until it returns
+      final path = await nativePlayer.getProperty('path', waitForInitialization: false);
+      final httpProxy = _isProxiedUrl(path, proxy) ? proxy.toUrl() : '';
+      if (httpProxy == _appliedHttpProxy) return;
+      await nativePlayer.setProperty('http-proxy', httpProxy, waitForInitialization: false);
+      _appliedHttpProxy = httpProxy;
+    } catch (_) {}
+  }
+
+  static bool _isProxiedUrl(String path, NetworkProxy proxy) {
+    final uri = Uri.tryParse(path);
+    if (uri == null) return false;
+    if (!uri.isScheme('http') && !uri.isScheme('https')) return false;
+    return !proxy.shouldBypass(uri.host);
   }
 
   mk.Playable? _playableOpening;
@@ -795,6 +835,7 @@ class CustomMPVPlayer implements AVPlayer {
 
   @override
   Future<void> seek(Duration? position) async {
+    if (_disposed) return;
     if (_kSkipSeekWhenLoopNotApplied && !_loopingVideoApplied && _videoOptions?.loop == true) return;
     if (position != null) _liveWindowTracker.onSeek();
     final target = position ?? _liveWindowTracker.window?.edge ?? Duration.zero;
@@ -846,6 +887,7 @@ class CustomMPVPlayer implements AVPlayer {
     _videoControllerRaw?.id.removeListener(_videoControllerListener);
     _videoControllerRaw?.rect.removeListener(_videoControllerListener);
     _audioFilters.dispose();
+    NetworkProxyController.inst.removeOnChanged(_onProxyChanged);
 
     return _player.dispose();
   }
@@ -1079,51 +1121,59 @@ class CustomMPVPlayer implements AVPlayer {
 
   @override
   Future<bool> addMediaNext<T>(ItemPrepareConfig<T, UriSource> config) async {
-    final pl = _player;
-    final currentIndex = pl.state.playlist.index;
-    final insertIndex = currentIndex + 1;
-
     final media = mk.Media(
       config.source.uri.toString(),
       start: config.initialPosition,
     );
+    await mk.NativePlayer.lock.synchronized(() => _addMediaNextLocked(media));
+    return true;
+  }
+
+  /// playlist indices are read & used inside media_kit's lock, any playlist change in between would shift them.
+  Future<void> _addMediaNextLocked(mk.Media media) async {
+    final pl = _player.platform as mk.NativePlayer;
+    final currentIndex = pl.state.playlist.index;
+    final insertIndex = currentIndex + 1;
 
     // -- no `insert`, so we add and move
-    await pl.add(media);
+    await pl.add(media, synchronized: false);
     _queuedNextMedia = media;
     final addedIndex = pl.state.playlist.medias.length - 1;
     if (addedIndex != insertIndex) {
-      await pl.move(addedIndex, insertIndex);
+      await pl.move(addedIndex, insertIndex, synchronized: false);
     }
 
     // -- removing tail
     final length = pl.state.playlist.medias.length;
     if (length > insertIndex + 1) {
       for (int i = length - 1; i > insertIndex; i--) {
-        await pl.remove(i);
+        await pl.remove(i, synchronized: false);
       }
     }
 
     // -- removing head after tail
     if (insertIndex > 1) {
       for (int i = insertIndex - 2; i >= 0; i--) {
-        await pl.remove(i);
+        await pl.remove(i, synchronized: false);
       }
     }
-    return true;
   }
 
   @override
   Future<void> removeAllMediaNext() async {
     _queuedNextMedia = null;
-    final pl = _player;
+    await mk.NativePlayer.lock.synchronized(_removeAllMediaNextLocked);
+  }
+
+  Future<void> _removeAllMediaNextLocked() async {
+    final pl = _player.platform as mk.NativePlayer;
     final length = pl.state.playlist.medias.length;
 
     // -- only remove items strictly after the currently playing one,
     // -- otherwise we'd nuke playback if the player has already advanced to the queued next item.
     final removeFrom = pl.state.playlist.index + 1;
     for (int i = length - 1; i >= removeFrom; i--) {
-      await pl.remove(i);
+      await pl.remove(i, synchronized: false);
     }
   }
 }

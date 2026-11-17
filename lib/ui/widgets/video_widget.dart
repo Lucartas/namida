@@ -330,18 +330,31 @@ class NamidaVideoControlsState extends State<NamidaVideoControls> with TickerPro
 
     settings.youtube.horizontalDrag.addListener(_horizontalDragModeListener);
 
-    if (widget.isFullScreen && NamidaFeaturesVisibility.changeApplicationBrightness) {
+    _controlsAppBrightness = widget.isFullScreen && NamidaFeaturesVisibility.changeApplicationBrightness && !NamidaChannel.inst.isInPip.value;
+    if (_controlsAppBrightness) {
       ScreenBrightness.instance.system.then((value) => _currentBrigthnessDim.value = 1.0 + value);
       _systemBrightnessStreamSub = ScreenBrightness.instance.onSystemScreenBrightnessChanged.listen(
         (event) {
           if (event > 0) {
             _currentBrigthnessDim.value = 1.0 + event;
-            _setScreenBrightness(event);
+            if (!NamidaChannel.inst.isInPip.value) _setScreenBrightness(event);
           }
         },
       );
+      NamidaChannel.inst.isInPip.addListener(_onPipChanged);
     }
     if (widget.isFullScreen && _deviceOrientationCommunicatorStreamSub == null) _setupDeviceOrientationListener();
+  }
+
+  // -- the pip view is its own fullscreen instance
+  late final bool _controlsAppBrightness;
+
+  void _onPipChanged() {
+    if (NamidaChannel.inst.isInPip.value) {
+      ScreenBrightness.instance.resetApplicationScreenBrightness();
+    } else {
+      _setScreenBrightness(_currentBrigthnessDim.value - 1.0);
+    }
   }
 
   void _setScreenBrightness(double value) async {
@@ -370,7 +383,8 @@ class NamidaVideoControlsState extends State<NamidaVideoControls> with TickerPro
     MiniPlayerController.inst.animation.removeListener(_miniplayerAnimationListener);
     settings.youtube.horizontalDrag.removeListener(_horizontalDragModeListener);
     _systemBrightnessStreamSub?.cancel();
-    if (widget.isFullScreen && NamidaFeaturesVisibility.changeApplicationBrightness) {
+    if (_controlsAppBrightness) {
+      NamidaChannel.inst.isInPip.removeListener(_onPipChanged);
       ScreenBrightness.instance.resetApplicationScreenBrightness();
     }
     _deviceOrientationCommunicatorStreamSub?.cancel();
@@ -658,7 +672,10 @@ class NamidaVideoControlsState extends State<NamidaVideoControls> with TickerPro
                       style: NText.small,
                     ),
                     const SizedBox(height: 6.0),
-                    Icon(icon, size: 20.0),
+                    Icon(
+                      icon,
+                      size: 20.0,
+                    ),
                     const SizedBox(height: 12.0),
                   ],
                 ),
@@ -982,7 +999,10 @@ class NamidaVideoControlsState extends State<NamidaVideoControls> with TickerPro
                 padding: const EdgeInsets.all(6.0),
                 child: Row(
                   children: [
-                    const Icon(Broken.play_cricle, size: 20.0),
+                    const Icon(
+                      Broken.play_cricle,
+                      size: 20.0,
+                    ),
                     const SizedBox(width: 12.0),
                     NamidaText(
                       "${speed}x",
@@ -1007,7 +1027,10 @@ class NamidaVideoControlsState extends State<NamidaVideoControls> with TickerPro
           padding: const EdgeInsets.all(6.0),
           child: Row(
             children: [
-              const Icon(Broken.add_circle, size: 20.0),
+              const Icon(
+                Broken.add_circle,
+                size: 20.0,
+              ),
               const SizedBox(width: 12.0),
               NamidaText(
                 lang.add,
@@ -1215,7 +1238,12 @@ class NamidaVideoControlsState extends State<NamidaVideoControls> with TickerPro
                     selected: selected?.id == track.id,
                     isCached: true,
                   );
-                  return supported ? chip : Opacity(opacity: 0.5, child: chip);
+                  return supported
+                      ? chip
+                      : Opacity(
+                          opacity: 0.5,
+                          child: chip,
+                        );
                 },
               );
             },
@@ -2214,7 +2242,7 @@ class NamidaVideoControlsState extends State<NamidaVideoControls> with TickerPro
                                                     const SizedBox(width: 10.0),
                                                   ],
 
-                                                  if (!isFullScreen && settings.ytStyleButtonSwitcher.value == true) ...[
+                                                  if (!isFullScreen && settings.ytStyleButtonSwitcher.value) ...[
                                                     NamidaIconButton(
                                                       verticalPadding: 2.0,
                                                       horizontalPadding: 4.0,

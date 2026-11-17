@@ -5,9 +5,6 @@ part of 'namida_channel.dart';
 /// so we use a method channel whenever `onUserLeaveHint`, etc is called from FlutterActivity
 class _NamidaChannelAndroid extends NamidaChannel {
   late final MethodChannel _channel;
-  late final EventChannel _channelEvent;
-
-  StreamSubscription? _streamSub;
 
   @override
   bool get canOpenFileInExplorer => false;
@@ -16,7 +13,6 @@ class _NamidaChannelAndroid extends NamidaChannel {
 
   _NamidaChannelAndroid._init() {
     _channel = const MethodChannel('namida');
-    _channelEvent = const EventChannel('namida_events');
 
     _initLiseners();
   }
@@ -24,27 +20,18 @@ class _NamidaChannelAndroid extends NamidaChannel {
   @override
   bool get supportsAppIcons => true;
   @override
-  Future<bool?> isAppIconEnabled(NamidaAppIcons type) async {
-    final res = await _channel.invokeMethod('isAppIconEnabled', {'key': type.name});
-    if (res is bool) {
-      return res;
-    }
-    return null;
+  Future<String?> _getEnabledAppIconKey() {
+    return _channel.invokeMethod<String>('getEnabledAppIcon');
   }
 
   @override
-  Future<void> changeAppIcon(NamidaAppIcons type) async {
+  Future<void> _changeAppIcon(NamidaAppIcons type) async {
     await _channel.invokeMethod('changeAppIcon', {'key': type.name});
   }
 
   @override
-  Future<void> updatePipRatio({int? width, int? height}) async {
-    await _channel.invokeMethod('updatePipRatio', {'width': width, 'height': height});
-  }
-
-  @override
-  Future<void> setCanEnterPip(bool canEnter) async {
-    await _channel.invokeMethod('setCanEnterPip', {"canEnter": canEnter});
+  Future<void> setPipAspectRatio({required int? width, required int? height}) async {
+    await _channel.invokeMethod('setPipAspectRatio', {'width': width, 'height': height});
   }
 
   @override
@@ -60,6 +47,29 @@ class _NamidaChannelAndroid extends NamidaChannel {
         "seconds": seconds,
       },
     );
+  }
+
+  @override
+  Future<Color?> getSystemAccentColor() => NamidaChannel._getSystemAccentColorFromChannel(_channel);
+
+  @override
+  Future<NetworkProxy?> getSystemProxy() async {
+    final map = await _channel.invokeMapMethod<Object?, Object?>('getSystemProxy');
+    return NetworkProxy.fromPlatformMap(map);
+  }
+
+  Future<void> Function()? _onSystemProxyChanged;
+
+  @override
+  void listenSystemProxyChanges(Future<void> Function() onChanged) {
+    _onSystemProxyChanged = onChanged;
+    _channel.invokeMethod('listenSystemProxy');
+  }
+
+  @override
+  Future<void> setAppProxy(NetworkProxy? proxy) async {
+    final args = proxy?.toPlatformMap();
+    await _channel.invokeMethod('setAppProxy', args);
   }
 
   @override
@@ -112,12 +122,11 @@ class _NamidaChannelAndroid extends NamidaChannel {
   }
 
   @override
-  Future<bool> consumeSelfSentMediaCommand() async {
+  Future<bool> consumeTrustedMediaCommand() async {
     try {
-      final res = await _channel.invokeMethod<bool?>('consumeSelfSentMediaCommand');
+      final res = await _channel.invokeMethod<bool?>('consumeTrustedMediaCommand');
       return res ?? false;
     } catch (_) {
-      // -- no activity (ex: service started by external command)
       return false;
     }
   }
@@ -155,6 +164,14 @@ class _NamidaChannelAndroid extends NamidaChannel {
   }
 
   @override
+  Future<void> scanMediaFilesTry(List<String> paths) async {
+    if (paths.isEmpty) return;
+    try {
+      await _channel.invokeMethod('scanMediaFiles', {'paths': paths});
+    } catch (_) {}
+  }
+
+  @override
   Future<bool> openHomeWidgetSettings() async {
     final res = await _channel.invokeMethod<bool?>('openHomeWidgetSettings');
     return res ?? false;
@@ -178,17 +195,14 @@ class _NamidaChannelAndroid extends NamidaChannel {
   }
 
   void _initLiseners() {
-    _streamSub?.cancel();
-    try {
-      _streamSub = _channelEvent.receiveBroadcastStream().map((event) => event as bool).listen((message) {
-        isInPip.value = message;
-      });
-    } catch (_) {
-      // -- not initialized properly, can happen sometimes on newer android versions
-    }
-
     _channel.setMethodCallHandler((call) async {
       switch (call.method) {
+        case 'onPipModeChanged':
+          isInPip.value = call.arguments as bool;
+
+        case 'onSystemProxyChanged':
+          _onSystemProxyChanged?.call();
+
         case 'onResume':
           for (final fn in _onResume) {
             fn();

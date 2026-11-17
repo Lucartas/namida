@@ -18,6 +18,8 @@ class KeysSearchWrapper<T> {
     List<T> items, {
     required String? Function(T item) title,
     String? Function(T item)? subtitle,
+    String? Function(T item)? titleSort,
+    String? Function(T item)? subtitleSort,
     List<String>? Function(T item)? extras,
     KeysSearchWeights? weights,
     required bool cleanup,
@@ -35,14 +37,27 @@ class KeysSearchWrapper<T> {
       );
     }
 
+    _Property? sortPropertyOf(_Property? mainProperty, String? sortText, {bool tryCutBeforeBrackets = false}) {
+      if (mainProperty == null) return null;
+      final sortProperty = propertyOf(sortText, tryCutBeforeBrackets: tryCutBeforeBrackets);
+      if (sortProperty == null) return null;
+      return TracksSearchWrapper._sortPropertyOrNull(sortProperty, mainProperty);
+    }
+
     _SearchKey keyOf(T item, int listensMultiplier) {
       final titleText = title(item);
       final subtitleText = subtitle?.call(item);
+      final titleSortText = titleSort?.call(item);
+      final subtitleSortText = subtitleSort?.call(item);
       final extrasTexts = extras?.call(item);
       final extrasProperties = extrasTexts?.map(propertyOf).nonNulls.toFixedList();
+      final titleProperty = propertyOf(titleText, tryCutBeforeBrackets: true);
+      final subtitleProperty = propertyOf(subtitleText);
       return _SearchKey(
-        title: propertyOf(titleText, tryCutBeforeBrackets: true),
-        subtitle: propertyOf(subtitleText),
+        title: titleProperty,
+        subtitle: subtitleProperty,
+        titleSort: sortPropertyOf(titleProperty, titleSortText, tryCutBeforeBrackets: true),
+        subtitleSort: sortPropertyOf(subtitleProperty, subtitleSortText),
         extras: extrasProperties,
         listensMultiplier: listensMultiplier,
       );
@@ -50,8 +65,6 @@ class KeysSearchWrapper<T> {
 
     final listensCounts = weights?.listensCounts;
     final itemsOrder = weights == null ? null : _orderByWeights(weights);
-    final maxListensCount = listensCounts == null || listensCounts.isEmpty ? 0 : listensCounts.reduce(math.max);
-    final maxListensLog = math.log(maxListensCount + 1);
 
     final orderedItems = <T>[];
     final keys = <_SearchKey>[];
@@ -59,7 +72,7 @@ class KeysSearchWrapper<T> {
       final itemIndex = itemsOrder == null ? i : itemsOrder[i];
       final item = items[itemIndex];
       final listensCount = listensCounts?[itemIndex];
-      final listensMultiplier = TracksSearchWrapper._listensMultiplierOf(listensCount, maxListensLog);
+      final listensMultiplier = TracksSearchWrapper._listensMultiplierOf(listensCount, _kListensBoost);
       orderedItems.add(item);
       keys.add(keyOf(item, listensMultiplier));
     }
@@ -71,6 +84,8 @@ class KeysSearchWrapper<T> {
       textCleanedMinorForSearch,
     );
   }
+
+  static const _kListensBoost = 1;
 
   static KeysSearchWeights createWeights<E>(List<E> groups, {required int Function(E group) listensCount, required int Function(E group) tracksCount}) {
     final listensCounts = Uint32List(groups.length);
@@ -98,6 +113,21 @@ class KeysSearchWrapper<T> {
   }
 
   List<T> filter(String text) {
+    final results = <T>[];
+    _filter(text, results.add, results.add);
+    return results;
+  }
+
+  KeysSearchRelevanceResults<T> filterRelevantFirst(String text) {
+    final results = <T>[];
+    final lessRelevant = <T>[];
+    final bestScore = _filter(text, results.add, lessRelevant.add);
+    final relevantCount = results.length;
+    results.addAll(lessRelevant);
+    return (results: results, relevantCount: relevantCount, bestScore: bestScore);
+  }
+
+  int _filter(String text, void Function(T item) onRelevantMatch, void Function(T item) onLessRelevantMatch) {
     final textTrimmed = text.trimAll();
     final queryProperty = TracksSearchWrapper._splitTextCleanedAndCleanedMinor(textTrimmed, _textCleanedForSearch, _textCleanedMinorForSearch);
 
@@ -107,39 +137,53 @@ class KeysSearchWrapper<T> {
       queryMinor: queryProperty.cleanedMinor,
     );
 
-    final items = _items;
     final keys = _keys;
-    final scored = <int, List<T>>{};
+    final scored = <int, List<int>>{};
+    int bestScore = 0;
     for (int i = 0; i < keys.length; i++) {
       final key = keys[i];
       final score = calculator.calculateKey(key);
       if (score > 0) {
+        if (score > bestScore) bestScore = score;
         final scoreKey = score * key.listensMultiplier;
-        (scored[scoreKey] ??= []).add(items[i]);
+        (scored[scoreKey] ??= []).add(i);
       }
     }
 
-    final sortedScores = scored.keys.toFixedList()..sort((a, b) => b.compareTo(a));
-    final results = <T>[];
-    for (final score in sortedScores) {
-      results.addAll(scored[score]!);
+    final items = _items;
+    final relevantMinScore = TracksSearchWrapper.relevantMinScoreOf(bestScore);
+    final sortedKeys = scored.keys.toFixedList()..sort((a, b) => b.compareTo(a));
+    for (final scoreKey in sortedKeys) {
+      for (final i in scored[scoreKey]!) {
+        final score = scoreKey ~/ keys[i].listensMultiplier;
+        if (score >= relevantMinScore) {
+          onRelevantMatch(items[i]);
+        } else {
+          onLessRelevantMatch(items[i]);
+        }
+      }
     }
-    return results;
+    return bestScore;
   }
 }
 
 class _SearchKey {
   final _Property? title;
   final _Property? subtitle;
+  final _Property? titleSort;
+  final _Property? subtitleSort;
   final List<_Property>? extras;
   final int listensMultiplier;
 
   const _SearchKey({
     required this.title,
     required this.subtitle,
+    required this.titleSort,
+    required this.subtitleSort,
     required this.extras,
     required this.listensMultiplier,
   });
 }
 
 typedef KeysSearchWeights = ({List<int> listensCounts, List<int> tracksCounts});
+typedef KeysSearchRelevanceResults<T> = ({List<T> results, int relevantCount, int bestScore});

@@ -23,7 +23,9 @@ class ExpandableBox extends StatefulWidget {
   final void Function()? onLeftTextTap;
   final void Function() onCloseButtonPressed;
   final SortByMenu? sortByMenuWidget;
-  final CustomTextField textField;
+  final TextEditingController? textFieldController;
+  final String textFieldHintText;
+  final void Function(String value)? onTextFieldValueChanged;
   final bool enableSearch;
   final ChangeGridCountWidget? gridWidget;
   final List<Widget>? leftWidgets;
@@ -41,7 +43,9 @@ class ExpandableBox extends StatefulWidget {
     this.onLeftTextTap,
     required this.onCloseButtonPressed,
     required this.sortByMenuWidget,
-    required this.textField,
+    required this.textFieldController,
+    required this.textFieldHintText,
+    required this.onTextFieldValueChanged,
     this.enableSearch = true,
     this.gridWidget,
     this.leftWidgets,
@@ -55,29 +59,37 @@ class ExpandableBox extends StatefulWidget {
 
 class _ExpandableBoxState extends State<ExpandableBox> with SingleTickerProviderStateMixin {
   final _canShowSearchBoxRx = false.obs;
+  final _textFieldFocusNode = FocusNode();
 
   @override
   void initState() {
     try {
-      _canShowSearchBoxRx.value = widget.initialShowSearchBox ?? widget.textField.textFieldController?.text.isNotEmpty == true;
+      _canShowSearchBoxRx.value = widget.initialShowSearchBox ?? widget.textFieldController?.text.isNotEmpty == true;
     } catch (_) {
       // -- text field disposed
       _canShowSearchBoxRx.value = false;
     }
+    ScrollSearchController.inst.registerSearchFocusNode(_textFieldFocusNode);
     super.initState();
   }
 
   @override
   void dispose() {
     _canShowSearchBoxRx.close();
+    ScrollSearchController.inst.unregisterSearchFocusNode(_textFieldFocusNode);
+    _textFieldFocusNode.dispose();
     super.dispose();
   }
 
   void _onFilterIconTap([bool? newShow]) {
     newShow ??= !_canShowSearchBoxRx.value;
     final accept = widget.onSearchBoxVisibilityChange(newShow);
-    if (accept) {
-      _canShowSearchBoxRx.value = newShow;
+    if (!accept) return;
+    _canShowSearchBoxRx.value = newShow;
+    if (newShow) {
+      ScrollSearchController.inst.requestKeyboardOf(_textFieldFocusNode);
+    } else {
+      _textFieldFocusNode.unfocus();
     }
   }
 
@@ -89,7 +101,12 @@ class _ExpandableBoxState extends State<ExpandableBox> with SingleTickerProvider
       children: [
         const SizedBox(width: 12.0),
         Expanded(
-          child: widget.textField,
+          child: CustomTextField(
+            focusNode: _textFieldFocusNode,
+            textFieldController: widget.textFieldController,
+            textFieldHintText: widget.textFieldHintText,
+            onTextFieldValueChanged: widget.onTextFieldValueChanged,
+          ),
         ),
         const SizedBox(width: 12.0),
         NamidaIconButton(
@@ -168,10 +185,7 @@ class _ExpandableBoxState extends State<ExpandableBox> with SingleTickerProvider
                                   const SizedBox(width: 2.0),
                                 ],
                                 const SizedBox(width: 4.0),
-                                if (sortByMenuWidget != null) ...[
-                                  sortByMenuWidget,
-                                  const SizedBox(width: 4.0),
-                                ],
+                                ?sortByMenuWidget,
                                 if (widget.enableSearch)
                                   NamidaIconButton(
                                     horizontalPadding: 6.0,
@@ -180,7 +194,7 @@ class _ExpandableBoxState extends State<ExpandableBox> with SingleTickerProvider
                                     onLongPress: widget.onFilterIconLongPress,
                                     iconSize: 20.0,
                                   ),
-                                const SizedBox(width: 8.0),
+                                const SizedBox(width: 6.0),
                               ],
                             ),
                           ),
@@ -327,7 +341,12 @@ class SortByMenu extends StatelessWidget {
             NamidaInkWell(
               decoration: BoxDecoration(borderRadius: sortBorderRadius),
               height: _kHeight,
-              padding: const EdgeInsets.only(left: 13.0, right: 8.0, top: 7.0, bottom: 7.0),
+              padding: const EdgeInsets.only(
+                left: 13.0,
+                right: 8.0,
+                top: 7.0,
+                bottom: 7.0,
+              ),
               onTap: onSortTap,
               child: Center(
                 child: FittedBox(
@@ -385,9 +404,16 @@ class ExpandableBoxChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final icon = this.icon;
     return NamidaInkWell(
-      bgColor: const NColors(.secondary, opacity: 0.12),
+      bgColor: const NColors(.secondary, opacity: 0.08),
       borderRadius: 10.0,
-      padding: showArrow ? const EdgeInsets.only(left: 8.0, right: 6.0, top: 7.0, bottom: 7.0) : const EdgeInsets.symmetric(horizontal: 8.0, vertical: 7.0),
+      padding: showArrow
+          ? const EdgeInsets.only(
+              left: 8.0,
+              right: 6.0,
+              top: 7.0,
+              bottom: 7.0,
+            )
+          : const EdgeInsets.symmetric(horizontal: 8.0, vertical: 7.0),
       onTap: onTap,
       child: Row(
         mainAxisSize: MainAxisSize.min,

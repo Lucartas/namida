@@ -57,6 +57,8 @@ class YoutubeAccountController {
     YoutiPieOperation.markNotificationRead: false,
     YoutiPieOperation.fetchNotificationComments: false,
     YoutiPieOperation.fetchNotificationCommentsNext: false,
+    YoutiPieOperation.sendFeedback: false,
+    YoutiPieOperation.undoFeedback: false,
   };
 
   static const _operationHasErrorPage = <YoutiPieOperation, bool>{
@@ -420,6 +422,13 @@ class _CurrentMembership {
     _updateGlobal(ms);
   }
 
+  void _assignSupabaseSub(SupabaseSub sub) {
+    userSupabaseSub.value = sub;
+    final ms = sub.toMembershipType();
+    userMembershipTypeSupabase.value = ms;
+    _updateGlobal(ms);
+  }
+
   Future<void> checkSupabase(String code, String email) async {
     final deviceId = await NamidaDeviceInfo.fetchDeviceId();
     final sub = await NamicoSubscriptionManager.supabase.fetchUserValid(
@@ -427,10 +436,7 @@ class _CurrentMembership {
       email: email,
       deviceId: deviceId,
     );
-    userSupabaseSub.value = sub;
-    final ms = sub.toMembershipType();
-    userMembershipTypeSupabase.value = ms;
-    _updateGlobal(ms);
+    _assignSupabaseSub(sub);
   }
 
   void signOutSupabase() {
@@ -448,9 +454,26 @@ class _CurrentMembership {
       email: email,
       deviceId: deviceId,
     );
-    userSupabaseSub.value = sub;
-    final ms = sub.toMembershipType();
-    userMembershipTypeSupabase.value = ms;
-    _updateGlobal(ms);
+    _assignSupabaseSub(sub);
+  }
+
+  Future<void> requestSupabaseMove(String code, String email) async {
+    final deviceId = await NamidaDeviceInfo.fetchDeviceId();
+    await NamicoSubscriptionManager.supabase.requestMove(
+      uuid: code,
+      email: email,
+      deviceId: deviceId,
+    );
+  }
+
+  Future<void> confirmSupabaseMove(String code, String email, String moveCode) async {
+    final deviceId = await NamidaDeviceInfo.fetchDeviceId();
+    final sub = await NamicoSubscriptionManager.supabase.confirmMove(
+      uuid: code,
+      email: email,
+      deviceId: deviceId,
+      moveCode: moveCode,
+    );
+    _assignSupabaseSub(sub);
   }
 }

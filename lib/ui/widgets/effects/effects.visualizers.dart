@@ -439,7 +439,13 @@ class _VisualizerCanvas extends StatelessWidget {
     final artworkScale = view.artworkScale;
     final artworkRadius = view.artworkRadius;
     final painter = switch (kind) {
-      _VisualizerKind.particles => _ParticlesPainter(driver: driver, colors: colors, fade: fade, maxOpacity: maxOpacity, repaint: repaint),
+      _VisualizerKind.particles => _ParticlesPainter(
+        driver: driver,
+        colors: colors,
+        fade: fade,
+        maxOpacity: maxOpacity,
+        repaint: repaint,
+      ),
       _VisualizerKind.bars => _BarsPainter(
         driver: driver,
         colors: colors,
@@ -571,6 +577,7 @@ class _ParticlesPainter extends _VisualizerPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    NamidaFloatClock.instance.markPainted();
     final presence = driver.presence;
     final field = driver.field;
     if (presence <= 0 || field == null) return;
@@ -580,7 +587,14 @@ class _ParticlesPainter extends _VisualizerPainter {
     canvas.translate(size.width / 2, size.height / 2);
     canvas.scale(scale);
     canvas.translate(-size.width / 2, -size.height / 2);
-    field.paint(canvas, size, tint: rgb, ink: rgb, isDark: true, opacity: opacity * presence);
+    field.paint(
+      canvas,
+      size,
+      tint: rgb,
+      ink: rgb,
+      isDark: true,
+      opacity: opacity * presence,
+    );
     canvas.restore();
   }
 }
@@ -614,6 +628,7 @@ class _BarsPainter extends _VisualizerPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    NamidaFloatClock.instance.markPainted();
     final presence = driver.presence;
     if (presence <= 0 || size.isEmpty) return;
 
@@ -698,6 +713,7 @@ class _MirroredBarsPainter extends _VisualizerPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    NamidaFloatClock.instance.markPainted();
     final presence = driver.presence;
     if (presence <= 0 || size.isEmpty) return;
 
@@ -780,6 +796,7 @@ class _WavesPainter extends _VisualizerPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    NamidaFloatClock.instance.markPainted();
     final presence = driver.presence;
     if (presence <= 0 || size.isEmpty) return;
 
@@ -894,6 +911,7 @@ class _EdgeLightsPainter extends _VisualizerPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    NamidaFloatClock.instance.markPainted();
     final presence = driver.presence;
     if (presence <= 0 || size.isEmpty) return;
 
@@ -941,6 +959,7 @@ class _GlowPainter extends _VisualizerPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    NamidaFloatClock.instance.markPainted();
     final presence = driver.presence;
     if (presence <= 0 || size.isEmpty) return;
 
@@ -1061,6 +1080,7 @@ class _OutlinePainter extends _VisualizerPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    NamidaFloatClock.instance.markPainted();
     final presence = driver.presence;
     if (presence <= 0 || size.isEmpty) return;
     if (_laidOutSize != size) _layOut(size);
@@ -1135,6 +1155,7 @@ class _BeatRingsPainter extends _VisualizerPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    NamidaFloatClock.instance.markPainted();
     final presence = driver.presence;
     if (presence <= 0 || size.isEmpty) return;
 
@@ -1259,6 +1280,7 @@ class _ReactiveParticlesPainter extends _VisualizerPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    NamidaFloatClock.instance.markPainted();
     final presence = driver.presence;
     if (presence <= 0 || size.isEmpty) return;
 

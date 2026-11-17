@@ -13,9 +13,12 @@ import 'package:rhttp/rhttp.dart';
 
 import 'package:namida/class/eggs_data.dart';
 import 'package:namida/class/file_parts.dart';
+import 'package:namida/class/http_response_wrapper.dart';
 import 'package:namida/class/route.dart';
 import 'package:namida/class/version_wrapper.dart';
+import 'package:namida/controller/current_color.dart';
 import 'package:namida/controller/navigator_controller.dart';
+import 'package:namida/controller/network_proxy_controller.dart';
 import 'package:namida/controller/platform/base.dart';
 import 'package:namida/controller/platform/namida_channel/namida_channel.dart';
 import 'package:namida/controller/player_controller.dart';
@@ -29,6 +32,7 @@ import 'package:namida/core/enums.dart';
 import 'package:namida/core/extensions.dart';
 import 'package:namida/core/icon_fonts/broken_icons.dart';
 import 'package:namida/core/ntheme.dart';
+import 'package:namida/core/themes.dart';
 import 'package:namida/core/translations/language.dart';
 import 'package:namida/core/utils.dart';
 import 'package:namida/main.dart';
@@ -36,6 +40,7 @@ import 'package:namida/ui/dialogs/shortcuts_dialog.dart';
 import 'package:namida/ui/widgets/custom_widgets.dart';
 import 'package:namida/ui/widgets/eggs/eggs.dart';
 import 'package:namida/ui/widgets/jellyfish.dart';
+import 'package:namida/ui/widgets/mascots/mascots.dart';
 import 'package:namida/ui/widgets/namida_markdown.dart';
 import 'package:namida/ui/widgets/settings/extra_settings.dart';
 import 'package:namida/ui/widgets/settings_card.dart';
@@ -104,121 +109,145 @@ class _AboutPageState extends State<AboutPage> {
     );
 
     final double horizontalMargin = Dimensions.inst.getSettingsHorizontalMargin(context);
-    final jellyBanner = NamidaJellys.enabled
-        ? _EnabledAppIconBuilder(
-            builder: (enabledIcon) => enabledIcon.isJelly
-                ? _UnderwaterAmbience(
-                    child: _JellydaBanner(
-                      scrollOffset: _scrollOffset,
-                      height: context.height * 0.42,
-                    ),
-                  )
-                : const SizedBox(),
-          )
-        : null;
+    final mascot = NamidaMascots.active;
+    final enabledIcon = NamidaChannel.inst.enabledAppIcon.value ?? NamidaChannel.defaultAppIconForPlatform;
+    final isJellyIcon = mascot == NamidaMascot.jellys && enabledIcon.isJelly;
+    final bannerHeight = context.height * 0.42;
+    final artBanner = switch (mascot) {
+      NamidaMascot.jellys =>
+        isJellyIcon
+            ? _UnderwaterAmbience(
+                child: _AboutArtBanner(
+                  scrollOffset: _scrollOffset,
+                  height: bannerHeight,
+                  art: const JellyFullArt(
+                    alignment: Alignment.topCenter,
+                    opacity: 0.65,
+                    handOpacity: 0.0,
+                  ),
+                ),
+              )
+            : null,
+      NamidaMascot.namiween => _AboutArtBanner(
+        scrollOffset: _scrollOffset,
+        height: bannerHeight,
+        art: const NamiweenScene(
+          opacity: 0.65,
+        ),
+      ),
+      null => null,
+    };
+    final showFullScene = switch (mascot) {
+      NamidaMascot.jellys => isJellyIcon ? JellyFullArt.show : null,
+      NamidaMascot.namiween => NamiweenScene.show,
+      null => null,
+    };
     final aboutPage = ObxO(
       rx: VersionController.inst.latestVersion,
       builder: (context, latestVersion) => SuperSmoothListView(
         padding: kBottomPaddingInsets.add(EdgeInsets.symmetric(horizontal: horizontalMargin)),
         children: [
-          SizedBox(height: topPadding),
-          NContainer(
-            margin: const EdgeInsets.symmetric(horizontal: 24.0),
-            decoration: (colors) => BoxDecoration(
-              color: colors.card.withOpacityExt(0.6),
-              borderRadius: BorderRadius.circular(20.0.multipliedRadius),
-            ),
-            child: Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.topCenter,
-              children: [
-                Column(
-                  children: [
-                    SizedBox(height: topPadding + textTopPadding),
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: NamidaAboutListTile(
-                        trailing: const Icon(Broken.code_circle),
-                        leading: Container(
-                          clipBehavior: Clip.antiAlias,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Color.fromRGBO(25, 25, 25, 0.8),
-                          ),
-                          child: _CachedAvatar(
-                            asset: _AboutAsset.developerAvatar,
-                            size: 48.0,
-                            fallback: fallbackAvatar,
+          Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.topCenter,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(height: topPadding),
+                  NContainer(
+                    margin: const EdgeInsets.symmetric(horizontal: 24.0),
+                    decoration: (colors) => BoxDecoration(
+                      color: colors.card.withOpacityExt(0.6),
+                      borderRadius: BorderRadius.circular(20.0.multipliedRadius),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(height: topPadding + textTopPadding),
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: NamidaAboutListTile(
+                            trailing: const Icon(Broken.code_circle),
+                            leading: Container(
+                              clipBehavior: Clip.antiAlias,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color.fromRGBO(25, 25, 25, 0.8),
+                              ),
+                              child: _CachedAvatar(
+                                asset: _AboutAsset.developerAvatar,
+                                size: 48.0,
+                                fallback: fallbackAvatar,
+                              ),
+                            ),
+                            title: lang.developer,
+                            subtitle: 'MSOB7YY',
+                            link: 'https://github.com/MSOB7YY',
                           ),
                         ),
-                        title: lang.developer,
-                        subtitle: 'MSOB7YY',
-                        link: 'https://github.com/MSOB7YY',
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              Positioned(
+                top: 0,
+                child: Column(
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.all(4.0),
+                      width: imageSize,
+                      height: imageSize,
+                      clipBehavior: Clip.none,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color.fromRGBO(25, 25, 25, 0.1),
+                      ),
+                      child: _KuruKuruActivator(
+                        child: GestureDetector(
+                          onLongPress: showFullScene,
+                          child: Image.asset(
+                            enabledIcon.assetPath,
+                          ),
+                        ),
                       ),
                     ),
+                    const SizedBox(height: 4.0),
+                    const NamidaText(
+                      "Namida",
+                      style: NText.large,
+                    ),
+                    if (currentVersionText != '')
+                      latestVersion?.isUpdate() ?? false
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                NamidaText(
+                                  currentVersionText,
+                                  style: NText.small,
+                                ),
+                                const SizedBox(width: 4.0),
+                                const Icon(
+                                  Broken.arrow_up_1,
+                                  size: 8.0,
+                                ),
+                              ],
+                            )
+                          : NamidaText(
+                              currentVersionText,
+                              style: NText.small,
+                            ),
+                    if (buildDateDiff != '')
+                      NamidaText(
+                        buildDateDiff,
+                        style: NText.small,
+                      ),
                   ],
                 ),
-                Positioned(
-                  top: -topPadding,
-                  child: Column(
-                    children: [
-                      Container(
-                        margin: const EdgeInsets.all(4.0),
-                        width: imageSize,
-                        height: imageSize,
-                        clipBehavior: Clip.none,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Color.fromRGBO(25, 25, 25, 0.1),
-                        ),
-                        child: _KuruKuruActivator(
-                          child: _EnabledAppIconBuilder(
-                            builder: (enabledIcon) {
-                              return GestureDetector(
-                                onLongPress: NamidaJellys.enabled && enabledIcon.isJelly ? JellyFullArt.show : null,
-                                child: Image.asset(
-                                  enabledIcon.assetPath,
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 4.0),
-                      const NamidaText(
-                        "Namida",
-                        style: NText.large,
-                      ),
-                      if (currentVersionText != '')
-                        latestVersion?.isUpdate() ?? false
-                            ? Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  NamidaText(
-                                    currentVersionText,
-                                    style: NText.small,
-                                  ),
-                                  const SizedBox(width: 4.0),
-                                  const Icon(
-                                    Broken.arrow_up_1,
-                                    size: 8.0,
-                                  ),
-                                ],
-                              )
-                            : NamidaText(
-                                currentVersionText,
-                                style: NText.small,
-                              ),
-                      if (buildDateDiff != '')
-                        NamidaText(
-                          buildDateDiff,
-                          style: NText.small,
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
           SettingsCard(
             icon: Broken.link_circle,
@@ -283,7 +312,11 @@ class _AboutPageState extends State<AboutPage> {
                       _loadingChangelog.value = true;
                       final NamidaMarkdownDocument document;
                       try {
-                        final response = await Rhttp.get('https://raw.githubusercontent.com/namidaco/namida/main/CHANGELOG.md');
+                        final proxySettings = NetworkProxyController.inst.rhttpSettings;
+                        final response = await NamidaHttp.get(
+                          'https://raw.githubusercontent.com/namidaco/namida/main/CHANGELOG.md',
+                          settings: proxySettings,
+                        );
                         document = await NamidaMarkdownDocument.parseAsync(response.body);
                       } finally {
                         _loadingChangelog.value = false;
@@ -455,29 +488,34 @@ class _AboutPageState extends State<AboutPage> {
         ],
       ),
     );
+    final themedAboutPage = _AppIconTheme(
+      icon: enabledIcon,
+      child: aboutPage,
+    );
     return BackgroundWrapper(
-      child: !NamidaJellys.enabled
-          ? aboutPage
+      child: mascot == null
+          ? themedAboutPage
           : Stack(
               children: [
-                ?jellyBanner,
-                const Positioned.fill(
-                  child: IgnorePointer(
-                    child: JellyField(
-                      count: 4,
-                      opacity: 0.3,
-                      minHeight: 90.0,
-                      maxHeight: 240.0,
-                      seed: 3,
+                ?artBanner,
+                if (mascot == NamidaMascot.jellys)
+                  const Positioned.fill(
+                    child: IgnorePointer(
+                      child: JellyField(
+                        count: 4,
+                        opacity: 0.3,
+                        minHeight: 90.0,
+                        maxHeight: 240.0,
+                        seed: 3,
+                      ),
                     ),
                   ),
-                ),
                 NotificationListener<ScrollUpdateNotification>(
                   onNotification: (notification) {
-                    if (jellyBanner != null && notification.depth == 0) _scrollOffset.value = notification.metrics.pixels;
+                    if (artBanner != null && notification.depth == 0) _scrollOffset.value = notification.metrics.pixels;
                     return false;
                   },
-                  child: aboutPage,
+                  child: themedAboutPage,
                 ),
               ],
             ),
@@ -624,7 +662,8 @@ class _IssueReporter {
 
   static Future<String?> _prepareLogsZipAndGetUnrevealedPath() async {
     final canReveal = NamidaChannel.inst.canOpenFileInExplorer;
-    final outputDirectory = canReveal ? null : _exportedLogsDirectory;
+    final canRevealTemporaryFile = canReveal && NamidaFeaturesVisibility.temporaryFilesVisibleInFileExplorer;
+    final outputDirectory = canRevealTemporaryFile ? null : _exportedLogsDirectory;
 
     if (outputDirectory != null) {
       final granted = await requestManageStoragePermission(directoryToCreate: outputDirectory);
@@ -637,7 +676,7 @@ class _IssueReporter {
 
     snackyy(
       icon: Broken.clipboard_text,
-      message: '${lang.savedIn}: $zipPath',
+      message: '${lang.savedIn}: ${zipPath.toDisplayPath()}',
       displayDuration: SnackDisplayDuration.tutorial,
     );
 
@@ -673,18 +712,39 @@ enum _IssueTemplate {
   };
 }
 
-class _EnabledAppIconBuilder extends StatelessWidget {
-  final Widget Function(NamidaAppIcons enabledIcon) builder;
-  const _EnabledAppIconBuilder({required this.builder});
+/// Themes [child] after the colors of an app icon, so a page matches the icon the user picked.
+class _AppIconTheme extends StatefulWidget {
+  final NamidaAppIcons icon;
+  final Widget child;
+
+  const _AppIconTheme({required this.icon, required this.child});
+
+  @override
+  State<_AppIconTheme> createState() => _AppIconThemeState();
+}
+
+class _AppIconThemeState extends State<_AppIconTheme> {
+  late Color? _color = CurrentColor.inst.getAppIconDelightnedColorSync(widget.icon);
+
+  @override
+  void initState() {
+    super.initState();
+    if (_color == null) _loadColor();
+  }
+
+  Future<void> _loadColor() async {
+    final color = await CurrentColor.inst.getAppIconDelightnedColor(widget.icon);
+    if (color != null && mounted) setState(() => _color = color);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: NamidaChannel.inst.getEnabledAppIcon(),
-      builder: (context, snapshot) {
-        final enabledIcon = snapshot.data ?? NamidaChannel.defaultAppIconForPlatform;
-        return builder(enabledIcon);
-      },
+    final color = _color;
+    final isDarkMode = context.isDarkMode;
+    final theme = color == null ? context.theme : AppThemes.inst.getAppTheme(color, !isDarkMode);
+    return NTheme(
+      data: theme,
+      child: widget.child,
     );
   }
 }
@@ -708,7 +768,7 @@ class __KuruKuruActivatorState extends State<_KuruKuruActivator> with SingleTick
   int _speedLevel = 0;
 
   void _initAndAnimate() {
-    _controller ??= AnimationController(vsync: this);
+    _controller ??= AnimationController(vsync: this, animationBehavior: AnimationBehavior.preserve);
 
     if (mounted) {
       // _controller?.stop();
@@ -1039,17 +1099,16 @@ class _AboutAsset {
   Future<File?> _download(File file) async {
     try {
       // -- myinstants sits behind cloudflare, which refuses requests without a user agent
-      final bytes = (await Rhttp.getBytes(url, headers: const HttpHeaders.rawMap({'User-Agent': 'Namida'}))).body;
+      final proxySettings = NetworkProxyController.inst.rhttpSettings;
+      final response = await NamidaHttp.getBytes(
+        url,
+        settings: proxySettings,
+        headers: const HttpHeaders.rawMap({'User-Agent': 'Namida'}),
+      );
+      final bytes = response.body;
       if (bytes.isEmpty) return null;
-      // -- renamed once complete, a half written file would be served forever otherwise
-      final temp = File('${file.path}.part');
-      try {
-        await temp.writeAsBytes(bytes);
-      } catch (_) {
-        await temp.parent.create(recursive: true);
-        await temp.writeAsBytes(bytes);
-      }
-      return await temp.rename(file.path);
+      // -- atomic, a half written file would be served forever otherwise
+      return await file.writeAsBytesAtomic(bytes);
     } catch (_) {
       return null;
     } finally {
@@ -1059,13 +1118,14 @@ class _AboutAsset {
 }
 
 // by claude
-class _JellydaBanner extends StatelessWidget {
+class _AboutArtBanner extends StatelessWidget {
   static const _parallaxFactor = 0.35;
 
   final ValueListenable<double> scrollOffset;
   final double height;
+  final Widget art;
 
-  const _JellydaBanner({required this.scrollOffset, required this.height});
+  const _AboutArtBanner({required this.scrollOffset, required this.height, required this.art});
 
   @override
   Widget build(BuildContext context) {
@@ -1084,11 +1144,7 @@ class _JellydaBanner extends StatelessWidget {
             height: height + maxParallax,
             child: ValueListenableBuilder<double>(
               valueListenable: scrollOffset,
-              child: const JellyFullArt(
-                alignment: Alignment.topCenter,
-                opacity: 0.65,
-                handOpacity: 0.0,
-              ),
+              child: art,
               builder: (context, offset, child) => Transform.translate(
                 offset: Offset(0, -(offset * _parallaxFactor).clamp(0.0, maxParallax)),
                 child: child,

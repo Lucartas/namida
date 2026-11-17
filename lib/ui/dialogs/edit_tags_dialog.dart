@@ -8,11 +8,9 @@ import 'package:namida/class/file_matcher.dart';
 import 'package:namida/class/track.dart';
 import 'package:namida/class/video.dart';
 import 'package:namida/controller/current_color.dart';
-import 'package:namida/controller/file_browser.dart';
 import 'package:namida/controller/indexer_controller.dart';
 import 'package:namida/controller/lyrics_search_utils/lrc_search_utils_selectable.dart';
 import 'package:namida/controller/navigator_controller.dart';
-import 'package:namida/controller/platform/namida_storage/namida_storage.dart';
 import 'package:namida/controller/rhythm_controller.dart';
 import 'package:namida/controller/settings_controller.dart';
 import 'package:namida/controller/smart_playlists/smart_playlists_controller.dart';
@@ -29,6 +27,7 @@ import 'package:namida/core/themes.dart';
 import 'package:namida/core/translations/language.dart';
 import 'package:namida/core/utils.dart';
 import 'package:namida/main.dart';
+import 'package:namida/ui/dialogs/artwork_source_menu.dart';
 import 'package:namida/ui/dialogs/create_smart_playlist_dialog.dart';
 import 'package:namida/ui/dialogs/track_stats_dialog.dart';
 import 'package:namida/ui/widgets/artwork.dart';
@@ -38,6 +37,7 @@ import 'package:namida/ui/widgets/library/track_tile.dart';
 import 'package:namida/ui/widgets/reorderable_active_items_list.dart';
 import 'package:namida/ui/widgets/text_suggestions.dart';
 import 'package:namida/youtube/pages/yt_search_results_page.dart';
+
 
 final _editingInProgress = <String, bool>{}.obs;
 
@@ -132,7 +132,12 @@ Future<void> showSetYTLinkCommentDialog(Track singleTrackPre, Color colorScheme,
         canEditComment.value = true;
       }
     } catch (e) {
-      snackyy(title: lang.error, message: e.toString(), isError: true, top: false);
+      snackyy(
+        title: lang.error,
+        message: e.toString(),
+        isError: true,
+        top: false,
+      );
     } finally {
       isDetectingOffset.value = false;
     }
@@ -285,7 +290,7 @@ Future<void> _editSingleTrackTagsDialog(PhysicalMedia track, Color? colorScheme,
     color.value = newColor;
   }
 
-  onColorsObtained(colorScheme ?? CurrentColor.inst.color);
+  onColorsObtained(colorScheme ?? NamidaNavigator.inst.inheritedColor);
 
   if (colorScheme == null) {
     final colorSync = CurrentColor.inst.getTrackDelightnedColorSync(track, null);
@@ -335,6 +340,7 @@ Future<void> _editSingleTrackTagsDialog(PhysicalMedia track, Color? colorScheme,
   final canEditTags = false.obs;
   final didAutoExtractFromFilename = false.obs;
   final currentImagePath = ''.obs;
+  final isArtworkRemoved = false.obs;
   bool isDialogOpen = true;
 
   TextEditingController? fieldToController(FTags tags, TagField f) {
@@ -363,6 +369,7 @@ Future<void> _editSingleTrackTagsDialog(PhysicalMedia track, Color? colorScheme,
       TagField.country => TextEditingController(text: tags.country ?? ''),
       TagField.bpm => TextEditingController(text: tags.bpm?.toString().toIf('', '0')),
       TagField.musicalKey => TextEditingController(text: tags.musicalKey ?? ''),
+      TagField.explicit => TextEditingController(text: tags.itunesAdvisory ?? ''),
 
       // -- in tag editor we aint knowing local db shi
       TagField.mood => TextEditingController(text: tags.mood ?? ''),
@@ -400,6 +407,12 @@ Future<void> _editSingleTrackTagsDialog(PhysicalMedia track, Color? colorScheme,
     onTagChanged(TagField.bpm, scaledText);
   }
 
+  void onExplicitStatusPick(String value) {
+    final controller = tagsControllers[TagField.explicit]!;
+    controller.text = value;
+    onTagChanged(TagField.explicit, value);
+  }
+
   Future<void> onRhythmAnalyze(TagField tag) async {
     try {
       final analysis = await RhythmController.inst.analyzeTrackNow(track);
@@ -417,17 +430,30 @@ Future<void> _editSingleTrackTagsDialog(PhysicalMedia track, Color? colorScheme,
       controller.text = analyzedText;
       onTagChanged(tag, analyzedText);
     } catch (e) {
-      snackyy(title: lang.error, message: e.toString(), isError: true, top: false);
+      snackyy(
+        title: lang.error,
+        message: e.toString(),
+        isError: true,
+        top: false,
+      );
     }
   }
 
   Widget getTagTextField(TagField tag) {
     final isBpm = tag == TagField.bpm;
     final isRhythmAnalyzable = (isBpm || tag == TagField.musicalKey) && RhythmController.inst.isSupported;
+    final controller = tagsControllers[tag]!;
+    final explicitMenuButton = tag == TagField.explicit
+        ? _ExplicitStatusMenuButton(
+            controller: controller,
+            onPick: onExplicitStatusPick,
+          )
+        : null;
     return _TagTextField(
       tag: tag,
-      controller: tagsControllers[tag]!,
+      controller: controller,
       suggestionsProvider: suggestionsProvider,
+      suffixIcon: explicitMenuButton,
       onChanged: (value) => onTagChanged(tag, value),
       onBpmScale: isBpm ? onBpmScale : null,
       onRhythmAnalyze: isRhythmAnalyzable ? () => onRhythmAnalyze(tag) : null,
@@ -436,21 +462,41 @@ Future<void> _editSingleTrackTagsDialog(PhysicalMedia track, Color? colorScheme,
 
   final formKey = GlobalKey<FormState>();
 
-  Future<void> onArtworkEditTap() async {
-    final pickedFile = await NamidaFileBrowser.pickFile(note: lang.editArtwork, memeType: NamidaStorageFileMemeType.image);
-    final path = pickedFile?.path ?? '';
-    if (pickedFile != null && path != '') {
-      currentImagePath.value = path;
-      canEditTags.value = true;
-    }
+  void onNewArtwork(String imagePath) {
+    currentImagePath.value = imagePath;
+    isArtworkRemoved.value = false;
+    canEditTags.value = true;
   }
 
-  if (instantEditArtwork) {
-    // -- ensure dialog opened first
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => onArtworkEditTap(),
+  void onArtworkRemove() {
+    currentImagePath.value = '';
+    isArtworkRemoved.value = true;
+    canEditTags.value = true;
+  }
+
+  bool canRemoveArtwork() => !isArtworkRemoved.value && (currentImagePath.value != '' || artworkBytes?.isNotEmpty == true);
+
+  Future<Uint8List?> getCurrentArtworkBytes() async {
+    final imagePath = currentImagePath.value;
+    if (imagePath == '') return artworkBytes;
+    final imageFile = File(imagePath);
+    return imageFile.readAsBytes();
+  }
+
+  String getArtworkSearchQuery() {
+    final artist = tagsControllers[TagField.artist]?.text;
+    final album = tagsControllers[TagField.album]?.text;
+    final title = tagsControllers[TagField.title]?.text;
+    return ArtworkSourceMenu.buildSearchQuery(
+      artist: artist,
+      album: album,
+      title: title,
+      fallback: track.filenameWOExt,
     );
   }
+
+  final youtubeId = track.youtubeID.nullifyEmpty();
+  final folderCoverPath = Indexer.inst.getFallbackFolderArtworkPath(folder: track.folder);
 
   await NamidaNavigator.inst.navigateDialog(
     onDisposing: () {
@@ -459,6 +505,7 @@ Future<void> _editSingleTrackTagsDialog(PhysicalMedia track, Color? colorScheme,
       canEditTags.close();
       didAutoExtractFromFilename.close();
       currentImagePath.close();
+      isArtworkRemoved.close();
       for (final c in tagsControllers.values) {
         c?.dispose();
       }
@@ -469,7 +516,7 @@ Future<void> _editSingleTrackTagsDialog(PhysicalMedia track, Color? colorScheme,
       rx: color,
       builder: (context, color) {
         final theme = AppThemes.inst.getAppTheme(color, null, false);
-        return NTheme(
+        return NamidaDialogTheme(
           data: theme,
           child: Form(
             key: formKey,
@@ -507,6 +554,7 @@ Future<void> _editSingleTrackTagsDialog(PhysicalMedia track, Color? colorScheme,
                             tracks: [track],
                             editedTags: editedTags,
                             imagePath: currentImagePath.value,
+                            removeArtwork: isArtworkRemoved.value,
                             onEdit: (didUpdate, error, track) {
                               if (!didUpdate) {
                                 snackyy(title: lang.metadataEditFailed, message: error ?? 'Unknown Error', isError: true);
@@ -540,26 +588,41 @@ Future<void> _editSingleTrackTagsDialog(PhysicalMedia track, Color? colorScheme,
                                   alignment: Alignment.bottomRight,
                                   children: [
                                     Obx(
-                                      (context) => ArtworkWidget(
-                                        key: Key(currentImagePath.valueR),
-                                        extractInternally: false,
-                                        fadeMilliSeconds: 0,
-                                        icon: track is Video ? Broken.video : Broken.musicnote,
-                                        thumbnailSize: maxWidth * 0.36,
-                                        bytes: currentImagePath.valueR != '' ? null : artworkBytes,
-                                        path: currentImagePath.valueR != '' ? currentImagePath.valueR : null,
-                                        onTopWidgets: [
-                                          Positioned(
-                                            bottom: 0,
-                                            right: 0,
-                                            child: NamidaBlurryContainer(
-                                              onTap: onArtworkEditTap,
-                                              borderRadius: BorderRadius.only(topLeft: Radius.circular(12.0.multipliedRadius)),
-                                              child: const Icon(Broken.edit_2),
+                                      (context) {
+                                        final imagePath = currentImagePath.valueR;
+                                        final isRemoved = isArtworkRemoved.valueR;
+                                        return ArtworkWidget(
+                                          key: Key('$imagePath$isRemoved'),
+                                          extractInternally: false,
+                                          fadeMilliSeconds: 0,
+                                          icon: track is Video ? Broken.video : Broken.musicnote,
+                                          thumbnailSize: maxWidth * 0.36,
+                                          bytes: imagePath != '' || isRemoved ? null : artworkBytes,
+                                          path: imagePath != '' ? imagePath : null,
+                                          onTopWidgets: [
+                                            Positioned(
+                                              bottom: 0,
+                                              right: 0,
+                                              child: ArtworkSourceMenu(
+                                                onArtworkObtained: onNewArtwork,
+                                                onRemove: onArtworkRemove,
+                                                canRemove: canRemoveArtwork,
+                                                canCrop: canRemoveArtwork,
+                                                getArtworkBytes: getCurrentArtworkBytes,
+                                                getSearchQuery: getArtworkSearchQuery,
+                                                youtubeId: youtubeId,
+                                                folderCoverPath: folderCoverPath,
+                                                openOnRouteEnter: instantEditArtwork,
+                                                childBuilder: (openMenu) => NamidaBlurryContainer(
+                                                  onTap: openMenu,
+                                                  borderRadius: BorderRadius.only(topLeft: Radius.circular(12.0.multipliedRadius)),
+                                                  child: const Icon(Broken.edit_2),
+                                                ),
+                                              ),
                                             ),
-                                          ),
-                                        ],
-                                      ),
+                                          ],
+                                        );
+                                      },
                                     ),
                                   ],
                                 ),
@@ -603,7 +666,7 @@ Future<void> _editSingleTrackTagsDialog(PhysicalMedia track, Color? colorScheme,
                       height: 12.0,
                     ),
                     NamidaText(
-                      track.path,
+                      track.path.toDisplayPath(),
                       style: NText.small,
                     ),
                     const SizedBox(
@@ -637,7 +700,10 @@ Future<void> _editSingleTrackTagsDialog(PhysicalMedia track, Color? colorScheme,
                         builder: (context, didAutoExtractFromFilenameValue) => Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Broken.magicpen, size: 14.0),
+                            const Icon(
+                              Broken.magicpen,
+                              size: 14.0,
+                            ),
                             const SizedBox(width: 4.0),
                             Text(
                               "${lang.autoExtractTagsFromFilename} ${didAutoExtractFromFilenameValue ? '✓' : ''}",
@@ -760,6 +826,7 @@ Future<void> _editMultipleTracksTags(List<PhysicalMedia> tracksPre, {required bo
 
   final canEditTags = false.obs;
   final currentImagePath = ''.obs;
+  final isArtworkRemoved = false.obs;
   final autoTrackNumbersRx = false.obs;
   final showMoreFieldsRx = false.obs;
 
@@ -794,25 +861,50 @@ Future<void> _editMultipleTracksTags(List<PhysicalMedia> tracksPre, {required bo
     statsEditor: statsEditor,
     autoTrackNumbers: autoTrackNumbersRx.value,
     imagePath: currentImagePath.value,
+    removeArtwork: isArtworkRemoved.value,
   );
 
   final suggestionsProvider = TextSuggestionsProvider();
 
   final formKey = GlobalKey<FormState>();
 
-  Future<void> onArtworkEditTap() async {
-    final pickedFile = await NamidaFileBrowser.pickFile(note: lang.editArtwork, memeType: NamidaStorageFileMemeType.image);
-    final path = pickedFile?.path ?? '';
-    if (pickedFile != null && path != '') {
-      currentImagePath.value = path;
-      canEditTags.value = true;
-    }
+  void onNewArtwork(String imagePath) {
+    currentImagePath.value = imagePath;
+    isArtworkRemoved.value = false;
+    canEditTags.value = true;
   }
 
-  if (instantEditArtwork) {
-    // -- ensure dialog opened first
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => onArtworkEditTap(),
+  void onArtworkRemove() {
+    currentImagePath.value = '';
+    isArtworkRemoved.value = true;
+    canEditTags.value = true;
+  }
+
+  bool canRemoveArtwork() => !isArtworkRemoved.value;
+
+  bool canCropArtwork() => currentImagePath.value != '';
+
+  Future<Uint8List?> getCurrentArtworkBytes() {
+    final imageFile = File(currentImagePath.value);
+    return imageFile.readAsBytes();
+  }
+
+  final firstTrackFolder = tracksPre.first.folder;
+  final isOneFolder = tracksPre.every((e) => e.folder == firstTrackFolder);
+  final folderCoverPath = isOneFolder ? Indexer.inst.getFallbackFolderArtworkPath(folder: firstTrackFolder) : null;
+
+  final firstTrackExt = tracksExtended.first;
+  final firstTrackAlbumArtist = firstTrackExt.albumArtist.nullifyEmpty() ?? firstTrackExt.originalArtist;
+
+  String getArtworkSearchQuery() {
+    final artist = editedTags[TagField.albumArtist] ?? editedTags[TagField.artist] ?? firstTrackAlbumArtist;
+    final album = editedTags[TagField.album] ?? firstTrackExt.originalAlbum;
+    final title = editedTags[TagField.title] ?? firstTrackExt.title;
+    return ArtworkSourceMenu.buildSearchQuery(
+      artist: artist,
+      album: album,
+      title: title,
+      fallback: firstTrackExt.filenameWOExt,
     );
   }
 
@@ -821,6 +913,7 @@ Future<void> _editMultipleTracksTags(List<PhysicalMedia> tracksPre, {required bo
       tracksGoingToBeEditedRx.close();
       canEditTags.close();
       currentImagePath.close();
+      isArtworkRemoved.close();
       autoTrackNumbersRx.close();
       showMoreFieldsRx.close();
       for (final f in multiFields) {
@@ -992,6 +1085,7 @@ Future<void> _editMultipleTracksTags(List<PhysicalMedia> tracksPre, {required bo
                                   editedTags: plan.editedTags,
                                   editedTagsPerTrack: plan.editedTagsPerTrack,
                                   imagePath: plan.imagePath,
+                                  removeArtwork: plan.removeArtwork,
                                   onEdit: (didUpdate, error, track) {
                                     if (didUpdate) {
                                       successfullEdits.value++;
@@ -1085,38 +1179,42 @@ Future<void> _editMultipleTracksTags(List<PhysicalMedia> tracksPre, {required bo
                                       alignment: Alignment.bottomRight,
                                       children: [
                                         Obx(
-                                          (context) => currentImagePath.valueR != ''
-                                              ? ArtworkWidget(
-                                                  key: Key(currentImagePath.valueR),
-                                                  extractInternally: false,
-                                                  fadeMilliSeconds: 0,
-                                                  thumbnailSize: imageWidth,
-                                                  path: currentImagePath.valueR,
-                                                )
-                                              : MultiArtworkContainer(
-                                                  heroTag: 'edittags_artwork',
-                                                  fadeMilliSeconds: 0,
-                                                  size: imageWidth,
-                                                  tracks: tracksGoingToBeEdited.toImageTracks(),
-                                                  fallbackToFolderCover: false,
-                                                  onTopWidget: tracksGoingToBeEdited.length > 3
-                                                      ? Positioned(
-                                                          right: 0,
-                                                          bottom: 0,
-                                                          child: NamidaBlurryContainer(
-                                                            width: innerImageWidth,
-                                                            height: innerImageWidth,
-                                                            borderRadius: BorderRadius.zero,
-                                                            child: Center(
-                                                              child: NamidaText(
-                                                                "+${tracksGoingToBeEdited.length - 3}",
-                                                                style: NText.large,
+                                          (context) {
+                                            final imagePath = currentImagePath.valueR;
+                                            final isRemoved = isArtworkRemoved.valueR;
+                                            return imagePath != '' || isRemoved
+                                                ? ArtworkWidget(
+                                                    key: Key('$imagePath$isRemoved'),
+                                                    extractInternally: false,
+                                                    fadeMilliSeconds: 0,
+                                                    thumbnailSize: imageWidth,
+                                                    path: imagePath.nullifyEmpty(),
+                                                  )
+                                                : MultiArtworkContainer(
+                                                    heroTag: 'edittags_artwork',
+                                                    fadeMilliSeconds: 0,
+                                                    size: imageWidth,
+                                                    tracks: tracksGoingToBeEdited.toImageTracks(),
+                                                    fallbackToFolderCover: false,
+                                                    onTopWidget: tracksGoingToBeEdited.length > 3
+                                                        ? Positioned(
+                                                            right: 0,
+                                                            bottom: 0,
+                                                            child: NamidaBlurryContainer(
+                                                              width: innerImageWidth,
+                                                              height: innerImageWidth,
+                                                              borderRadius: BorderRadius.zero,
+                                                              child: Center(
+                                                                child: NamidaText(
+                                                                  "+${tracksGoingToBeEdited.length - 3}",
+                                                                  style: NText.large,
+                                                                ),
                                                               ),
                                                             ),
-                                                          ),
-                                                        )
-                                                      : null,
-                                                ),
+                                                          )
+                                                        : null,
+                                                  );
+                                          },
                                         ),
                                       ],
                                     ),
@@ -1158,9 +1256,19 @@ Future<void> _editMultipleTracksTags(List<PhysicalMedia> tracksPre, {required bo
                                           ),
                                           SizedBox(
                                             width: namida.width,
-                                            child: NamidaButton(
-                                              text: lang.editArtwork,
-                                              onTap: onArtworkEditTap,
+                                            child: ArtworkSourceMenu(
+                                              onArtworkObtained: onNewArtwork,
+                                              onRemove: onArtworkRemove,
+                                              canRemove: canRemoveArtwork,
+                                              canCrop: canCropArtwork,
+                                              getArtworkBytes: getCurrentArtworkBytes,
+                                              getSearchQuery: getArtworkSearchQuery,
+                                              folderCoverPath: folderCoverPath,
+                                              openOnRouteEnter: instantEditArtwork,
+                                              childBuilder: (openMenu) => NamidaButton(
+                                                text: lang.editArtwork,
+                                                onTap: openMenu,
+                                              ),
                                             ),
                                           ),
                                         ],
@@ -1397,6 +1505,7 @@ class _MultiTracksEditPlan {
   final Map<TagField, String> editedTags;
   final Map<Track, Map<TagField, String>> editedTagsPerTrack;
   final String imagePath;
+  final bool removeArtwork;
   final List<_MultiTracksEditSummaryEntry> summary;
 
   const _MultiTracksEditPlan._({
@@ -1404,6 +1513,7 @@ class _MultiTracksEditPlan {
     required this.editedTags,
     required this.editedTagsPerTrack,
     required this.imagePath,
+    required this.removeArtwork,
     required this.summary,
   });
 
@@ -1414,6 +1524,7 @@ class _MultiTracksEditPlan {
     required TrackStatsEditController statsEditor,
     required bool autoTrackNumbers,
     required String imagePath,
+    required bool removeArtwork,
   }) {
     final summary = <_MultiTracksEditSummaryEntry>[];
     final editedTagsPerTrack = statsEditor.buildEditedTagsPerTrack(selectedTracks);
@@ -1421,6 +1532,8 @@ class _MultiTracksEditPlan {
 
     if (imagePath.isNotEmpty) {
       summary.add(_MultiTracksEditSummaryEntry(icon: Broken.gallery_edit, title: lang.artwork, subtitle: lang.changed));
+    } else if (removeArtwork) {
+      summary.add(_MultiTracksEditSummaryEntry(icon: Broken.gallery_remove, title: lang.artwork, subtitle: lang.removed));
     }
 
     for (final field in fields) {
@@ -1441,7 +1554,14 @@ class _MultiTracksEditPlan {
         (editedTagsPerTrack[selectedTracks[i]] ??= {})[tag] = newValue;
         changedCount++;
       }
-      summary.add(_MultiTracksEditSummaryEntry(icon: tag.toIcon(), title: tag.toText(), subtitle: replaceRule.description, tracksCount: changedCount));
+      summary.add(
+        _MultiTracksEditSummaryEntry(
+          icon: tag.toIcon(),
+          title: tag.toText(),
+          subtitle: replaceRule.description,
+          tracksCount: changedCount,
+        ),
+      );
     }
 
     if (autoTrackNumbers) {
@@ -1480,15 +1600,23 @@ class _MultiTracksEditPlan {
     ]) {
       if (changesText == null) continue;
       final changedCount = editedTagsPerTrack.values.where((e) => e.containsKey(tag)).length;
-      summary.add(_MultiTracksEditSummaryEntry(icon: tag.toIcon(), title: tag.toText(), subtitle: changesText, tracksCount: changedCount));
+      summary.add(
+        _MultiTracksEditSummaryEntry(
+          icon: tag.toIcon(),
+          title: tag.toText(),
+          subtitle: changesText,
+          tracksCount: changedCount,
+        ),
+      );
     }
 
-    final hasEditsForAll = editedTags.isNotEmpty || imagePath.isNotEmpty;
+    final hasEditsForAll = editedTags.isNotEmpty || imagePath.isNotEmpty || removeArtwork;
     return _MultiTracksEditPlan._(
       tracksToEdit: hasEditsForAll ? selectedTracks : selectedTracks.where(editedTagsPerTrack.containsKey).toList(),
       editedTags: editedTags,
       editedTagsPerTrack: editedTagsPerTrack,
       imagePath: imagePath,
+      removeArtwork: removeArtwork,
       summary: summary,
     );
   }
@@ -1742,7 +1870,12 @@ class _FillEmptyRule extends _ValuesRule {
 
 @visibleForTesting
 String debugApplyFindReplace(String value, {required SmartPlaylistRuleFilterText filter, required String find, required String replaceWith, required bool matchCase}) {
-  final rule = _FindReplaceRule(filter: filter, find: find, replaceWith: replaceWith, matchCase: matchCase);
+  final rule = _FindReplaceRule(
+    filter: filter,
+    find: find,
+    replaceWith: replaceWith,
+    matchCase: matchCase,
+  );
   return rule.apply(value);
 }
 
@@ -1883,6 +2016,7 @@ class _TagTextField extends StatelessWidget {
     final validator = switch (tag) {
       TagField.rating => _ratingsValidator,
       TagField.bpm => _bpmValidator,
+      TagField.explicit => _explicitValidator,
       _ => null,
     };
     return CustomTagTextField(
@@ -2143,7 +2277,8 @@ class _MultiTagFieldMenuButton extends StatelessWidget {
       childrenDefault: () {
         final currentText = field.controller.text;
         final countStyle = NText.small.of(context);
-        final values = field.hasMultipleValues ? field.nonEmptyValuesByCount : const <MapEntry<String, int>>[];
+        final isExplicit = field.tag == TagField.explicit;
+        final values = field.hasMultipleValues && !isExplicit ? field.nonEmptyValuesByCount : const <MapEntry<String, int>>[];
         final emptyValuesCount = field.hasMultipleValues ? field.valuesCounts[''] : null;
         final replaceRule = field.replaceRuleRx.value;
         final findReplaceRule = replaceRule is _FindReplaceRule ? replaceRule : null;
@@ -2198,6 +2333,13 @@ class _MultiTagFieldMenuButton extends StatelessWidget {
               selected: field.fillEmptyOnlyRx.value,
               onTap: field.toggleFillEmptyOnly,
             ),
+          if (isExplicit)
+            ..._ExplicitStatusMenuButton.buildItems(
+              currentText: currentText,
+              onPick: field.apply,
+              valuesCounts: field.valuesCounts,
+              countStyle: countStyle,
+            ),
           ...values
               .take(_maxValuesShown)
               .map(
@@ -2227,26 +2369,100 @@ class _MultiTagFieldMenuButton extends StatelessWidget {
             ),
         ];
       },
-      child: Container(
-        color: Colors.transparent,
-        height: 42.0,
-        padding: const EdgeInsets.only(left: 6.0, right: 14.0),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Broken.arrow_down_2,
-              size: 16.0,
-            ),
-            const SizedBox(
-              width: 8.0,
-            ),
-            Icon(
-              field.tag.toIcon(),
-              size: 18.0,
-            ),
-          ],
-        ),
+      child: _TagFieldMenuIcon(icon: field.tag.toIcon()),
+    );
+  }
+}
+
+class _ExplicitStatusMenuButton extends StatelessWidget {
+  final TextEditingController controller;
+  final void Function(String value) onPick;
+
+  const _ExplicitStatusMenuButton({
+    required this.controller,
+    required this.onPick,
+  });
+
+  static Iterable<NamidaPopupItem> buildItems({
+    required String currentText,
+    required void Function(String value) onPick,
+    Map<String, int>? valuesCounts,
+    TextStyle? countStyle,
+  }) {
+    final icon = TagField.explicit.toIcon();
+    return ExplicitStatus.values.map(
+      (e) {
+        final value = e.toTagValue();
+        final count = valuesCounts?[value];
+        final countText = count == null
+            ? null
+            : Text(
+                '$count',
+                style: countStyle,
+              );
+        return NamidaPopupItem(
+          icon: icon,
+          title: e.toText(),
+          subtitle: value,
+          trailing: countText,
+          selected: value == currentText,
+          onTap: () => onPick(value),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return NamidaPopupWrapper(
+      openOnLongPress: false,
+      childrenDefault: () {
+        final currentText = controller.text;
+        return [
+          NamidaPopupItem(
+            icon: Broken.eraser,
+            title: lang.clear,
+            subtitle: '<${lang.emptyValue}>',
+            enabled: currentText.isNotEmpty,
+            onTap: () => onPick(''),
+          ),
+          ...buildItems(
+            currentText: currentText,
+            onPick: onPick,
+          ),
+        ];
+      },
+      child: _TagFieldMenuIcon(icon: TagField.explicit.toIcon()),
+    );
+  }
+}
+
+class _TagFieldMenuIcon extends StatelessWidget {
+  final IconData icon;
+
+  const _TagFieldMenuIcon({required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.transparent,
+      height: 42.0,
+      padding: const EdgeInsets.only(left: 6.0, right: 14.0),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Broken.arrow_down_2,
+            size: 16.0,
+          ),
+          const SizedBox(
+            width: 8.0,
+          ),
+          Icon(
+            icon,
+            size: 18.0,
+          ),
+        ],
       ),
     );
   }
@@ -2381,6 +2597,8 @@ class CustomTagTextField extends StatefulWidget {
   final FocusNode? focusNode;
   final bool autofocus;
   final bool obscureText;
+  final bool readOnly;
+  final bool showChangedMark;
   final Widget? suffixIcon;
   final bool markChanged;
   final double? height;
@@ -2408,6 +2626,8 @@ class CustomTagTextField extends StatefulWidget {
     this.focusNode,
     this.autofocus = false,
     this.obscureText = false,
+    this.readOnly = false,
+    this.showChangedMark = true,
   });
 
   @override
@@ -2459,10 +2679,18 @@ class _CustomTagTextFieldState extends State<CustomTagTextField> {
     final suffixIconConstraints = isDense ? BoxConstraints(minWidth: 34.0, minHeight: height) : null;
     final icon = widget.icon;
     final hasIconSlot = icon != null || isDense; // -- dense fields take their height from the slot
-    final suffixIcon = widget.suffixIcon ?? (hasIconSlot ? Icon(icon, size: 18.0) : null);
+    final suffixIcon =
+        widget.suffixIcon ??
+        (hasIconSlot
+            ? Icon(
+                icon,
+                size: 18.0,
+              )
+            : null);
     return NBuilder(
       builder: (context, colors) => TextFormField(
         obscureText: widget.obscureText,
+        readOnly: widget.readOnly,
         onTap: widget.onTap,
         focusNode: widget.focusNode,
         autofocus: widget.autofocus,
@@ -2478,7 +2706,7 @@ class _CustomTagTextFieldState extends State<CustomTagTextField> {
         onChanged: widget.onChanged,
         onFieldSubmitted: widget.onFieldSubmitted,
         decoration: InputDecoration(
-          label: widget.labelText != '' ? Text('${widget.labelText} ${didChange || widget.markChanged ? '(${lang.changed})' : ''}') : null,
+          label: widget.labelText != '' ? Text('${widget.labelText} ${widget.showChangedMark && (didChange || widget.markChanged) ? '(${lang.changed})' : ''}') : null,
           floatingLabelBehavior: FloatingLabelBehavior.always,
           hintMaxLines: widget.hintMaxLines,
           isDense: isDense,
@@ -2522,6 +2750,12 @@ String? _bpmValidator(String? value) {
   if (value == null || value.isEmpty) return null;
   final intval = int.tryParse(value);
   if (intval == null || intval < 0) return lang.nameContainsBadCharacter;
+  return null;
+}
+
+String? _explicitValidator(String? value) {
+  if (value == null || value.isEmpty || value == '0') return null;
+  if (ExplicitStatus.fromTagValue(value) == null) return '0, 1, 2';
   return null;
 }
 
@@ -2571,6 +2805,7 @@ extension _TagFieldMultiEdit on TagField {
     TagField.releaseType => trExt.releaseType,
     TagField.bpm => _emptyIfZero(trExt.bpm ?? 0),
     TagField.musicalKey => trExt.musicalKey,
+    TagField.explicit => trExt.explicitStatus?.toTagValue() ?? '',
     TagField.rating => _emptyIfZero(trExt.effectiveRating),
     TagField.tags => trExt.originalTags ?? '',
     TagField.titleSort => trExt.sortInfo?.title ?? '',

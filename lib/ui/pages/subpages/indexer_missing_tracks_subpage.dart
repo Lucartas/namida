@@ -1,10 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:isolate';
 
 import 'package:flutter/material.dart';
 
 import 'package:namida/base/pull_to_refresh.dart';
-import 'package:namida/class/file_matcher.dart';
+import 'package:namida/class/missing_track_matcher.dart';
 import 'package:namida/class/route.dart';
 import 'package:namida/class/track.dart';
 import 'package:namida/class/video.dart';
@@ -14,6 +15,7 @@ import 'package:namida/controller/history_controller.dart';
 import 'package:namida/controller/indexer_controller.dart';
 import 'package:namida/controller/navigator_controller.dart';
 import 'package:namida/controller/playlist_controller.dart';
+import 'package:namida/controller/settings_controller.dart';
 import 'package:namida/core/dimensions.dart';
 import 'package:namida/core/enums.dart';
 import 'package:namida/core/extensions.dart';
@@ -23,6 +25,7 @@ import 'package:namida/core/translations/language.dart';
 import 'package:namida/core/utils.dart';
 import 'package:namida/packages/three_arched_circle.dart';
 import 'package:namida/ui/widgets/custom_widgets.dart';
+import 'package:namida/ui/widgets/expandable_box.dart';
 
 enum _LoadingProgress {
   initializing('Initializing'),
@@ -48,7 +51,11 @@ class IndexerMissingTracksSubpage extends StatefulWidget with NamidaRouteWidget 
 
 class _IndexerMissingTracksSubpageState extends State<IndexerMissingTracksSubpage> with TickerProviderStateMixin, PullToRefreshMixin {
   var _missingTracksPaths = <String>[];
+  List<String>? _filteredPaths;
+  final _cleanedPathsLookup = <String, String>{};
+  final _searchController = TextEditingController();
   final _missingTracksSuggestions = <String, String?>{}.obs;
+  var _missingTracksCandidates = <String, List<String>>{};
   final _selectedTracksToUpdate = <String, bool>{}.obs;
 
   bool _isLoading = false;
@@ -78,7 +85,9 @@ class _IndexerMissingTracksSubpageState extends State<IndexerMissingTracksSubpag
     _missingTracksSuggestions.close();
     _selectedTracksToUpdate.close();
     _scrollController.dispose();
+    _searchController.dispose();
     _loadingProgressOnGoing.close();
+    _loadingProgressActualTracksCount.close();
     _subLoadingProgress.close();
     _stopPreviousIsolates();
     super.dispose();
@@ -99,9 +108,39 @@ class _IndexerMissingTracksSubpageState extends State<IndexerMissingTracksSubpag
 
   void _resetMaps() {
     _missingTracksPaths = [];
+    _filteredPaths = null;
+    _cleanedPathsLookup.clear();
     _missingTracksSuggestions.value = {};
+    _missingTracksCandidates = {};
     _selectedTracksToUpdate.value = {};
+    _loadingProgressOnGoing.value = {_LoadingProgress.initializing: true};
+    _loadingProgressActualTracksCount.value = {};
+    _subLoadingProgress.value = 0.0;
   }
+
+  List<String>? _computeFilteredPaths(String text) {
+    if (text.isEmpty) return null;
+    final shouldCleanup = settings.enableSearchCleanup.value;
+    String cleanText(String value) => shouldCleanup ? value.cleanUpForComparison : value.toLowerCase();
+    final queryParts = cleanText(text).split(' ').where((e) => e.isNotEmpty).toFixedList();
+    return _missingTracksPaths.where(
+      (path) {
+        final cleanedPath = _cleanedPathsLookup[path] ??= cleanText(path);
+        return queryParts.every(cleanedPath.contains);
+      },
+    ).toFixedList();
+  }
+
+  void _onSearchChanged(String text) {
+    setState(() => _filteredPaths = _computeFilteredPaths(text));
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() => _filteredPaths = null);
+  }
+
+  bool _onSearchBoxVisibilityChange(bool newShow) => newShow || _searchController.text.isEmpty;
 
   Future<void> _fetchMissingTracks() async {
     if (_isLoading) return;
@@ -151,8 +190,13 @@ class _IndexerMissingTracksSubpageState extends State<IndexerMissingTracksSubpag
       addTracksCountToStep(_LoadingProgress.findingHistoryTracks);
 
       indicesProgressMap[allTracksSet.length] = _LoadingProgress.findingLibraryTracks;
-      for (final path in Indexer.inst.allTracksMappedByPath.keys) {
+      final fingerprintsByPath = <String, MissingTrackFingerprint>{};
+      for (final e in Indexer.inst.allTracksMappedByPath.entries) {
+        final path = e.key;
+        final trExt = e.value;
         allTracksSet.add(path);
+        final fingerprint = MissingTrackMatcher.fingerprintOf(size: trExt.size, durationMS: trExt.durationMS);
+        if (fingerprint != null) fingerprintsByPath[path] = fingerprint;
       }
       addTracksCountToStep(_LoadingProgress.findingLibraryTracks);
 
@@ -162,11 +206,15 @@ class _IndexerMissingTracksSubpageState extends State<IndexerMissingTracksSubpag
           allTracksSet.add(e.track.path);
         }
       }
+      for (final e in PlaylistController.inst.favouritesPlaylist.value.tracks) {
+        allTracksSet.add(e.track.path);
+      }
       addTracksCountToStep(_LoadingProgress.findingPlaylistTracks);
 
       final params = _FetchMissingTracksParams(
         allAudioFiles: audioFiles,
         allTracksSet: allTracksSet,
+        fingerprintsByPath: fingerprintsByPath,
         indicesProgressMap: indicesProgressMap,
         progressPort: _portLoadingProgress!.sendPort,
         resultsPort: _resultPort!.sendPort,
@@ -174,10 +222,12 @@ class _IndexerMissingTracksSubpageState extends State<IndexerMissingTracksSubpag
       );
       _isolate = await Isolate.spawn(_fetchMissingTracksIsolate, params);
 
-      final res = await _resultPort!.first as (List<String>, Map<String, String?>);
+      final res = await _resultPort!.first as (List<String>, Map<String, String?>, Map<String, List<String>>);
 
       _missingTracksPaths = res.$1;
+      _filteredPaths = _computeFilteredPaths(_searchController.text);
       _missingTracksSuggestions.value = res.$2;
+      _missingTracksCandidates = res.$3;
 
       _resultPort?.close();
       _portLoadingProgress?.close();
@@ -196,10 +246,11 @@ class _IndexerMissingTracksSubpageState extends State<IndexerMissingTracksSubpag
     final resultsPort = params.resultsPort;
     final subProgressPort = params.subProgressPort;
 
-    final fileMatcher = FileMatcher.init(allAudioFiles: allAudioFiles);
+    final matcher = MissingTrackMatcher(allAudioFiles, fingerprintsByPath: params.fingerprintsByPath);
 
     final missingTracksPaths = <String>[];
     final missingTracksSuggestions = <String, String?>{};
+    final missingTracksCandidates = <String, List<String>>{};
 
     void checkAndAdd(String rawPath) {
       final tr = Track.explicit(rawPath);
@@ -207,7 +258,9 @@ class _IndexerMissingTracksSubpageState extends State<IndexerMissingTracksSubpag
       final exists = tr.existsSync();
       if (!exists) {
         missingTracksPaths.add(rawPath);
-        missingTracksSuggestions[rawPath] = fileMatcher.getSuggestion(rawPath);
+        final candidates = matcher.getSuggestions(rawPath);
+        missingTracksSuggestions[rawPath] = candidates.firstOrNull;
+        if (candidates.isNotEmpty) missingTracksCandidates[rawPath] = candidates;
       }
     }
 
@@ -222,16 +275,78 @@ class _IndexerMissingTracksSubpageState extends State<IndexerMissingTracksSubpag
       index++;
     }
 
-    resultsPort.send((missingTracksPaths, missingTracksSuggestions));
+    resultsPort.send((missingTracksPaths, missingTracksSuggestions, missingTracksCandidates));
+  }
 
-    fileMatcher.dispose();
+  void _setNewPathFor(String path, String newPath) {
+    _missingTracksSuggestions[path] = newPath;
+    _selectedTracksToUpdate[path] = true;
   }
 
   void _pickNewPathFor(String path) async {
     final file = await NamidaFileBrowser.pickFile(note: lang.update);
     final newPath = file?.path;
-    _missingTracksSuggestions[path] = newPath;
-    if (newPath != null) _selectedTracksToUpdate[path] = true;
+    if (newPath == null) return;
+    _setNewPathFor(path, newPath);
+  }
+
+  void _onRepickTap(String path) {
+    final candidates = _missingTracksCandidates[path];
+    if (candidates == null) {
+      _pickNewPathFor(path);
+      return;
+    }
+    NamidaNavigator.inst.navigateDialog(
+      dialog: CustomBlurryDialog(
+        title: lang.choose,
+        normalTitleStyle: true,
+        actions: [
+          const CancelButton(),
+          NamidaButton(
+            text: lang.pickFromStorage,
+            onTap: () {
+              NamidaNavigator.inst.closeDialog();
+              _pickNewPathFor(path);
+            },
+          ),
+        ],
+        child: Obx(
+          (context) {
+            final currentPath = _missingTracksSuggestions[path];
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                NamidaText(
+                  path.toDisplayPath(),
+                  style: NText.small,
+                ),
+                const SizedBox(height: 8.0),
+                ...candidates.map(
+                  (candidate) {
+                    final displayPath = candidate.toDisplayPath();
+                    final sizeText = File(candidate).fileSizeFormatted();
+                    return SmallListTile(
+                      borderRadius: 12.0,
+                      icon: Broken.medal_star,
+                      title: displayPath,
+                      subtitle: sizeText,
+                      trailing: NamidaCheckMark(
+                        size: 18.0,
+                        active: candidate == currentPath,
+                      ),
+                      onTap: () {
+                        _setNewPathFor(path, candidate);
+                        NamidaNavigator.inst.closeDialog();
+                      },
+                    );
+                  },
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _onUpdating() async {
@@ -252,7 +367,12 @@ class _IndexerMissingTracksSubpageState extends State<IndexerMissingTracksSubpag
       didUpdate = true;
       snackyy(title: lang.note, message: "${lang.done}: ${newPaths.length.displayTrackKeyword}", top: false);
     } catch (e) {
-      snackyy(title: lang.error, message: '$e', top: false, isError: true);
+      snackyy(
+        title: lang.error,
+        message: '$e',
+        top: false,
+        isError: true,
+      );
     }
 
     if (didUpdate) {
@@ -260,14 +380,33 @@ class _IndexerMissingTracksSubpageState extends State<IndexerMissingTracksSubpag
       for (final k in newPaths.keys) {
         _missingTracksPaths.remove(k);
         _missingTracksSuggestions.remove(k);
+        _missingTracksCandidates.remove(k);
         _selectedTracksToUpdate.remove(k);
       }
+      _filteredPaths = _computeFilteredPaths(_searchController.text);
     }
     setState(() => _isUpdatingPaths = false);
   }
 
   @override
   Widget build(BuildContext context) {
+    final shownPaths = _filteredPaths ?? _missingTracksPaths;
+    final totalCountText = _missingTracksPaths.length.displayTrackKeyword;
+    final headerLeftText = _filteredPaths == null ? totalCountText : '${shownPaths.length}/$totalCountText';
+    final headerWidget = _missingTracksPaths.isEmpty
+        ? null
+        : ExpandableBox(
+            enableHero: false,
+            isBarVisible: true,
+            leftText: headerLeftText,
+            leftTextIcon: Broken.musicnote,
+            onSearchBoxVisibilityChange: _onSearchBoxVisibilityChange,
+            onCloseButtonPressed: _clearSearch,
+            sortByMenuWidget: null,
+            textFieldController: _searchController,
+            textFieldHintText: lang.search,
+            onTextFieldValueChanged: _onSearchChanged,
+          );
     return BackgroundWrapper(
       child: Stack(
         children: [
@@ -331,173 +470,185 @@ class _IndexerMissingTracksSubpageState extends State<IndexerMissingTracksSubpag
                     ),
                   ),
                 )
-              : Listener(
-                  onPointerMove: (event) {
-                    onPointerMove(_scrollController, event);
-                  },
-                  onPointerUp: (event) {
-                    onRefresh(() async {
-                      _resetMaps();
-                      return await _fetchMissingTracks();
-                    });
-                  },
-                  onPointerCancel: (event) => onVerticalDragFinish(),
-                  child: _missingTracksPaths.isEmpty
-                      ? Center(
-                          child: Column(
-                            crossAxisAlignment: .center,
-                            mainAxisAlignment: .center,
-                            children: [
-                              const Icon(
-                                Broken.emoji_happy,
-                                size: 48.0,
-                              ),
-                              const SizedBox(height: 8.0),
-                              NamidaText(
-                                lang.noTracksFound,
-                                style: NText.large,
-                              ),
-                            ],
-                          ),
-                        )
-                      : NamidaScrollbar(
-                          controller: _scrollController,
-                          child: AnimatedEnabled(
-                            enabled: !_isUpdatingPaths,
-                            child: SuperSmoothListView.builder(
-                              controller: _scrollController,
-                              padding: EdgeInsets.only(bottom: Dimensions.inst.globalBottomPaddingEffectiveR + kFABSize + 8.0),
-                              itemCount: _missingTracksPaths.length,
-                              itemBuilder: (context, index) {
-                                final path = _missingTracksPaths[index];
-                                return Padding(
-                                  padding: const EdgeInsets.all(3.0),
-                                  child: Obx(
-                                    (context) {
-                                      final suggestion = _missingTracksSuggestions[path];
-                                      final isSelected = _selectedTracksToUpdate[path] == true;
-                                      final itemContent = Stack(
-                                        children: [
-                                          Padding(
-                                            padding: const EdgeInsets.symmetric(vertical: 6.0),
-                                            child: Row(
+              : Column(
+                  children: [
+                    ?headerWidget,
+                    Expanded(
+                      child: Listener(
+                        onPointerMove: (event) {
+                          onPointerMove(_scrollController, event);
+                        },
+                        onPointerUp: (event) {
+                          onRefresh(() async {
+                            _resetMaps();
+                            return await _fetchMissingTracks();
+                          });
+                        },
+                        onPointerCancel: (event) => onVerticalDragFinish(),
+                        child: _missingTracksPaths.isEmpty
+                            ? Center(
+                                child: Column(
+                                  crossAxisAlignment: .center,
+                                  mainAxisAlignment: .center,
+                                  children: [
+                                    const Icon(
+                                      Broken.emoji_happy,
+                                      size: 48.0,
+                                    ),
+                                    const SizedBox(height: 8.0),
+                                    NamidaText(
+                                      lang.noTracksFound,
+                                      style: NText.large,
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : NamidaScrollbar(
+                                controller: _scrollController,
+                                child: AnimatedEnabled(
+                                  enabled: !_isUpdatingPaths,
+                                  child: SuperSmoothListView.builder(
+                                    controller: _scrollController,
+                                    padding: EdgeInsets.only(bottom: Dimensions.inst.globalBottomPaddingEffectiveR + kFABSize + 8.0),
+                                    itemCount: shownPaths.length,
+                                    itemBuilder: (context, index) {
+                                      final path = shownPaths[index];
+                                      return Padding(
+                                        padding: const EdgeInsets.all(3.0),
+                                        child: Obx(
+                                          (context) {
+                                            final suggestion = _missingTracksSuggestions[path];
+                                            final isSelected = _selectedTracksToUpdate[path] == true;
+                                            final itemContent = Stack(
                                               children: [
-                                                const SizedBox(width: 12.0),
-                                                NDecoratedBox(
-                                                  decoration: (colors) => BoxDecoration(
-                                                    color: colors.secondary.withOpacityExt(0.3),
-                                                    borderRadius: BorderRadius.circular(6.0.multipliedRadius),
-                                                  ),
-                                                  child: Padding(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 3.0, vertical: 2.0),
-                                                    child: ObxO(
-                                                      rx: HistoryController.inst.topTracksMapListens,
-                                                      builder: (context, topTracksMapListens) {
-                                                        final listens = topTracksMapListens[Track.explicit(path)] ?? topTracksMapListens[Video.explicit(path)];
-                                                        final listensCount = listens?.length ?? 0;
-                                                        return NamidaText(
-                                                          '$listensCount',
-                                                          style: NText.small,
-                                                        );
-                                                      },
-                                                    ),
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 12.0),
-                                                Expanded(
-                                                  child: Column(
-                                                    mainAxisAlignment: MainAxisAlignment.center,
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                Padding(
+                                                  padding: const EdgeInsets.symmetric(vertical: 6.0),
+                                                  child: Row(
                                                     children: [
-                                                      NamidaText(
-                                                        path,
-                                                        style: NText.medium,
-                                                      ),
-                                                      if (suggestion != null)
-                                                        NamidaText(
-                                                          " --> $suggestion",
-                                                          style: NText.small,
+                                                      const SizedBox(width: 12.0),
+                                                      NDecoratedBox(
+                                                        decoration: (colors) => BoxDecoration(
+                                                          color: colors.secondary.withOpacityExt(0.3),
+                                                          borderRadius: BorderRadius.circular(6.0.multipliedRadius),
                                                         ),
+                                                        child: Padding(
+                                                          padding: const EdgeInsets.symmetric(horizontal: 3.0, vertical: 2.0),
+                                                          child: ObxO(
+                                                            rx: HistoryController.inst.topTracksMapListens,
+                                                            builder: (context, topTracksMapListens) {
+                                                              final listens = topTracksMapListens[Track.explicit(path)] ?? topTracksMapListens[Video.explicit(path)];
+                                                              final listensCount = listens?.length ?? 0;
+                                                              return NamidaText(
+                                                                '$listensCount',
+                                                                style: NText.small,
+                                                              );
+                                                            },
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 12.0),
+                                                      Expanded(
+                                                        child: Column(
+                                                          mainAxisAlignment: MainAxisAlignment.center,
+                                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                                          children: [
+                                                            NamidaText(
+                                                              path.toDisplayPath(),
+                                                              style: NText.medium,
+                                                            ),
+                                                            if (suggestion != null)
+                                                              NamidaText(
+                                                                " --> ${suggestion.toDisplayPath()}",
+                                                                style: NText.small,
+                                                              ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 12.0),
+                                                      Row(
+                                                        mainAxisAlignment: MainAxisAlignment.end,
+                                                        mainAxisSize: MainAxisSize.min,
+                                                        children: [
+                                                          _missingTracksSuggestions[path] == null
+                                                              ? const SizedBox()
+                                                              : NamidaCheckMark(
+                                                                  size: 18.0,
+                                                                  active: isSelected,
+                                                                ),
+                                                          const SizedBox(width: 4.0),
+                                                          NamidaIconButton(
+                                                            verticalPadding: 6.0,
+                                                            horizontalPadding: 4.0,
+                                                            icon: Broken.repeat_circle,
+                                                            onPressed: () => _onRepickTap(path),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                      const SizedBox(width: 8.0),
                                                     ],
                                                   ),
                                                 ),
-                                                const SizedBox(width: 12.0),
-                                                Row(
-                                                  mainAxisAlignment: MainAxisAlignment.end,
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: [
-                                                    _missingTracksSuggestions[path] == null
-                                                        ? const SizedBox()
-                                                        : NamidaCheckMark(
-                                                            size: 18.0,
-                                                            active: isSelected,
-                                                          ),
-                                                    const SizedBox(width: 4.0),
-                                                    NamidaIconButton(
-                                                      verticalPadding: 6.0,
-                                                      horizontalPadding: 4.0,
-                                                      icon: Broken.repeat_circle,
-                                                      onPressed: () => _pickNewPathFor(path),
+                                                Positioned(
+                                                  top: 0,
+                                                  right: 0,
+                                                  child: NamidaBlurryContainer(
+                                                    borderRadius: BorderRadius.only(
+                                                      bottomLeft: Radius.circular(6.0.multipliedRadius),
+                                                      topRight: Radius.circular(6.0.multipliedRadius),
                                                     ),
-                                                  ],
+                                                    padding: const EdgeInsets.only(
+                                                      top: 2.0,
+                                                      right: 8.0,
+                                                      left: 6.0,
+                                                      bottom: 2.0,
+                                                    ),
+                                                    child: NamidaText(
+                                                      "${index + 1}",
+                                                      style: NText.small,
+                                                    ),
+                                                  ),
                                                 ),
-                                                const SizedBox(width: 8.0),
                                               ],
-                                            ),
-                                          ),
-                                          Positioned(
-                                            top: 0,
-                                            right: 0,
-                                            child: NamidaBlurryContainer(
-                                              borderRadius: BorderRadius.only(
-                                                bottomLeft: Radius.circular(6.0.multipliedRadius),
-                                                topRight: Radius.circular(6.0.multipliedRadius),
-                                              ),
-                                              padding: const EdgeInsets.only(top: 2.0, right: 8.0, left: 6.0, bottom: 2.0),
-                                              child: NamidaText(
-                                                "${index + 1}",
-                                                style: NText.small,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      );
-                                      return NBuilder(
-                                        selfAnimated: true,
-                                        builder: (context, colors) {
-                                          final borderColor = colors.secondary.withOpacityExt(0.6);
-                                          return NamidaInkWell(
-                                            animationDurationMS: 300,
-                                            borderRadius: 12.0,
-                                            bgColor: NColors.card,
-                                            decoration: BoxDecoration(
-                                              border: isSelected
-                                                  ? Border.all(
-                                                      width: 1.5,
-                                                      color: borderColor,
-                                                    )
-                                                  : null,
-                                            ),
-                                            onTap: () {
-                                              if (_missingTracksSuggestions[path] == null) return;
-                                              final wasUpadting = (_selectedTracksToUpdate[path] ?? false);
-                                              if (wasUpadting) {
-                                                _selectedTracksToUpdate.remove(path);
-                                              } else {
-                                                _selectedTracksToUpdate[path] = true;
-                                              }
-                                            },
-                                            child: itemContent,
-                                          );
-                                        },
+                                            );
+                                            return NBuilder(
+                                              selfAnimated: true,
+                                              builder: (context, colors) {
+                                                final borderColor = colors.secondary.withOpacityExt(0.6);
+                                                return NamidaInkWell(
+                                                  animationDurationMS: 300,
+                                                  borderRadius: 12.0,
+                                                  bgColor: NColors.card,
+                                                  decoration: BoxDecoration(
+                                                    border: isSelected
+                                                        ? Border.all(
+                                                            width: 1.5,
+                                                            color: borderColor,
+                                                          )
+                                                        : null,
+                                                  ),
+                                                  onTap: () {
+                                                    if (_missingTracksSuggestions[path] == null) return;
+                                                    final wasUpadting = (_selectedTracksToUpdate[path] ?? false);
+                                                    if (wasUpadting) {
+                                                      _selectedTracksToUpdate.remove(path);
+                                                    } else {
+                                                      _selectedTracksToUpdate[path] = true;
+                                                    }
+                                                  },
+                                                  child: itemContent,
+                                                );
+                                              },
+                                            );
+                                          },
+                                        ),
                                       );
                                     },
                                   ),
-                                );
-                              },
-                            ),
-                          ),
-                        ),
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
           pullToRefreshWidget,
           Obx(
@@ -532,19 +683,24 @@ class _IndexerMissingTracksSubpageState extends State<IndexerMissingTracksSubpag
                         Obx(
                           (context) {
                             final allSelected =
-                                _selectedTracksToUpdate.isNotEmpty && _missingTracksPaths.every((e) => _missingTracksSuggestions[e] == null || _selectedTracksToUpdate[e] == true);
+                                _selectedTracksToUpdate.isNotEmpty && shownPaths.every((e) => _missingTracksSuggestions[e] == null || _selectedTracksToUpdate[e] == true);
                             return NamidaFABButton(
                               tooltip: () => lang.selectAll,
                               icon: allSelected ? Broken.tick_square : Broken.task_square,
                               dim: !allSelected,
                               onTap: () {
                                 final allSelected =
-                                    _selectedTracksToUpdate.isNotEmpty &&
-                                    _missingTracksPaths.every((e) => _missingTracksSuggestions[e] == null || _selectedTracksToUpdate[e] == true);
+                                    _selectedTracksToUpdate.isNotEmpty && shownPaths.every((e) => _missingTracksSuggestions[e] == null || _selectedTracksToUpdate[e] == true);
                                 if (allSelected) {
-                                  _selectedTracksToUpdate.clear();
+                                  if (_filteredPaths == null) {
+                                    _selectedTracksToUpdate.clear();
+                                  } else {
+                                    for (final e in shownPaths) {
+                                      _selectedTracksToUpdate.remove(e);
+                                    }
+                                  }
                                 } else {
-                                  for (var e in _missingTracksPaths) {
+                                  for (var e in shownPaths) {
                                     if (_missingTracksSuggestions[e] != null) _selectedTracksToUpdate[e] = true;
                                   }
                                 }
@@ -607,6 +763,7 @@ class _IndexerMissingTracksSubpageState extends State<IndexerMissingTracksSubpag
 class _FetchMissingTracksParams {
   final Set<String> allAudioFiles;
   final Set<String> allTracksSet;
+  final Map<String, MissingTrackFingerprint> fingerprintsByPath;
   final Map<int, _LoadingProgress> indicesProgressMap;
   final SendPort progressPort;
   final SendPort resultsPort;
@@ -615,6 +772,7 @@ class _FetchMissingTracksParams {
   const _FetchMissingTracksParams({
     required this.allAudioFiles,
     required this.allTracksSet,
+    required this.fingerprintsByPath,
     required this.indicesProgressMap,
     required this.progressPort,
     required this.resultsPort,

@@ -7,6 +7,7 @@ import 'package:flutter_taglib/flutter_taglib.dart';
 import 'package:namida/class/faudiomodel.dart';
 import 'package:namida/class/media_chapter.dart';
 import 'package:namida/class/replay_gain_data.dart';
+import 'package:namida/class/tag_rating.dart';
 import 'package:namida/controller/logs_controller.dart';
 import 'package:namida/core/extensions.dart';
 
@@ -21,7 +22,13 @@ class TagLibRes {
 
   static Future<TagLibRes?> read(String trackPath, {required bool extractArtwork, Map<String, String>? httpHeaders}) async {
     try {
-      final stream = TagLibFile.readBatchNative([trackPath], threads: 1, readCover: extractArtwork, readChapters: true, headers: httpHeaders);
+      final stream = TagLibFile.readBatchNative(
+        [trackPath],
+        threads: 1,
+        readCover: extractArtwork,
+        readChapters: true,
+        headers: httpHeaders,
+      );
       final res = await stream.single;
       return fromBatchResult(res);
     } catch (e, st) {
@@ -51,6 +58,8 @@ class TagLibRes {
                 size: artworkBytes.length,
               ),
         propertiesMap: res.properties,
+        popularimeters: res.popularimeters,
+        asfSharedUserRating: res.asfSharedUserRating,
         chapters: _toMediaChapters(res.chapters),
       ),
     );
@@ -76,16 +85,29 @@ class TagLibRes {
     }
   }
 
-  static String? writeSync(String trackPath, {required Map<String, List<String>> newPropertiesMap, required FArtwork? artwork, required List<MediaChapter>? chapters}) {
+  /// [ratingPercentage] is 0.0-1.0, 0 removes the rating and null leaves it untouched.
+  static String? writeSync(
+    String trackPath, {
+    required Map<String, List<String>> newPropertiesMap,
+    required double? ratingPercentage,
+    required FArtwork? artwork,
+    required List<MediaChapter>? chapters,
+  }) {
     TagLibFile? tagFile;
     try {
       tagFile = TagLibFile.open(trackPath);
-      if (tagFile == null) return null;
+      if (tagFile == null) return 'Unsupported file';
 
       final allProperties = _mergeNewProperties(
         allProperties: tagFile.properties,
         newPropertiesMap: newPropertiesMap,
       );
+
+      if (ratingPercentage != null) {
+        final ratingPercent = TagRating.percentOf(ratingPercentage);
+        final didApplyRating = TagRating.applyToFile(tagFile, percent: ratingPercent, properties: allProperties);
+        if (!didApplyRating) return 'Failed to write rating';
+      }
 
       // -- all properties must be set, otherwise taglib would erase them
       tagFile.setProperties(allProperties);
@@ -144,7 +166,6 @@ class TagLibRes {
     redirectField(TagLibField.comment, _TagLibFieldsFallback.comment);
     redirectField(TagLibField.description, _TagLibFieldsFallback.description);
     redirectField(TagLibField.date, _TagLibFieldsFallback.date);
-    redirectField(TagLibField.rating, _TagLibFieldsFallback.rating);
     redirectField(TagLibField.label, _TagLibFieldsFallback.label);
     redirectField(TagLibField.releaseType, _TagLibFieldsFallback.releaseType);
 
@@ -231,13 +252,14 @@ class TagLibRes {
         releaseType: info.releaseType,
         bpm: bpm,
         musicalKey: info.musicalKey,
+        itunesAdvisory: info.itunesAdvisory,
         mbAlbumId: info.MUSICBRAINZ_ALBUMID,
         mbAlbumArtistId: info.MUSICBRAINZ_ALBUMARTISTID,
         gainData: ReplayGainData.fromTagLibMap(properties),
         sortInfo: FTagsSortInfo.fromTagLibMap(properties),
         multiValues: properties._buildMultiValues(),
         extraTags: FTags.pickExtraTags(properties.propertiesMap),
-        ratingPercentage: FTags.ratingToPercentage(info.rating),
+        ratingPercentage: info.computeRatingPercentage(),
         tempo: info.tempo,
         djmixer: info.djmixer,
         mixer: info.mixer,
@@ -262,14 +284,31 @@ class TagLibPropertiesWrapper {
   final FArtwork? artwork;
   final AudioInfo audioInfo;
   final Map<String, List<String>> propertiesMap;
+  final List<TagLibPopularimeter> popularimeters;
+  final int? asfSharedUserRating;
   final List<MediaChapter>? chapters;
 
   const TagLibPropertiesWrapper._({
     required this.artwork,
     required this.audioInfo,
     required this.propertiesMap,
+    required this.popularimeters,
+    required this.asfSharedUserRating,
     required this.chapters,
   });
+
+  /// 0.0-1.0, null when unrated.
+  double? computeRatingPercentage() {
+    final percent = TagRating.percentFromFields(propertiesMap) ?? TagRating.percentFromPopularimeters(popularimeters) ?? _asfRatingPercent();
+    if (percent == null) return null;
+    return percent / 100;
+  }
+
+  int? _asfRatingPercent() {
+    final asfSharedUserRating = this.asfSharedUserRating;
+    if (asfSharedUserRating == null || asfSharedUserRating <= 0) return null;
+    return TagRating.percentFromAsfSharedUserRating(asfSharedUserRating);
+  }
 
   String? _getProperty(String field) {
     final val = propertiesMap[field];
@@ -356,6 +395,7 @@ class TagLibPropertiesWrapper {
   String? get musicalKey => _getPropertyFirstFallbacks(_TagLibFieldsFallback.musicalKey);
   String? get sampleRate => _getPropertyFirst(TagLibField.sampleRate);
   String? get tempo => _getPropertyFirst(TagLibField.tempo);
+  String? get itunesAdvisory => _getPropertyFirst(TagLibField.itunesAdvisory);
   String? get mixer => _getPropertyFirst(TagLibField.mixer);
   String? get djmixer => _getPropertyFirst(TagLibField.djmixer);
 
@@ -517,6 +557,7 @@ class TagLibField {
   static const djmixer = 'DJMIXER';
   static const bpm = 'BPM';
   static const initialKey = 'INITIALKEY';
+  static const itunesAdvisory = 'ITUNESADVISORY';
   static const key = 'KEY';
   static const length = 'LENGTH';
   static const channels = 'CHANNELS';

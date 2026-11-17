@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
 import 'dart:math' show Random;
 import 'dart:typed_data';
 
@@ -44,6 +43,7 @@ import 'package:namida/core/icon_fonts/broken_icons.dart';
 import 'package:namida/core/namida_converter_ext.dart';
 import 'package:namida/core/translations/language.dart';
 import 'package:namida/core/utils.dart';
+import 'package:namida/ui/widgets/artwork.dart';
 import 'package:namida/ui/widgets/custom_widgets.dart';
 import 'package:namida/ui/widgets/eggs/eggs.dart';
 import 'package:namida/youtube/class/youtube_id.dart';
@@ -72,3 +72,4 @@ part 'sync_pairing.dart';
 part 'sync_sender.dart';
 part 'sync_server_wrapper.dart';
 part 'sync_utils.dart';
+part 'sync_windows_firewall.dart';

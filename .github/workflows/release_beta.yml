@@ -9,8 +9,8 @@ name: release_beta
 #   linux    -> build_linux (deb/rpm/tar.gz + AUR)
 #   appimage -> build_linux (build only) + build_appimage
 #   flatpak  -> build_linux_portable + build_flatpak
-#   macos    -> build_apple.yml (dmg + zip, beta only, not in the downloads table yet)
-#   ios      -> build_apple.yml (ipa for sideloading, beta only, not in the downloads table yet)
+#   macos    -> build_apple.yml (dmg + zip, beta only)
+#   ios      -> build_apple.yml (ipa for sideloading, beta only)
 # source_run_id skips the builds and takes their artifacts from that run instead, to re-package only.
 on:
   workflow_dispatch:
@@ -19,6 +19,10 @@ on:
         type: boolean
         default: true
       android:
+        type: boolean
+        default: true
+      android_key_patch:
+        description: patched flutter key input for gboard select, drop once flutter#185849 is fixed
         type: boolean
         default: true
       windows:
@@ -54,6 +58,9 @@ on:
         type: boolean
         default: true
       android:
+        type: boolean
+        default: true
+      android_key_patch:
         type: boolean
         default: true
       windows:
@@ -280,9 +287,13 @@ jobs:
 
       - name: Patch package ID for clone
         if: matrix.is_clone
-        run: find ./ -type f -exec sed -i -e 's/com.msob7y.namida/com.msob7y.namida.snapshot/g' {} \;
+        run: |
+          find ./ -type f -exec sed -i -e 's/com.msob7y.namida/com.msob7y.namida.snapshot/g' {} \;
+          echo "ORG_GRADLE_PROJECT_namidaSnapshot=true" >> $GITHUB_ENV
 
       - name: Build APKs
+        env:
+          ORG_GRADLE_PROJECT_namidaFlutterKeyPatch: ${{ inputs.android_key_patch }}
         run: |
           mkdir -p build_final
           flutter build apk --target-platform android-arm64 --release
@@ -714,3 +725,13 @@ jobs:
       release_repo: ${{ needs.create_release.outputs.target_repo }}
       release_tag: ${{ needs.create_release.outputs.tag }}
     secrets: inherit
+
+  # -- stable drafts redraw the badges on their own when published
+  readme_badges:
+    if: ${{ !cancelled() && inputs.is_beta }}
+    needs: [build_android, build_windows, build_linux, build_appimage, build_flatpak, build_apple]
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/readme_badges.yml

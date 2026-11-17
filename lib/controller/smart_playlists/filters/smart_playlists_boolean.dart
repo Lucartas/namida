@@ -5,14 +5,13 @@ final class SmartPlaylistRuleBoolean extends SmartPlaylistRuleBase<Null, Null, S
     required super.filter,
     required super.source,
     required super.enableCleanup,
-  }) : super(type: SmartPlaylistFilterType.boolean, data: null, data2: null, clockOnly: false, relativeDuration: null);
+  }) : super(type: SmartPlaylistFilterType.boolean, data: null, data2: null, relativeDuration: null);
 
   @override
   SmartPlaylistRuleBoolean copyWith({
     (Null data, Null data2)? datas,
     SmartPlaylistRuleFilterBoolean? filter,
     bool? enableCleanup,
-    bool? clockOnly,
     SmartPlaylistRelativeDuration? relativeDuration,
   }) => SmartPlaylistRuleBoolean(
     filter: filter ?? this.filter,
@@ -61,6 +60,7 @@ final class SmartPlaylistRuleBoolean extends SmartPlaylistRuleBase<Null, Null, S
       SmartPlaylistRuleFilterBooleanSource.isLossless => _booleanFn(track.isLossless),
       SmartPlaylistRuleFilterBooleanSource.isFavourite => _booleanFn(track.isFavourite),
       SmartPlaylistRuleFilterBooleanSource.isSingle => _booleanFn(track.albumsIdentifiersModified.any((albumIdentifier) => albumIdentifier.isSingle())),
+      SmartPlaylistRuleFilterBooleanSource.isExplicit => _booleanFn(track.explicitStatus?.isExplicit()),
     };
   }
 
@@ -122,6 +122,7 @@ enum SmartPlaylistRuleFilterBooleanSource with SmartPlaylistRuleFilterSource {
   isLossless,
   isFavourite,
   isSingle,
+  isExplicit,
   ;
 
   const SmartPlaylistRuleFilterBooleanSource();
@@ -136,13 +137,11 @@ enum SmartPlaylistRuleFilterBooleanSource with SmartPlaylistRuleFilterSource {
   bool get supportsCleanup => false;
 
   @override
-  bool get supportsClockOnly => false;
-
-  @override
   String toText() => switch (this) {
     SmartPlaylistRuleFilterBooleanSource.isLossless => lang.lossless,
     SmartPlaylistRuleFilterBooleanSource.isFavourite => lang.favourite,
     SmartPlaylistRuleFilterBooleanSource.isSingle => lang.single,
+    SmartPlaylistRuleFilterBooleanSource.isExplicit => lang.explicit,
   };
 
   @override
@@ -150,5 +149,6 @@ enum SmartPlaylistRuleFilterBooleanSource with SmartPlaylistRuleFilterSource {
     SmartPlaylistRuleFilterBooleanSource.isLossless => Broken.voice_cricle,
     SmartPlaylistRuleFilterBooleanSource.isFavourite => Broken.heart,
     SmartPlaylistRuleFilterBooleanSource.isSingle => Broken.music_square,
+    SmartPlaylistRuleFilterBooleanSource.isExplicit => Icons.explicit_outlined,
   };
 }

@@ -25,6 +25,8 @@ import 'package:super_sliver_list/super_sliver_list.dart';
 import 'package:namida/base/audio_handler.dart';
 import 'package:namida/base/pull_to_refresh.dart';
 import 'package:namida/class/faudiomodel.dart';
+import 'package:namida/class/file_parts.dart';
+import 'package:namida/class/queue_scroll_follower.dart';
 import 'package:namida/class/route.dart';
 import 'package:namida/class/track.dart';
 import 'package:namida/class/version_wrapper.dart';
@@ -36,6 +38,7 @@ import 'package:namida/controller/navigator_controller.dart';
 import 'package:namida/controller/platform/namida_channel/namida_channel.dart';
 import 'package:namida/controller/player_controller.dart';
 import 'package:namida/controller/playlist_controller.dart';
+import 'package:namida/controller/scroll_search_controller.dart';
 import 'package:namida/controller/settings_controller.dart';
 import 'package:namida/controller/time_ago_controller.dart';
 import 'package:namida/controller/version_controller.dart';
@@ -62,6 +65,7 @@ import 'package:namida/ui/dialogs/queue_insertion_dialogs.dart';
 import 'package:namida/ui/pages/about_page.dart';
 import 'package:namida/ui/pages/settings_page.dart';
 import 'package:namida/ui/widgets/animated_widgets.dart';
+import 'package:namida/ui/widgets/artwork.dart';
 import 'package:namida/ui/widgets/baked_blur.dart';
 import 'package:namida/ui/widgets/custom_tooltip.dart';
 import 'package:namida/ui/widgets/effects/effects.dart';
@@ -128,7 +132,7 @@ class CustomSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final finalColor = passedColor ?? CurrentColor.inst.color;
+    final finalColor = passedColor ?? NamidaNavigator.inheritedColorOf(context);
     final colors = NColorsData.targetOf(context);
     final duration = Duration(milliseconds: durationInMillisecond);
     const curve = Curves.fastEaseInToSlowEaseOut;
@@ -241,7 +245,10 @@ class CustomSwitchListTile extends StatelessWidget {
               width: 12.0,
             ),
             IgnorePointer(
-              child: CustomSwitch(active: value, passedColor: passedColor),
+              child: CustomSwitch(
+                active: value,
+                passedColor: passedColor,
+              ),
             ),
           ],
         ),
@@ -259,6 +266,7 @@ class CustomListTile extends StatelessWidget {
   /// takes the place of [subtitle].
   final Widget? subtitleWidget;
   final bool subtitleAbove;
+  final bool reserveSubtitleHeight;
   final Widget? trailing;
   final Widget? trailingRaw;
   final String? trailingText;
@@ -283,6 +291,7 @@ class CustomListTile extends StatelessWidget {
     this.subtitle,
     this.subtitleWidget,
     this.subtitleAbove = false,
+    this.reserveSubtitleHeight = false,
     this.trailing,
     this.trailingRaw,
     this.trailingText,
@@ -312,7 +321,8 @@ class CustomListTile extends StatelessWidget {
 
     final baseHeight = 6.0 + VisualDensity.compact.baseSizeAdjustment.dy;
     var oneLineHeight = baseHeight + (dense ? 50.0 : 56.0);
-    var minTileHeight = hasSubtitle ? baseHeight + (dense ? 60.0 : 62.0) : oneLineHeight;
+    final useSubtitleHeight = hasSubtitle || reserveSubtitleHeight;
+    var minTileHeight = useSubtitleHeight ? baseHeight + (dense ? 60.0 : 62.0) : oneLineHeight;
     var verticalPadding = 8.0;
     var borderR = this.borderR;
     var iconSize = 24.0;
@@ -695,11 +705,13 @@ class CustomBlurryDialog extends StatelessWidget {
     final actionsTopPaddingAfterContent = (_kContentToActionsGap - contentBottomPadding).withMinimum(0.0);
     final actionsTopPadding = contentBottomPadding == 0.0 ? _kActionsTopPaddingWithoutContentPadding : actionsTopPaddingAfterContent;
     return Center(
-      child: SmoothSingleChildScrollView(
+      child: _DialogScrollView(
         child: Dialog(
           backgroundColor: ctxth.dialogTheme.backgroundColor,
           surfaceTintColor: Colors.transparent,
           insetPadding: EdgeInsets.symmetric(horizontal: horizontalMargin, vertical: vInsets),
+          // -- the keyboard space has to exist in the same frame the focused field asks to be revealed
+          insetAnimationDuration: Duration.zero,
           clipBehavior: Clip.antiAlias,
           child: _DialogContentNoSystemPadding(
             child: ConstrainedBox(
@@ -793,7 +805,12 @@ class CustomBlurryDialog extends StatelessWidget {
                         /// Actions.
                         if (actions != null)
                           Padding(
-                            padding: EdgeInsets.only(left: 16.0, right: 16.0, top: actionsTopPadding, bottom: 12.0),
+                            padding: EdgeInsets.only(
+                              left: 16.0,
+                              right: 16.0,
+                              top: actionsTopPadding,
+                              bottom: 12.0,
+                            ),
                             child: LayoutWidthProvider(
                               builder: (context, maxWidth) {
                                 final leftActionMaxWidth = leftAction == null ? 0.0 : maxWidth * 0.35;
@@ -846,6 +863,60 @@ class CustomBlurryDialog extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _DialogScrollView extends StatelessWidget {
+  final Widget child;
+
+  const _DialogScrollView({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return SmoothSingleChildScrollView(
+      child: _RevealAboveKeyboard(
+        child: child,
+      ),
+    );
+  }
+}
+
+// -- the dialog scroll view reaches under the keyboard, focused fields wouldn't scroll above it otherwise
+class _RevealAboveKeyboard extends SingleChildRenderObjectWidget {
+  const _RevealAboveKeyboard({required super.child});
+
+  @override
+  _RenderRevealAboveKeyboard createRenderObject(BuildContext context) {
+    final keyboardHeight = MediaQuery.viewInsetsOf(context).bottom;
+    return _RenderRevealAboveKeyboard(keyboardHeight);
+  }
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderRevealAboveKeyboard renderObject) {
+    renderObject.keyboardHeight = MediaQuery.viewInsetsOf(context).bottom;
+  }
+}
+
+// by claude
+class _RenderRevealAboveKeyboard extends fr.RenderProxyBox {
+  double keyboardHeight;
+
+  _RenderRevealAboveKeyboard(this.keyboardHeight);
+
+  @override
+  void showOnScreen({fr.RenderObject? descendant, Rect? rect, Duration duration = Duration.zero, Curve curve = Curves.ease}) {
+    final keyboardHeight = this.keyboardHeight;
+    if (keyboardHeight > 0.0 && descendant != null) {
+      final descendantRect = rect ?? descendant.paintBounds;
+      final revealBottom = descendantRect.bottom + keyboardHeight;
+      rect = Rect.fromLTRB(descendantRect.left, descendantRect.top, descendantRect.right, revealBottom);
+    }
+    super.showOnScreen(
+      descendant: descendant,
+      rect: rect,
+      duration: duration,
+      curve: curve,
     );
   }
 }
@@ -1022,6 +1093,7 @@ class NamidaButton extends StatelessWidget {
   final bool isMinimumSquared;
   final bool? tooltipPreferBelow;
   final bool isCentered;
+  final bool isGradient;
   final Axis direction;
   final CustomPainter Function(Color foregroundColor, double borderRadius)? foregroundPainterBuilder;
 
@@ -1052,11 +1124,13 @@ class NamidaButton extends StatelessWidget {
     this.isMinimumSquared = false,
     this.tooltipPreferBelow,
     this.isCentered = true,
+    this.isGradient = false,
     this.direction = Axis.horizontal,
     this.foregroundPainterBuilder,
   });
 
   static const double kDefaultMinHeight = 36.0;
+  static const _kGradientEndAccentOpacity = 0.2;
 
   static NamidaButtonPalette resolvePalette(NColorsData nColors, {required NamidaButtonColors colors, Color? colorScheme, bool opaqueBG = false}) {
     final (double colorSchemeOpacity, double bgOpacity, double borderOpacity, double foregroundOpacity) = switch (colors) {
@@ -1090,8 +1164,20 @@ class NamidaButton extends StatelessWidget {
     final palette = resolvePalette(nColors, colors: colors, colorScheme: this.colorScheme, opaqueBG: opaqueBG);
     final colorScheme = palette.colorScheme;
     final bgColor = palette.bg;
-    final borderColor = palette.border;
+    var borderColor = palette.border;
     final foregroundColor = palette.foreground;
+
+    LinearGradient? gradient;
+    if (isGradient) {
+      final accentColor = this.colorScheme ?? nColors.accent ?? CurrentColor.inst.color;
+      gradient = NamidaGradients.accentCard(
+        scaffold: nColors.scaffold,
+        accent: accentColor,
+        isDarkMode: context.isDarkMode,
+        endAccentOpacity: _kGradientEndAccentOpacity,
+      );
+      borderColor = accentColor.withOpacityExt(0.5);
+    }
 
     final text = this.text;
     final icon = this.icon;
@@ -1179,7 +1265,8 @@ class NamidaButton extends StatelessWidget {
       onTap: onTap,
       onLongPress: onLongPress,
       decoration: BoxDecoration(
-        color: bgColor,
+        color: gradient == null ? bgColor : null,
+        gradient: gradient,
         border: Border.all(
           width: 0.5,
           color: borderColor,
@@ -1418,6 +1505,7 @@ class SmallListTile extends StatelessWidget {
   final double borderRadius;
   final Widget? leading;
   final VisualDensity? visualDensity;
+  final bool dense;
 
   const SmallListTile({
     super.key,
@@ -1437,6 +1525,7 @@ class SmallListTile extends StatelessWidget {
     this.borderRadius = 0.0,
     this.leading,
     this.visualDensity,
+    this.dense = false,
   });
 
   @override
@@ -1449,7 +1538,7 @@ class SmallListTile extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(borderRadius.multipliedRadius),
       ),
-      dense: false,
+      dense: dense,
       leading:
           leading ??
           SizedBox(
@@ -1708,7 +1797,7 @@ class _NamidaExpansionTileState extends State<NamidaExpansionTile> with SingleTi
       children: [
         header,
         if (_isBodyBuilt)
-          _ExpansionSizeReveal(
+          NamidaSizeReveal(
             animation: _sizeAnimation,
             child: FadeTransition(
               opacity: _fadeAnimation,
@@ -1820,11 +1909,11 @@ class _ExpansionTint extends AnimatedWidget {
 }
 
 // -- unlike [SizeTransition], no clip once fully expanded, it would cut children shadows/glows.
-class _ExpansionSizeReveal extends AnimatedWidget {
+class NamidaSizeReveal extends AnimatedWidget {
   final Animation<double> animation;
   final Widget child;
 
-  const _ExpansionSizeReveal({required this.animation, required this.child}) : super(listenable: animation);
+  const NamidaSizeReveal({super.key, required this.animation, required this.child}) : super(listenable: animation);
 
   @override
   Widget build(BuildContext context) {
@@ -1949,7 +2038,7 @@ class CreatePlaylistButton extends StatelessWidget {
                   if (pl != null && m3uPath != null) {
                     await PlaylistController.inst.exportPlaylistToM3UFile(pl, m3uPath);
                     snackyy(
-                      message: "${lang.savedIn}: $m3uPath",
+                      message: "${lang.savedIn}: ${m3uPath.toDisplayPath()}",
                       leftBarIndicatorColor: CurrentColor.inst.color,
                       altDesign: true,
                       top: false,
@@ -1968,7 +2057,7 @@ class CreatePlaylistButton extends StatelessWidget {
                 (context) => CustomSwitchListTile(
                   icon: Broken.direct_send,
                   title: lang.convertToM3UPlaylist,
-                  subtitle: m3uDirectoryRx.valueR,
+                  subtitle: m3uDirectoryRx.valueR.toDisplayPath(),
                   value: exportAsM3uRx.valueR,
                   onChanged: (_) => exportAsM3uRx.toggle(),
                   trailingBeforeSwitch: NamidaIconButton(
@@ -2083,6 +2172,42 @@ class StackedIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final secondaryText = this.secondaryText;
+    final secondaryIcon = this.secondaryIcon;
+    final secondaryChild =
+        smallChild ??
+        (secondaryText != null
+            ? NamidaText(
+                secondaryText,
+                style: NText.small,
+                color: _iconColorOf(secondaryIconColor),
+              )
+            : secondaryIcon != null
+            ? NIcon(
+                secondaryIcon,
+                size: secondaryIconSize,
+                color: _iconColorOf(secondaryIconColor),
+              )
+            : null);
+    final Widget? secondaryWidget = secondaryChild == null
+        ? null
+        : Positioned(
+            bottom: margin,
+            right: margin,
+            child: NDecoratedBox(
+              decoration: (colors) => BoxDecoration(
+                borderRadius: BorderRadius.circular(6),
+                boxShadow: [
+                  BoxShadow(
+                    color: shadowColor ?? colors.scaffold,
+                    spreadRadius: 0,
+                    blurRadius: blurRadius,
+                  ),
+                ],
+              ),
+              child: secondaryChild,
+            ),
+          );
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -2091,35 +2216,7 @@ class StackedIcon extends StatelessWidget {
           color: _iconColorOf(baseIconColor),
           size: iconSize,
         ),
-        Positioned(
-          bottom: margin,
-          right: margin,
-          child: NDecoratedBox(
-            decoration: (colors) => BoxDecoration(
-              borderRadius: BorderRadius.circular(6),
-              boxShadow: [
-                BoxShadow(
-                  color: shadowColor ?? colors.scaffold,
-                  spreadRadius: 0,
-                  blurRadius: blurRadius,
-                ),
-              ],
-            ),
-            child:
-                smallChild ??
-                (secondaryText != null
-                    ? NamidaText(
-                        secondaryText!,
-                        style: NText.small,
-                        color: _iconColorOf(secondaryIconColor),
-                      )
-                    : NIcon(
-                        secondaryIcon,
-                        size: secondaryIconSize,
-                        color: _iconColorOf(secondaryIconColor),
-                      )),
-          ),
-        ),
+        ?secondaryWidget,
       ],
     );
   }
@@ -2411,6 +2508,9 @@ class _NamidaWheelSliderState extends State<NamidaWheelSlider> {
   /// the last value sent through [NamidaWheelSlider.onValueChanged], in [NamidaWheelSlider.initValue] form.
   int? _reportedInitValue;
 
+  /// the owner already has the value it passed, reporting it back would snap/clamp it while being built.
+  bool _isJumpingToInitValue = false;
+
   int _itemOf(int initValue) => (initValue / widget.stepper / widget.multiplier).round();
 
   static bool _isMultipleOfFive(int n) => n % 5 == 0;
@@ -2421,7 +2521,9 @@ class _NamidaWheelSliderState extends State<NamidaWheelSlider> {
     final initValue = widget.initValue;
     // -- outside changes only, our own report can map back to another item (extra value)
     if (initValue == oldWidget.initValue || initValue == _reportedInitValue) return;
+    _isJumpingToInitValue = true;
     _controller.jumpToItem(_itemOf(initValue));
+    _isJumpingToInitValue = false;
   }
 
   @override
@@ -2480,6 +2582,7 @@ class _NamidaWheelSliderState extends State<NamidaWheelSlider> {
                       },
                     ),
                     onSelectedItemChanged: (val) {
+                      if (_isJumpingToInitValue) return;
                       int finalValue = (val * widget.stepper * widget.multiplier + widget.min);
                       if ((widget.extraValue && finalValue > widget.max)) finalValue = -1;
                       _reportedInitValue = finalValue < widget.min ? widget.max + 1 : finalValue - widget.min;
@@ -3135,7 +3238,14 @@ class SubpageInfoContainer extends StatelessWidget {
         final isSingleArtworkType = subpageInfoType == MediaType.album || subpageInfoType == MediaType.artist;
         final isOverlay = style == SubpageInfoStyle.overlay;
         final isBlurBackdrop = style == SubpageInfoStyle.blurBackdrop;
-        final contentPadding = layout.isEdgeToEdge ? EdgeInsets.zero : const EdgeInsets.only(top: 12.0, left: 12.0, right: 12.0, bottom: 4.0);
+        final contentPadding = layout.isEdgeToEdge
+            ? EdgeInsets.zero
+            : const EdgeInsets.only(
+                top: 12.0,
+                left: 12.0,
+                right: 12.0,
+                bottom: 4.0,
+              );
         final topMargin = style == SubpageInfoStyle.compact ? topPadding : 0.0;
 
         Widget content = Padding(
@@ -3297,10 +3407,13 @@ class SubpageInfoContainer extends StatelessWidget {
                     onLongPress: _openAdvancedPlayDialog,
                   ),
                   if (customArtworkManager != null)
-                    NamidaButton(
-                      icon: Broken.gallery_edit,
-                      tooltip: () => lang.editArtwork,
-                      onTap: customArtworkManager.showEditDialog,
+                    CustomArtworkSourceMenu(
+                      manager: customArtworkManager,
+                      childBuilder: (openMenu) => NamidaButton(
+                        icon: Broken.gallery_edit,
+                        tooltip: () => lang.editArtwork,
+                        onTap: openMenu,
+                      ),
                     ),
                   if (onOpenMenu != null)
                     NamidaButton(
@@ -3888,7 +4001,7 @@ class AnimatingTile extends StatelessWidget {
     }
 
     if (NamidaFeaturesVisibility.tiltingCardsEffect) {
-      if (allowTilting && settings.extra.tiltingCardsEffect.value == true) {
+      if (allowTilting && settings.extra.tiltingCardsEffect.value) {
         child = _EncapsulateWithTilt(
           isInOpenSpace: false,
           child: child,
@@ -3940,7 +4053,7 @@ class AnimatingGrid extends StatelessWidget {
     }
 
     if (NamidaFeaturesVisibility.tiltingCardsEffect) {
-      if (settings.extra.tiltingCardsEffect.value == true) {
+      if (settings.extra.tiltingCardsEffect.value) {
         child = _EncapsulateWithTilt(
           isInOpenSpace: isInOpenSpace,
           child: child,
@@ -4100,6 +4213,10 @@ class SearchPageTitleRow extends StatelessWidget {
   final Widget? trailing;
   final Widget? subtitleWidget;
   final Widget? leading;
+  final Widget? titleTrailing;
+  final NColors? color;
+  final VoidCallback? onTap;
+  final double verticalPadding;
 
   const SearchPageTitleRow({
     super.key,
@@ -4109,25 +4226,44 @@ class SearchPageTitleRow extends StatelessWidget {
     this.trailing,
     this.subtitleWidget,
     this.leading,
+    this.titleTrailing,
+    this.color,
+    this.onTap,
+    this.verticalPadding = 0.0,
   });
+
+  static const _kTappableMargin = EdgeInsets.symmetric(horizontal: 8.0);
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final row = Row(
       children: [
-        const SizedBox(width: 16.0),
         Expanded(
           child: Row(
             children: [
-              leading ?? Icon(icon),
+              leading ??
+                  NIcon(
+                    icon,
+                    color: color,
+                  ),
               const SizedBox(width: 8.0),
               Flexible(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    NamidaText(
-                      title,
-                      style: const NText(.large, size: .s15p5),
+                    Row(
+                      mainAxisSize: .min,
+                      spacing: 4.0,
+                      children: [
+                        Flexible(
+                          child: NamidaText(
+                            title,
+                            style: const NText(.large, size: .s15p5),
+                            color: color,
+                          ),
+                        ),
+                        ?titleTrailing,
+                      ],
                     ),
                     ?subtitleWidget,
                     if (subtitle != '')
@@ -4142,8 +4278,30 @@ class SearchPageTitleRow extends StatelessWidget {
           ),
         ),
         ?trailing,
-        const SizedBox(width: 8.0),
       ],
+    );
+    final content = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: NamidaButton.kDefaultMinHeight),
+      child: row,
+    );
+    final onTap = this.onTap;
+    if (onTap == null) {
+      return Padding(
+        padding: EdgeInsets.only(
+          left: 16.0,
+          right: 8.0,
+          top: verticalPadding,
+          bottom: verticalPadding,
+        ),
+        child: content,
+      );
+    }
+    return NamidaInkWell(
+      margin: _kTappableMargin,
+      padding: EdgeInsets.only(left: 8.0, top: verticalPadding, bottom: verticalPadding),
+      borderRadius: 12.0,
+      onTap: onTap,
+      child: content,
     );
   }
 }
@@ -4227,6 +4385,27 @@ class NoResultsWidget extends StatelessWidget {
   }
 }
 
+abstract class NamidaGradients {
+  /// the logo card look, a darker blend of [scaffold] at the top left fading into more [accent] at the bottom right.
+  static LinearGradient accentCard({
+    required Color scaffold,
+    required Color accent,
+    required bool isDarkMode,
+    double endAccentOpacity = 0.35,
+    double opacity = 1.0,
+  }) {
+    final scaffoldBgColor = Color.alphaBlend(scaffold.withOpacityExt(0.5), isDarkMode ? Colors.black : Colors.white);
+    final endScaffoldOpacity = 1.0 - endAccentOpacity;
+    final beginColor = Color.alphaBlend(scaffoldBgColor.withOpacityExt(0.90), accent).withOpacityExt(opacity);
+    final endColor = Color.alphaBlend(scaffoldBgColor.withOpacityExt(endScaffoldOpacity), accent).withOpacityExt(opacity);
+    return LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [beginColor, endColor],
+    );
+  }
+}
+
 class NamidaLogoContainer extends StatelessWidget {
   final double? width, height;
   final double iconSize;
@@ -4253,7 +4432,6 @@ class NamidaLogoContainer extends StatelessWidget {
     final nColors = NColorsData.targetOf(context);
     final isDarkMode = context.isDarkMode;
     final colorScheme = CurrentColor.inst.color;
-    final scaffoldBgColor = Color.alphaBlend(nColors.scaffold.withOpacityExt(0.5), isDarkMode ? Colors.black : Colors.white);
     const foregroundColorOpacity = 0.8;
     final foregroundColor = Color.alphaBlend(colorScheme.withOpacityExt(0.1), nColors.onSurface).withOpacityExt(foregroundColorOpacity);
     return NamidaInkWell(
@@ -4274,14 +4452,7 @@ class NamidaLogoContainer extends StatelessWidget {
         border: Border.all(
           color: colorScheme.withOpacityExt(0.5),
         ),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color.alphaBlend(scaffoldBgColor.withOpacityExt(0.90), colorScheme).withOpacityExt(1.0),
-            Color.alphaBlend(scaffoldBgColor.withOpacityExt(0.65), colorScheme).withOpacityExt(1.0),
-          ],
-        ),
+        gradient: NamidaGradients.accentCard(scaffold: nColors.scaffold, accent: colorScheme, isDarkMode: isDarkMode),
         boxShadow: [
           lighterShadow
               ? BoxShadow(
@@ -6260,7 +6431,11 @@ class NamidaTabViewState extends State<NamidaTabView> with SingleTickerProviderS
               ?.map(
                 (e) => Padding(
                   padding: itemsPadding,
-                  child: Text(e, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  child: Text(
+                    e,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               )
               .toList() ??
@@ -6269,7 +6444,11 @@ class NamidaTabViewState extends State<NamidaTabView> with SingleTickerProviderS
               .map(
                 (e) => Padding(
                   padding: itemsPadding,
-                  child: Text(e.toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  child: Text(
+                    e.toString(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               )
               .toList(),
@@ -6396,7 +6575,7 @@ class NamidaScrollbar extends StatelessWidget {
   }
 
   ScrollbarThumbLabelResolver? _createThumbLabelIfEnabled() {
-    if (settings.scrollbarThumbLabel.value != true) return null;
+    if (!settings.scrollbarThumbLabel.value) return null;
     return thumbLabel?.call();
   }
 
@@ -6404,17 +6583,16 @@ class NamidaScrollbar extends StatelessWidget {
   Widget build(BuildContext context) {
     if (controller == null) return child;
     return ObxO(
-      rx: settings.easyScrollbarGrab,
-      builder: (context, easyScrollbarGrab) => CupertinoScrollbar(
+      rx: settings.instantThumbGrab,
+      builder: (context, instantThumbGrab) => CupertinoScrollbar(
         controller: controller,
         showOnStart: showOnStart,
         scrollStep: scrollStep,
         thicknessWhileDragging: 8.5,
-        minInteractiveSize: easyScrollbarGrab == true ? 96.0 : 60.0,
+        minInteractiveSize: instantThumbGrab ? 96.0 : 60.0,
         pressDuration: isDesktop ? const Duration(milliseconds: 50) : const Duration(milliseconds: 120),
-        tapToScroll: () => settings.tapToScroll.value ?? false,
-        enhancedDragToScroll: () => settings.enhancedDragToScroll.value ?? true,
-        instantThumbGrab: () => settings.easyScrollbarGrab.value ?? false,
+        trackMode: () => settings.scrollbarTrackMode.value,
+        instantThumbGrab: () => settings.instantThumbGrab.value,
         onThumbLongPressStart: () => isScrollbarThumbDragging = true,
         onThumbLongPressEnd: () => isScrollbarThumbDragging = false,
         thumbLabel: thumbLabel == null ? null : _createThumbLabelIfEnabled,
@@ -6427,12 +6605,14 @@ class NamidaScrollbar extends StatelessWidget {
 class NamidaScrollbarWithController extends StatefulWidget {
   /// used as is and never disposed, a new one is created otherwise.
   final ScrollController? controller;
+  final LibraryTab? libraryTab;
   final bool showOnStart;
   final double scrollStep;
   final Widget Function(ScrollController sc) child;
   const NamidaScrollbarWithController({
     super.key,
     this.controller,
+    this.libraryTab,
     this.showOnStart = false,
     this.scrollStep = 0.0,
     required this.child,
@@ -6451,11 +6631,15 @@ class _NamidaScrollbarWithControllerState extends State<NamidaScrollbarWithContr
     final controller = widget.controller;
     _ownsController = controller == null;
     _sc = controller ?? NamidaScrollController.create();
+    final libraryTab = widget.libraryTab;
+    if (libraryTab != null) ScrollSearchController.inst.registerPageScrollController(libraryTab, _sc);
     super.initState();
   }
 
   @override
   void dispose() {
+    final libraryTab = widget.libraryTab;
+    if (libraryTab != null) ScrollSearchController.inst.unregisterPageScrollController(libraryTab, _sc);
     if (_ownsController) _sc.dispose();
     super.dispose();
   }
@@ -6613,13 +6797,13 @@ class _DelayedAnimatedShowState extends State<DelayedAnimatedShow> {
 class QueueUtilsRow extends StatelessWidget {
   final String Function(int number) itemsKeyword;
   final void Function() onAddItemsTap;
-  final Widget scrollQueueWidget;
+  final QueueScrollFollower queueFollower;
 
   const QueueUtilsRow({
     super.key,
     required this.itemsKeyword,
     required this.onAddItemsTap,
-    required this.scrollQueueWidget,
+    required this.queueFollower,
   });
 
   @override
@@ -6631,6 +6815,7 @@ class QueueUtilsRow extends StatelessWidget {
         NamidaButton(
           tooltip: () => lang.remove,
           icon: Broken.broom,
+          isGradient: true,
           onTap: () {
             void removedSnack(int removedCount) => snackyy(
               top: false,
@@ -6679,10 +6864,19 @@ class QueueUtilsRow extends StatelessWidget {
         NamidaButton(
           tooltip: () => lang.newTracksAdd,
           icon: Broken.add_circle,
+          isGradient: true,
           onTap: () => onAddItemsTap(),
         ),
         const SizedBox(width: 6.0),
-        scrollQueueWidget,
+        ObxO(
+          rx: queueFollower.arrowIcon,
+          builder: (context, arrowIcon) => NamidaButton(
+            tooltip: () => lang.jump,
+            icon: arrowIcon,
+            isGradient: true,
+            onTap: queueFollower.animateToCurrentItem,
+          ),
+        ),
         const SizedBox(width: 6.0),
         const _QueueShuffleButton(),
         const SizedBox(width: 12.0),
@@ -7642,132 +7836,6 @@ class NamidaHistoryDayHeaderBox extends StatelessWidget {
   }
 }
 
-class NamidaClearDialogExpansionTile<T> extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final List<T> items;
-  final ({String title, String? subtitle, String path}) Function(T item) itemBuilder;
-  final int Function(T item) itemSize;
-  final RxMap<File, int>? tempFilesSize;
-  final Rx<bool>? tempFilesDelete;
-  final RxMap<String, bool> pathsToDelete;
-  final Rx<int> totalSizeToDelete;
-  final Rx<bool> allSelected;
-
-  const NamidaClearDialogExpansionTile({
-    super.key,
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.items,
-    required this.itemBuilder,
-    required this.itemSize,
-    required this.tempFilesSize,
-    required this.tempFilesDelete,
-    required this.pathsToDelete,
-    required this.totalSizeToDelete,
-    required this.allSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final nColors = NColorsData.of(context);
-    final tempFilesSize = this.tempFilesSize;
-    final tempFilesDelete = this.tempFilesDelete;
-    return NamidaExpansionTile(
-      initiallyExpanded: true,
-      titleText: title,
-      subtitleText: subtitle,
-      icon: icon,
-      trailingBuilder: (iconWidget) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          NDecoratedBox(
-            decoration: (colors) => BoxDecoration(
-              color: colors.card,
-              borderRadius: BorderRadius.circular(6.0.multipliedRadius),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 3.0),
-              child: Text("${items.length}"),
-            ),
-          ),
-          const SizedBox(width: 6.0),
-          iconWidget,
-        ],
-      ),
-      childrenPadding: const EdgeInsetsDirectional.only(end: 8.0, top: 6.0),
-      children: [
-        ...items.map(
-          (item) {
-            final data = itemBuilder(item);
-            return SmallListTile(
-              borderRadius: 12.0,
-              icon: Broken.arrow_right_3,
-              iconSize: 20.0,
-              color: nColors.card,
-              visualDensity: const VisualDensity(horizontal: -3.0, vertical: -3.0),
-              title: data.title,
-              subtitle: data.subtitle,
-              active: false,
-              onTap: () {
-                final wasTrue = pathsToDelete[data.path] == true;
-                final willEnable = !wasTrue;
-                pathsToDelete[data.path] = willEnable;
-                if (willEnable) {
-                  totalSizeToDelete.value += itemSize(item);
-                } else {
-                  totalSizeToDelete.value -= itemSize(item);
-                }
-                allSelected.value = false;
-              },
-              trailing: Obx(
-                (context) => NamidaCheckMark(
-                  size: 16.0,
-                  active: pathsToDelete[data.path] == true,
-                ),
-              ),
-            );
-          },
-        ),
-        if (tempFilesSize != null && tempFilesDelete != null)
-          Obx(
-            (context) {
-              final size = tempFilesSize.values.fold(0, (p, e) => p + e);
-              if (size <= 0) return const SizedBox();
-              return SmallListTile(
-                borderRadius: 12.0,
-                icon: Broken.broom,
-                iconSize: 20.0,
-                color: nColors.card,
-                visualDensity: const VisualDensity(horizontal: -3.0, vertical: -3.0),
-                title: lang.deleteTempFiles,
-                subtitle: size.fileSizeFormatted,
-                active: false,
-                onTap: () {
-                  tempFilesDelete.toggle();
-                  if (tempFilesDelete.value) {
-                    totalSizeToDelete.value += size;
-                  } else {
-                    totalSizeToDelete.value -= size;
-                  }
-                },
-                trailing: ObxO(
-                  rx: tempFilesDelete,
-                  builder: (context, deletetemp) => NamidaCheckMark(
-                    size: 16.0,
-                    active: deletetemp,
-                  ),
-                ),
-              );
-            },
-          ),
-      ],
-    );
-  }
-}
-
 /// Returns [AnimatedTheme] or [Theme] based on [settings.animatedTheme].
 class EnableDisablePlaylistReordering extends StatelessWidget {
   final String playlistName;
@@ -8490,6 +8558,13 @@ class _NamidaArtworkFullscreenState extends State<NamidaArtworkFullscreen> {
     NamidaOnTaps.inst.showSavedImageInSnack(savePath, widget.themeColor?.call());
   }
 
+  void _share() async {
+    final resolved = _resolvedImages[_currentIndex.value];
+    if (resolved == null) return;
+    final path = await resolved.getSharablePath();
+    await NamidaUtils.shareFiles([path]);
+  }
+
   void _saveCollage(Future<String?> Function(BuildContext context) onSaveCollage) async {
     final savePath = await onSaveCollage(context);
     NamidaOnTaps.inst.showSavedImageInSnack(savePath, widget.themeColor?.call());
@@ -8631,6 +8706,11 @@ class _NamidaArtworkFullscreenState extends State<NamidaArtworkFullscreen> {
                             onPressed: _save,
                           ),
                         ),
+                        NamidaIconButton(
+                          tooltip: () => lang.share,
+                          icon: Broken.share,
+                          onPressed: _share,
+                        ),
                       ],
                     ),
                   ),
@@ -8733,8 +8813,17 @@ class _ResolvedFullscreenImage {
   final Uint8List? bytes;
   final ImageProvider provider;
 
-  _ResolvedFullscreenImage.file(File this.file) : bytes = null, provider = FileImage(file);
+  _ResolvedFullscreenImage.file(File this.file) : bytes = null, provider = ArtworkWidget.fileImageOf(file.path);
   _ResolvedFullscreenImage.bytes(Uint8List this.bytes) : file = null, provider = MemoryImage(bytes);
+
+  Future<String> getSharablePath() async {
+    final file = this.file;
+    if (file != null) return file.path;
+    final bytesFilePath = FileParts.joinPath(AppDirs.APP_CACHE, 'namida_shared_image.png');
+    final bytesFile = File(bytesFilePath);
+    await bytesFile.writeAsBytes(bytes!);
+    return bytesFile.path;
+  }
 }
 
 class ObxPrefer<T> extends StatelessWidget {
@@ -8745,7 +8834,12 @@ class ObxPrefer<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return enabled ? ObxO(rx: rx, builder: builder) : builder(context, null);
+    return enabled
+        ? ObxO(
+            rx: rx,
+            builder: builder,
+          )
+        : builder(context, null);
   }
 }
 
@@ -8756,7 +8850,12 @@ class ObxOrNull<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return rx != null ? ObxO(rx: rx!, builder: builder) : builder(context, null);
+    return rx != null
+        ? ObxO(
+            rx: rx!,
+            builder: builder,
+          )
+        : builder(context, null);
   }
 }
 
@@ -9322,6 +9421,7 @@ class _QueueShuffleButton extends StatelessWidget {
           text: lang.shuffle,
           icon: Broken.shuffle,
           colors: shuffleQueue ? NamidaButtonColors.selected : NamidaButtonColors.normal,
+          isGradient: !shuffleQueue,
           foregroundPainterBuilder: edgesPainterBuilder,
           onTap: () => _onTap(context),
           onLongPress: () => _showModesMenu(context),

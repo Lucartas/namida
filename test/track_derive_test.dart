@@ -12,6 +12,7 @@ import 'package:namida/class/split_config.dart';
 import 'package:namida/class/track.dart';
 import 'package:namida/controller/indexer_controller.dart';
 import 'package:namida/core/constants.dart';
+import 'package:namida/core/enums.dart';
 
 void main() {
   late Directory dir;
@@ -309,7 +310,15 @@ void main() {
     });
 
     test('disc total is read when the disc number has none', () async {
-      final fresh = await index(pathOf('disc.mp3'), editTags(title: 'T', artist: 'Ar', discNumber: '1', discTotal: '2'));
+      final fresh = await index(
+        pathOf('disc.mp3'),
+        editTags(
+          title: 'T',
+          artist: 'Ar',
+          discNumber: '1',
+          discTotal: '2',
+        ),
+      );
       expect(fresh.discNo, 1);
       expect(fresh.discTo, 2);
     });
@@ -385,7 +394,12 @@ void main() {
   });
 
   group('missing embedded artwork', () {
-    FTags tagsWith(FArtwork artwork) => FTags.edit(path: '', artwork: artwork, title: 'T', artist: 'Ar');
+    FTags tagsWith(FArtwork artwork) => FTags.edit(
+      path: '',
+      artwork: artwork,
+      title: 'T',
+      artist: 'Ar',
+    );
 
     test('is known only when indexing extracted the artwork and found none', () async {
       final none = await index(pathOf('none.mp3'), tagsWith(FArtwork()), didExtractArtwork: true);
@@ -488,5 +502,22 @@ void main() {
     expect(TrackExtended.parseTrackNumber('1-2'), (1, 2));
     expect(TrackExtended.parseTrackNumber(''), (null, null));
     expect(TrackExtended.parseTrackNumber(null), null);
+  });
+
+  test('explicit status is indexed, kept through json, edited and cleared', () async {
+    final path = pathOf('explicit.mp3');
+    final indexed = await index(path, FTags.edit(path: path, artwork: FArtwork(), title: 'Song', itunesAdvisory: '4'));
+    expect(indexed.explicitStatus, ExplicitStatus.explicit);
+    expect(reload(indexed).explicitStatus, ExplicitStatus.explicit);
+
+    final otherFieldEdited = editedFrom(indexed, FTags.edit(path: '', artwork: FArtwork(), title: 'New'));
+    expect(otherFieldEdited.explicitStatus, ExplicitStatus.explicit);
+
+    final clean = editedFrom(indexed, FTags.edit(path: '', artwork: FArtwork(), itunesAdvisory: '2'));
+    expect(clean.explicitStatus, ExplicitStatus.clean);
+
+    final cleared = editedFrom(clean, FTags.edit(path: '', artwork: FArtwork(), itunesAdvisory: ''));
+    expect(cleared.explicitStatus, isNull);
+    expect(cleared.toJsonWithoutPath().containsKey('explicit'), isFalse);
   });
 }

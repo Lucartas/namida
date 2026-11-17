@@ -295,6 +295,7 @@ class _SubsonicWebServer extends MusicWebServer {
       albums: albums,
       splitConfig: splitConfig,
       indexedTracks: indexedTracks,
+      includeVideos: settings.includeVideos.value,
     );
 
     await for (final trExt in stream) {
@@ -337,6 +338,7 @@ class _SubsonicWebServer extends MusicWebServer {
       }
 
       final playlists = res.response.data?.playlists ?? [];
+      final includeVideos = settings.includeVideos.value;
       final result = <WebServerPlaylist>[];
       for (final pl in playlists) {
         final createdMS = pl.created?.millisecondsSinceEpoch;
@@ -349,7 +351,8 @@ class _SubsonicWebServer extends MusicWebServer {
           if (detail.response.error != null) {
             _checkResError(authDetails.dir, detail);
           } else {
-            final songs = detail.response.data?.songs ?? [];
+            final allSongs = detail.response.data?.songs ?? [];
+            final songs = includeVideos ? allSongs : allSongs.where((s) => s.isVideo != true);
             tracks = songs.map(
               (s) => _mediaModelToTrackExtended(
                 s,
@@ -399,17 +402,19 @@ class _SubsonicWebServer extends MusicWebServer {
     required List<AlbumModel> albums,
     required SplitArtistGenreConfigsWrapper splitConfig,
     required Map<String, TrackExtended>? indexedTracks,
+    required bool includeVideos,
   }) async* {
     const subBatchSize = 10;
     for (var i = 0; i < albums.length; i += subBatchSize) {
       final batch = albums.skip(i).take(subBatchSize);
-      final futures = batch.map((album) => api.api.getAlbum(album.id));
+      final futures = batch.map((album) => _getAlbumRetryingOnce(api, album.id));
       final results = await Future.wait(futures);
 
       for (final albumDetail in results) {
         final album = albumDetail.response.data;
         final songs = album?.song ?? [];
         for (final s in songs) {
+          if (!includeVideos && s.isVideo == true) continue;
           final path = _serverTrackPath(serverUriParsed, s.id);
           final lyrics = indexedTracks?[path]?.lyrics ?? '';
           yield _mediaModelToTrackExtended(
@@ -422,6 +427,15 @@ class _SubsonicWebServer extends MusicWebServer {
           );
         }
       }
+    }
+  }
+
+  /// ios closes sockets while the app is in background, a missing album would count its tracks as removed.
+  static Future<SubsonicResponse<AlbumModel>> _getAlbumRetryingOnce(SubsonicApi api, String albumId) async {
+    try {
+      return await api.api.getAlbum(albumId);
+    } on DioException {
+      return api.api.getAlbum(albumId);
     }
   }
 
@@ -480,6 +494,7 @@ class _SubsonicWebServer extends MusicWebServer {
     );
     final bpm = media.bpm;
     final validBpm = bpm == null || bpm <= 0 ? null : bpm;
+    final extraTags = _extraTagsOf(media, album);
 
     return TrackExtended.derive(
       splitConfig: splitConfig,
@@ -520,18 +535,32 @@ class _SubsonicWebServer extends MusicWebServer {
       releaseType: releaseType,
       bpm: validBpm,
       musicalKey: '',
+      explicitStatus: ExplicitStatus.fromOpenSubsonic(media.explicitStatus),
       rating: (media.userRating ?? 0) / 5.0,
       originalTags: null,
       gainData: gainData,
       sortInfo: sortInfo,
       multiValues: multiValues,
-      extraTags: null,
+      extraTags: extraTags,
       hashKey: media.id, // TrackExtended.generateHashKeyIfEnabled(null, path, null)
       isVideo: media.isVideo ?? false,
       server: server,
       serverFolder: serverFolder,
+      serverVideos: null,
       hasNoEmbeddedArtwork: false,
     );
+  }
+
+  static Map<String, String>? _extraTagsOf(MediaModel media, AlbumModel? album) {
+    final recordingId = media.musicBrainzId?.nullifyEmpty();
+    final albumId = album?.musicBrainzId?.nullifyEmpty();
+    final isrc = media.isrc.firstWhereEff((e) => e.isNotEmpty);
+    if (recordingId == null && albumId == null && isrc == null) return null;
+    return {
+      TagLibField.MUSICBRAINZ_TRACKID: ?recordingId,
+      TagLibField.MUSICBRAINZ_ALBUMID: ?albumId,
+      TagLibField.isrc: ?isrc,
+    };
   }
 }
 
@@ -563,7 +592,14 @@ const _kSubsonicMainLyricsKind = 'main';
 TrackExtended debugSubsonicMediaToTrack(MediaModel media, {AlbumModel? album, required SplitArtistGenreConfigsWrapper splitConfig, required String server}) {
   final serverUriParsed = Uri.parse(server);
   final path = _serverTrackPath(serverUriParsed, media.id);
-  return _SubsonicWebServer._mediaModelToTrackExtended(media, album: album, path: path, lyrics: '', splitConfig: splitConfig, server: server);
+  return _SubsonicWebServer._mediaModelToTrackExtended(
+    media,
+    album: album,
+    path: path,
+    lyrics: '',
+    splitConfig: splitConfig,
+    server: server,
+  );
 }
 
 @visibleForTesting

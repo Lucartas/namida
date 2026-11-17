@@ -6,6 +6,7 @@ import 'package:namida/class/folder.dart';
 import 'package:namida/class/queue.dart';
 import 'package:namida/controller/folders_controller.dart';
 import 'package:namida/controller/playlist_controller.dart';
+import 'package:namida/controller/smart_playlists/smart_playlists_controller.dart';
 import 'package:namida/controller/time_ago_controller.dart';
 import 'package:namida/controller/vibrator_controller.dart';
 import 'package:namida/core/dimensions.dart';
@@ -122,18 +123,23 @@ class QueueCard extends StatelessWidget {
     final queue = this.queue;
     final sourceText = queue?.toSourceText();
     File? existingArtworkFile;
-    if (queue?.source.s == QueueSourceEnum.playlist) {
-      final plName = queue?.source.title;
-      if (plName != null && plName.isNotEmpty) {
-        final artworkFile = PlaylistController.inst.getArtworkFileForPlaylist(plName);
-        if (artworkFile.existsSync()) existingArtworkFile = artworkFile;
-      }
+    final sourceType = queue?.source.s;
+    final sourceTitle = queue?.source.title;
+    if (sourceTitle != null && sourceTitle.isNotEmpty) {
+      final artworkFile = switch (sourceType) {
+        QueueSourceEnum.playlist => PlaylistController.inst.getArtworkFileForPlaylist(sourceTitle),
+        QueueSourceEnum.smartPlaylist => SmartPlaylistsController.inst.getArtworkFileForKey(sourceTitle),
+        _ => null,
+      };
+      if (artworkFile != null && artworkFile.existsSync()) existingArtworkFile = artworkFile;
     }
 
     final height = this.height;
     final imageSize = (width - Dimensions.gridHorizontalPadding * 2).withMinimum(0.0);
     final remainingVerticalSpace = height == null ? 48.0 : (height - imageSize).withMinimum(0.0);
     double getFontSize(double m) => (remainingVerticalSpace * m * 0.9).withMaximum(15.0);
+    final titleFontMultiplier = fullInfo ? 0.28 : 0.31;
+    final subtitleFontMultiplier = fullInfo ? 0.23 : 0.26;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Dimensions.gridHorizontalPadding),
@@ -197,7 +203,7 @@ class QueueCard extends StatelessWidget {
                                       ?sourceText,
                                     ].joinText(separator: ' - ')
                                   : sourceText ?? queue.source.toText(),
-                              style: NText.medium.of(context).copyWith(fontSize: getFontSize(0.28)),
+                              style: NText.medium.of(context).copyWith(fontSize: getFontSize(titleFontMultiplier)),
                               textAlign: TextAlign.start,
                               softWrap: false,
                               overflow: TextOverflow.fade,
@@ -211,7 +217,7 @@ class QueueCard extends StatelessWidget {
                                   queue.tracks.displayTrackKeyword,
                                   queue.tracks.totalDurationFormatted,
                                 ].joinText(separator: ' - '),
-                                style: NText.small.of(context).copyWith(fontSize: getFontSize(0.23)),
+                                style: NText.small.of(context).copyWith(fontSize: getFontSize(subtitleFontMultiplier)),
                                 softWrap: false,
                                 overflow: TextOverflow.fade,
                               ),
@@ -220,7 +226,7 @@ class QueueCard extends StatelessWidget {
                             tag: 'line3_$hero',
                             child: Text(
                               fullInfo ? queue.date.dateAndClockFormattedOriginal : TimeAgoController.dateMSSEFromNow(queue.date),
-                              style: NText.small.of(context).copyWith(fontSize: getFontSize(0.23)),
+                              style: NText.small.of(context).copyWith(fontSize: getFontSize(subtitleFontMultiplier)),
                               softWrap: false,
                               overflow: TextOverflow.fade,
                             ),

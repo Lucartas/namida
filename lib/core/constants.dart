@@ -560,17 +560,17 @@ enum AppPathsBackupEnum {
   // ================= User Data =================
   HISTORY_PLAYLIST(true),
   PLAYLISTS(true),
-  PLAYLISTS_ARTWORKS(true),
-  SMART_PLAYLISTS_ARTWORKS(true),
+  PLAYLISTS_ARTWORKS(true, true),
+  SMART_PLAYLISTS_ARTWORKS(true, true),
   PLAYLISTS_METADATA(true),
   QUEUES(true),
-  ARTWORKS(true),
-  ARTWORKS_ARTISTS(true),
-  ARTWORKS_ALBUMS(true),
+  ARTWORKS(true, true),
+  ARTWORKS_ARTISTS(true, true),
+  ARTWORKS_ALBUMS(true, true),
   PALETTES(true),
   VIDEOS_CACHE(true),
   AUDIOS_CACHE(true),
-  THUMBNAILS(true),
+  THUMBNAILS(true, true),
   LYRICS(true),
   M3UBackup(true),
   RECENTLY_DELETED(true),
@@ -580,11 +580,11 @@ enum AppPathsBackupEnum {
   YOUTIPIE_CACHE(true),
 
   YT_PLAYLISTS(true),
-  YT_PLAYLISTS_ARTWORKS(true),
+  YT_PLAYLISTS_ARTWORKS(true, true),
   YT_PLAYLISTS_METADATA(true),
   YT_HISTORY_PLAYLIST(true),
-  YT_THUMBNAILS(true),
-  YT_THUMBNAILS_CHANNELS(true),
+  YT_THUMBNAILS(true, true),
+  YT_THUMBNAILS_CHANNELS(true, true),
 
   YT_STATS(true),
   YT_PALETTES(true),
@@ -592,7 +592,8 @@ enum AppPathsBackupEnum {
   ;
 
   final bool isDir;
-  const AppPathsBackupEnum([this.isDir = false]);
+  final bool hasImages;
+  const AppPathsBackupEnum([this.isDir = false, this.hasImages = false]);
 
   /// whether this item supports being synced across devices.
   /// true: supported
@@ -859,6 +860,7 @@ class AppPaths {
   static final SETTINGS_YOUTUBE = _join(_USER_DATA, 'namida_settings_youtube.json');
   static final SETTINGS_EXTRA = _join(_USER_DATA, 'namida_settings_extra.json');
   static final SETTINGS_SYNC = _join(_USER_DATA, 'namida_settings_sync.json');
+  static final SYNC_PENDING_PATHS = _join(_USER_DATA, 'sync_pending_paths.json');
   static final SETTINGS_PARTY = _join(_USER_DATA, 'namida_settings_party.json');
   static final SETTINGS_TUTORIAL = _join(_USER_DATA, 'namida_settings_tutorial.json');
   static final SETTINGS_SHORTCUTS = _join(_USER_DATA, 'namida_settings_shortcuts.json');
@@ -873,6 +875,7 @@ class AppPaths {
   static final VIDEOS_CACHE_DB_INFO = DbWrapperFileInfo(directory: _USER_DATA, dbName: 'cache_videos');
   static final LATEST_QUEUE = _join(_USER_DATA, 'latest_queue.json');
   static final TRACKS_FILTERED = _join(_USER_DATA, 'tracks_filtered.json');
+  static final TRACKS_DUPLICATED = _join(_USER_DATA, 'tracks_duplicated.json');
 
   // -- obsolete
   static final TRACKS_OLD = _join(_USER_DATA, 'tracks.json');
@@ -899,6 +902,7 @@ class AppPaths {
     );
     final leftoverDirectory = outputDirectory == null ? tmpDirContents : tmpDirParent;
     leftoverDirectory.delete(recursive: true);
+    if (outputDirectory != null) NamidaChannel.inst.scanMediaFilesTry([zipFile.path]);
     return [zipFile.path];
   }
 
@@ -932,6 +936,13 @@ class AppPaths {
       await youtubeInfoFile.writeAsString(_getYoutubeInfo());
       existingPaths.add(youtubeInfoFile);
     } catch (_) {}
+    if (Platform.isAndroid) {
+      final nativeLogsFile = FileParts.join(tmpDirPath, 'logs_native.txt');
+      try {
+        final didWrite = await _writeNativeLogs(nativeLogsFile);
+        if (didWrite) existingPaths.add(nativeLogsFile);
+      } catch (_) {}
+    }
     final redactor = _LogsRedactor();
     for (final p in [
       AppPaths.LOGS,
@@ -953,6 +964,18 @@ class AppPaths {
       if (settingsFile != null) existingPaths.add(settingsFile);
     }
     return existingPaths;
+  }
+
+  static const _kNativeLogTags = ['UsbDirectManager', 'UsbAudioDevice', 'UsbAudioStream'];
+
+  /// logcat only gives the app its own lines, from a ring buffer, so these cover the recent sessions only.
+  static Future<bool> _writeNativeLogs(File destination) async {
+    final res = await Process.run('logcat', ['-d', '-v', 'threadtime', '-s', ..._kNativeLogTags]);
+    final text = res.stdout as String;
+    final hasEntries = LineSplitter.split(text).any((line) => line.isNotEmpty && !line.startsWith('---------'));
+    if (!hasEntries) return false;
+    await destination.writeAsString(text);
+    return true;
   }
 
   static Future<File?> _writeAllSettingsRedacted(_LogsRedactor redactor, {required String tmpDirPath}) async {
@@ -1233,7 +1256,7 @@ class _LogsRedactor {
 
   Future<File?> writeRedactedJson(Map<String, dynamic> json, File destination) async {
     final homeDirectoryRegex = _homeDirectoryRegex;
-    if (homeDirectoryRegex == null) return destination.writeAsJson(json);
+    if (homeDirectoryRegex == null) return destination.writeAsJsonAtomic(json);
 
     final text = _indentedJsonEncoder.convert(json);
     final redactedText = text.replaceAll(homeDirectoryRegex, _redactedHomeDirectory);
@@ -1514,7 +1537,7 @@ class NamidaFileExtensionsWrapper {
   };
 
   static const _lrcExtensions = {
-    'lrc', 'xml', 'ttml', 'srt', 'vtt', 'sbv', 'ssa', 'ass', //
+    'lrc', 'xml', 'ttml', 'srt', 'vtt', 'sbv', 'ssa', 'ass', 'wlrc', //
   };
 
   static const audio = NamidaFileExtensionsWrapper._(_audioExtensions);
@@ -1534,6 +1557,7 @@ class NamidaFileExtensionsWrapper {
   static const jsonAndZip = NamidaFileExtensionsWrapper._({'json', ..._zipExtensions});
   static const jsonHtmlAndZip = NamidaFileExtensionsWrapper._({'json', 'html', ..._zipExtensions});
   static const jsonlAndZip = NamidaFileExtensionsWrapper._({'jsonl', ..._zipExtensions});
+  static const csvJsonAndZip = NamidaFileExtensionsWrapper._({'csv', 'json', ..._zipExtensions});
   static const compressed = NamidaFileExtensionsWrapper._({..._zipExtensions, 'tar', 'gz', 'bz2', 'xz', 'cab', 'iso', 'jar'});
   static const lrcOrTxt = NamidaFileExtensionsWrapper._({..._lrcExtensions, 'txt'});
   static const lrc = NamidaFileExtensionsWrapper._({..._lrcExtensions});
@@ -1586,6 +1610,7 @@ final kDummyExtendedTrack = TrackExtended(
   releaseType: "",
   bpm: 0,
   musicalKey: '',
+  explicitStatus: null,
   rating: 0.0,
   originalTags: null,
   tagsList: [],
@@ -1599,6 +1624,7 @@ final kDummyExtendedTrack = TrackExtended(
   isVideo: false,
   server: null,
   serverFolder: null,
+  serverVideos: null,
   hasNoEmbeddedArtwork: false,
 );
 
@@ -1734,5 +1760,6 @@ class NamidaFeaturesVisibility {
 
   static final isStoragePermissionNotRequired = !_isAndroid;
   static final fileBrowserPrefersSystemPicker = !_isAndroid; // -- ios folders outside the app are only reachable through the system picker
+  static final temporaryFilesVisibleInFileExplorer = !_isIOS; // -- the files app shows only the documents folder
   static final recieveDragAndDrop = _isDesktop;
 }
