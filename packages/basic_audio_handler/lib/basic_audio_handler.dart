@@ -408,6 +408,12 @@ class BasicQueue<Q> {
   void replace(List<Q> items, {List<int>? indices}) => _compileOnlyFailure('BasicQueue.replace');
 }
 
+/// Queue state token required by the newer app API. This offline adapter does
+/// not implement queue restoration, so instances are only a compile-time shape.
+class QueueSnapshot<Q> {
+  const QueueSnapshot();
+}
+
 class CustomAudioPlayer implements AVPlayer {
   CustomAudioPlayer(AudioPlayer _);
 
@@ -461,8 +467,14 @@ class BasicAudioHandler<Q> extends BaseAudioHandler {
   Future<void> refreshCurrentItemPlayerConfig() => _compileOnlyFailure('BasicAudioHandler.refreshCurrentItemPlayerConfig');
   void refreshRxVariables() => _compileOnlyFailure('BasicAudioHandler.refreshRxVariables');
   Future<void> setVolumeWithMultiplier(double value) => _compileOnlyFailure('BasicAudioHandler.setVolumeWithMultiplier');
+  Future<void> setUserVolumeForItem(double value) => _compileOnlyFailure('BasicAudioHandler.setUserVolumeForItem');
   Future<void> setPlayerPitch(double value) => _compileOnlyFailure('BasicAudioHandler.setPlayerPitch');
   Future<void> setPlayerSpeed(double value) => _compileOnlyFailure('BasicAudioHandler.setPlayerSpeed');
+  int? getCurrentItemStartMS() => _compileOnlyFailure('BasicAudioHandler.getCurrentItemStartMS');
+  int? getCurrentItemEndMS() => _compileOnlyFailure('BasicAudioHandler.getCurrentItemEndMS');
+  void setItemPlaybackRange(Q item, {required int? startMS, required int? endMS}) => _compileOnlyFailure('BasicAudioHandler.setItemPlaybackRange');
+  Future<void> seekToItemStart() => _compileOnlyFailure('BasicAudioHandler.seekToItemStart');
+  Future<void> restoreQueue(QueueSnapshot<Q> snapshot) => _compileOnlyFailure('BasicAudioHandler.restoreQueue');
   void invokeQueueModifyLock() => _compileOnlyFailure('BasicAudioHandler.invokeQueueModifyLock');
   void invokeQueueModifyLockRelease({bool isCanceled = false}) => _compileOnlyFailure('BasicAudioHandler.invokeQueueModifyLockRelease');
   int? shuffleNextIndex() => _compileOnlyFailure('BasicAudioHandler.shuffleNextIndex');
@@ -568,7 +580,7 @@ class BasicAudioHandler<Q> extends BaseAudioHandler {
     void Function(List<Q> finalizedQueue, List<int>? originalIndices)? onQueueDifferent,
     void Function(Q currentItem)? onAssigningCurrentItem,
     bool Function(Q? currentItem, Q itemToPlay)? canRestructureQueueOnly,
-    void Function()? onRestructuringQueue,
+    void Function(QueueSnapshot<Q>? previousQueue)? onRestructuringQueue,
     Id Function(Q currentItem)? duplicateRemover,
   }) => _compileOnlyFailure('BasicAudioHandler.assignNewQueue');
 

@@ -33,6 +33,7 @@ class GeneralPlaylist<T, S> {
   List<String> moods;
   List<String> tags;
   bool isPinned;
+  int? pinnedDate;
   bool isFav;
   PlaylistRemoteSource? remoteSource;
   String? m3uPath;
@@ -49,6 +50,7 @@ class GeneralPlaylist<T, S> {
     this.moods = const [],
     this.tags = const [],
     this.isPinned = false,
+    this.pinnedDate,
     this.isFav = false,
     this.remoteSource,
     this.m3uPath,
@@ -70,6 +72,7 @@ class GeneralPlaylist<T, S> {
     List<String>? moods,
     List<String>? tags,
     bool? isPinned,
+    int? pinnedDate,
     bool? isFav,
     String? m3uPath,
     List<S>? sortsType,
@@ -198,6 +201,7 @@ class PlaylistManager<T, I, S> {
   Future<void> replaceTheseTracksInPlaylists(bool Function(T item) test, T Function(T oldItem) replace) => _offlinePlaylistUnavailable('Update playlist tracks');
   Future<void> replaceTheseTracksInPlaylistsBulk(List<MapEntry<bool Function(T item), T Function(T oldItem)>> replacements) =>
       _offlinePlaylistUnavailable('Update playlist tracks');
+  Future<void> replaceTheseTracksInFavourites(bool Function(T item) test, T Function(T oldItem) replace) => _offlinePlaylistUnavailable('Update favourite tracks');
   List<T>? computeCustomOrder(GeneralPlaylist<T, S> playlist) => _offlinePlaylistUnavailable('Playlist order');
   Future<int> importPlaylistsIfNewer(Iterable<GeneralPlaylist<T, S>> playlists) => _offlinePlaylistUnavailable('Import playlists');
   Future<void> importPlaylistForce(GeneralPlaylist<T, S> playlist, {bool sortPlaylists = true, bool tracksFromNewSource = false}) => _offlinePlaylistUnavailable('Import playlist');
@@ -241,6 +245,7 @@ class PlaylistManager<T, I, S> {
   bool toggleTrackFavourite(T item) => _offlinePlaylistUnavailable('Favourites playlist');
   Future<bool> setArtworkForPlaylist(String name, {required File? artworkFile, required Uint8List? artworkBytes}) => _offlinePlaylistUnavailable('Playlist artwork');
   Future<bool> renamePlaylist(String playlistName, String newName) => _offlinePlaylistUnavailable('Rename playlist');
+  Future<bool> renamePlaylistInStorage(GeneralPlaylist<T, S> playlist, String newName) => _offlinePlaylistUnavailable('Rename playlist storage');
   Future<void> prepareAllPlaylistsFile() {
     // Share an active read, but allow explicit reloads after success or failure.
     if (_loadingPlaylists) return _playlistsLoadFuture!;
@@ -248,7 +253,7 @@ class PlaylistManager<T, I, S> {
     return _playlistsLoadFuture = _prepareAllPlaylistsFile().whenComplete(() => _loadingPlaylists = false);
   }
 
-  Future<void> removePlaylists(List<String> names) => _offlinePlaylistUnavailable('Remove playlists');
+  Future<void> removePlaylists(List<String> names, {bool deleteFiles = true}) => _offlinePlaylistUnavailable('Remove playlists');
   Future<void> updatePlaylistsMetadata(Map<String, PlaylistMetadataEdit> edits) => _offlinePlaylistUnavailable('Playlist metadata');
   Future<bool> writePlaylistToStorage(GeneralPlaylist<T, S> playlist) => _offlinePlaylistUnavailable('Playlist storage');
   Future<void> removePlaylist(GeneralPlaylist<T, S> playlist) => _offlinePlaylistUnavailable('Remove playlist');
