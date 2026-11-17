@@ -4,10 +4,14 @@ enum LikeStatus { liked, disliked, undefined, unknown }
 
 enum CommentsSortType { top, newest }
 
+enum FeedbackMenuActionType { notInterested, dontRecommendChannel }
+
 enum YoutiPieOperation {
   addRemoveVideosPlaylist,
   addVideoToHistory,
   changeVideoLikeStatus,
+  sendFeedback,
+  undoFeedback,
   createPlaylist,
   fetchChannelTab,
   fetchFeed,
@@ -62,7 +66,7 @@ enum YoutiPieSearchMatchMode { phrase, title }
 
 enum YoutiPieFetchAllResType { success, fail, alreadyDone, alreadyCanceled, inProgress }
 
-enum InnertubeClients { tv, web, android, ios }
+enum InnertubeClients { tv, tv_samsung, web, android, ios }
 
 class InnertubeClientConfig {
   final bool requireJSPlayer;

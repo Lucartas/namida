@@ -37,6 +37,7 @@ class VideoStreamsResult {
   final String? hlsManifestUrl;
   final String? dashManifestUrl;
   final Map<String, AudioStream>? audioStreamsOrganizedByLanguage;
+  dynamic get failureReport => unavailable('VideoStreamsResult.failureReport');
   const VideoStreamsResult({
     this.videoId = '',
     this.info,

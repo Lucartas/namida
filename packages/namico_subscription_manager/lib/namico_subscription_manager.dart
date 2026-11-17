@@ -33,6 +33,12 @@ class NamicoSupabase {
   Future<SupabaseSub?> getUserSubInCache() => _unavailable('NamicoSupabase.getUserSubInCache');
   Future<SupabaseSub> fetchUserValid({required String uuid, required String email, required String? deviceId}) => _unavailable('NamicoSupabase.fetchUserValid');
   Future<SupabaseSub> claimSubscription({required String uuid, required String email, required String? deviceId}) => _unavailable('NamicoSupabase.claimSubscription');
+  Future<void> requestMove({required String uuid, required String email, required String? deviceId}) => _unavailable('NamicoSupabase.requestMove');
+  Future<SupabaseSub> confirmMove({required String uuid, required String email, required String? deviceId, required String moveCode}) => _unavailable('NamicoSupabase.confirmMove');
+}
+
+class SubscriptionAlreadyClaimedException implements Exception {
+  const SubscriptionAlreadyClaimedException();
 }
 
 class NamicoSubscriptionCache {

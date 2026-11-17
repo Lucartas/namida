@@ -53,6 +53,7 @@ class PlaylistBasicInfo extends MapSerializable {
     bool displayPlay = true,
     bool showProgressSheet = false,
     bool isInFullScreen = false,
+    List<T>? moreMenuChildren,
   }) => unavailable('Playlist actions');
 }
 
