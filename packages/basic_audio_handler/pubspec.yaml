@@ -9,7 +9,7 @@ dependencies:
     git:
       url: https://github.com/MSOB7YY/audio_service
       path: audio_service/
-      ref: minor
+      ref: 84f38b00d346c2fdc48a365d309420ea6824ede3
   just_audio:
     git:
       url: https://github.com/MSOB7YY/just_audio
