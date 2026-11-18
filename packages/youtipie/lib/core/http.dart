@@ -14,6 +14,7 @@ import 'package:youtipie/class/channels/channel_tab_result.dart' show YoutiPieCh
 import 'package:youtipie/class/comments/comment_info_item.dart' show YoutiPieCommentInfoItem;
 import 'package:youtipie/class/comments/comment_info_item_base.dart' show YoutiPieCommentInfoItemBase;
 import 'package:youtipie/class/execute_details.dart' show ExecuteDetails;
+import 'package:youtipie/class/result_wrapper/feedback_holder.dart' show YoutiPieFeedbackAction;
 import 'package:youtipie/class/items_sort.dart' show YoutiPieItemsSort;
 import 'package:youtipie/class/music/music_browse_endpoint.dart' show YoutiPieMusicBrowseEndpoint;
 import 'package:youtipie/class/notification_menu_action.dart' show NotificationMenuAction;
@@ -72,6 +73,7 @@ class YoutiPieStreamInfoItemMemoryCache {
 
 class YoutiPieMemoryCache {
   YoutiPieStreamInfoItemMemoryCache get streamInfoItem => unavailable('YoutiPie.memoryCache.streamInfoItem');
+  dynamic get channelThumbnails => unavailable('YoutiPie.memoryCache.channelThumbnails');
 }
 
 class YoutiPieCacheBuilder {
@@ -241,7 +243,8 @@ class YoutiPieApi {
       unavailable('sponsorblock.getSegments');
   Future<List<SearchSuggestionInfo>?> getSuggestions(String query, {ExecuteDetails? details}) => unavailable('search.getSuggestions');
   Future<YoutiPieUserPlaylistsResult?> getUserPlaylists({ExecuteDetails? details}) => unavailable('userplaylist.getUserPlaylists');
-  Future<void> injectDefaultPlaylistsInUserPlaylists(YoutiPieUserPlaylistsResult? playlists) => unavailable('userplaylist.injectDefaultPlaylistsInUserPlaylists');
+  Future<YoutiPieUserPlaylistsResult?> injectDefaultPlaylistsInUserPlaylists(YoutiPieUserPlaylistsResult? playlists) =>
+      unavailable('userplaylist.injectDefaultPlaylistsInUserPlaylists');
   Future<bool> markNotficationRead({required YoutiPieNotificationResult mainList, required StreamInfoItemNotification notification}) =>
       unavailable('notificationsAction.markNotficationRead');
   Future<bool> markVideoWatched({required String videoId, VideoStreamsResult? streamResult, bool errorOnMissingParam = true}) => unavailable('history.markVideoWatched');
@@ -281,6 +284,7 @@ abstract final class YoutiPie {
   static const YoutiPieApi userplaylist = YoutiPieApi();
   static const YoutiPieApi video = YoutiPieApi();
   static const YoutiPieApi videoAction = YoutiPieApi();
+  static const YoutiPieFeedbackAction feedbackAction = YoutiPieFeedbackAction();
   static const YoutiPieCacheBuilder cacheBuilder = YoutiPieCacheBuilder();
   static const YoutiPieCacheManager cacheManager = YoutiPieCacheManager();
   static const YoutiPieCacheManager cacheManagerSync = YoutiPieCacheManager();
@@ -299,6 +303,8 @@ abstract final class YoutiPie {
   static bool Function(YoutiPieOperation) get canExecuteOperation => unavailable('YoutiPie.canExecuteOperation');
   static set onOperationFailNoAccount(bool Function(YoutiPieOperation) callback) => unavailable('YoutiPie.onOperationFailNoAccount');
   static bool Function(YoutiPieOperation) get onOperationFailNoAccount => unavailable('YoutiPie.onOperationFailNoAccount');
+  static set onWorkerError(void Function(String message, Object? error, StackTrace? stackTrace) callback) {}
+  static void setProxySettings(Object? settings) {}
   static Future<void> initialize({
     required String dataDirectory,
     required String sensitiveDataDirectory,

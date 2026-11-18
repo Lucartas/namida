@@ -90,6 +90,7 @@ class StreamInfoItem extends YoutubeFeed implements PlaylistBasicInfo {
     bool displayPlay = true,
     bool showProgressSheet = false,
     bool isInFullScreen = false,
+    List<T>? moreMenuChildren,
   }) => unavailable('StreamInfoItem.getPopupMenuItems');
   String? get availableDescription => unavailable('StreamInfoItem.availableDescription');
   String buildUrl() => unavailable('Remote video URL');
