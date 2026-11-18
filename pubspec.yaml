@@ -250,6 +250,7 @@ dependencies:
   dart_xdg_status_notifier_item:
     git:
       url: https://github.com/MSOB7YY/dart_xdg_status_notifier_item
+      ref: d735256118b54fec60d401b42bbb6ccd3d1660a3
 
   # ---- Linux Packages ----
   dbus: ^0.7.13
