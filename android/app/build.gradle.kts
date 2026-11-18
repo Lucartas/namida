@@ -85,14 +85,10 @@ android {
 
     signingConfigs {
         getByName("debug") {
-            // Keep Android's generated debug keystore when local signing properties
-            // are absent (for example, in CI).
-            if (keystorePropertiesFile.exists()) {
-                keyAlias = keystoreProperties["keyAlias"] as? String
-                keyPassword = keystoreProperties["keyPassword"] as? String
-                storeFile = (keystoreProperties["storeFile"] as? String)?.let { file(it) }
-                storePassword = keystoreProperties["storePassword"] as? String
-            }
+            keyAlias = keystoreProperties["keyAlias"] as? String
+            keyPassword = keystoreProperties["keyPassword"] as? String
+            storeFile = (keystoreProperties["storeFile"] as? String)?.let { file(it) }
+            storePassword = keystoreProperties["storePassword"] as? String
         }
 
         register("release") {
