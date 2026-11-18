@@ -303,8 +303,8 @@ abstract final class YoutiPie {
   static bool Function(YoutiPieOperation) get canExecuteOperation => unavailable('YoutiPie.canExecuteOperation');
   static set onOperationFailNoAccount(bool Function(YoutiPieOperation) callback) => unavailable('YoutiPie.onOperationFailNoAccount');
   static bool Function(YoutiPieOperation) get onOperationFailNoAccount => unavailable('YoutiPie.onOperationFailNoAccount');
-  static set onWorkerError(void Function(String message, Object? error, StackTrace? stackTrace) callback) => unavailable('YoutiPie.onWorkerError');
-  static void setProxySettings(Object? settings) => unavailable('YoutiPie.setProxySettings');
+  static set onWorkerError(void Function(String message, Object? error, StackTrace? stackTrace) callback) {}
+  static void setProxySettings(Object? settings) {}
   static Future<void> initialize({
     required String dataDirectory,
     required String sensitiveDataDirectory,
