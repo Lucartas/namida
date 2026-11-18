@@ -8,26 +8,34 @@ on:
     branches:
       - main
 
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
-  android:
-    name: Android debug APK
+  dart:
+    name: Dart analysis
     runs-on: ubuntu-22.04
+    env:
+      MISE_ENABLE_TOOLS: http:flutter
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Checkout build submodules
-        run: git submodule update --init external/language external/party_relay
+      - name: Checkout Dart dependency submodule
+        run: git submodule update --init external/party_relay
 
       - name: Install project toolchain
         uses: jdx/mise-action@v5
+        with:
+          cache_key_prefix: mise-v0-${{ env.MISE_ENABLE_TOOLS }}
 
       - name: Resolve dependencies
         run: mise exec -- flutter pub get
 
-      - name: Build debug APK
-        run: mise exec -- flutter build apk --debug
+      - name: Analyze Dart application
+        run: mise exec -- flutter analyze --no-pub lib
